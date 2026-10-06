@@ -1,0 +1,21 @@
+[package]
+name = "mtx-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+hex = "0.4.3"
+liblzma = "0.4.8"
+memmap2 = "0.9.11"
+pgp = "0.21.0"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+sha2 = "0.11.0"
+tar = "0.4.46"
+thiserror = "2.0.21"
+ureq = "3.4.2"
+
+[dev-dependencies]
+tempfile = "3.27.0"
