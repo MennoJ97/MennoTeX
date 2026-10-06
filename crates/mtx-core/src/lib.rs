@@ -3,4 +3,5 @@
 //! access, and the installer.
 
 pub mod index;
+pub mod verify;
 pub mod tlpdb;
