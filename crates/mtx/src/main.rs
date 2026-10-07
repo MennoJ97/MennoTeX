@@ -67,7 +67,32 @@ enum Cmd {
         sums: Option<PathBuf>,
     },
     /// Install packages (and their dependencies).
-    Install { packages: Vec<String> },
+    Install {
+        packages: Vec<String>,
+        /// Install automatically on behalf of PROGRAM (command shims): the
+        /// `autoinstall` setting applies, and the packages count as auto.
+        #[arg(long, value_name = "PROGRAM")]
+        r#for: Option<String>,
+    },
+    /// Show or change settings: `mtx config`, `mtx config KEY`,
+    /// `mtx config KEY VALUE`, `mtx config --unset KEY`.
+    Config {
+        key: Option<String>,
+        value: Option<String>,
+        /// Remove the setting (back to its default).
+        #[arg(long, conflicts_with = "value", requires = "key")]
+        unset: bool,
+    },
+    /// Show recent activity from tlpkg/mtx/mtx.log: installs, and why an
+    /// install failed or was declined (TeX's own log never shows this).
+    Log {
+        /// Number of entries.
+        #[arg(short = 'n', long, default_value_t = 20)]
+        lines: usize,
+        /// Only failed and declined installs.
+        #[arg(long)]
+        problems: bool,
+    },
     /// Remove packages.
     Remove {
         packages: Vec<String>,
@@ -117,10 +142,18 @@ fn main() -> ExitCode {
         return mktexfmt();
     }
     let cli = Cli::parse();
+    let explicit_root = cli.root.clone();
+    let command: Vec<String> = std::env::args().skip(1).collect();
     match run(cli) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("mtx: error: {e:#}");
+            // Also into mtx.log: TeX's log never shows our stderr.
+            if let Ok(root) = Root::discover(explicit_root.as_deref()) {
+                if root.mtx_dir().is_dir() {
+                    mtx_core::ctx::append_log(&root, &format!("error: mtx {}: {e:#}", command.join(" ")));
+                }
+            }
             ExitCode::from(2)
         }
     }
@@ -172,13 +205,54 @@ fn run(cli: Cli) -> Result<ExitCode> {
             };
             eprintln!("mtx: installed {n} binaries; on-demand installation now uses the kpathsea patch");
         }
-        Cmd::Install { packages } => {
+        Cmd::Install { packages, r#for } => {
             let mut ctx = open(&root)?;
             ctx.refresh(false)?;
             let names: Vec<&str> = packages.iter().map(String::as_str).collect();
-            let r = install::install(&mut ctx, &names, Reason::Explicit)?;
+            let reason = if r#for.is_some() { Reason::Auto } else { Reason::Explicit };
+            ctx.ask_for = r#for;
+            let r = match install::install(&mut ctx, &names, reason) {
+                Err(e) if e.downcast_ref::<mtx_core::consent::Declined>().is_some() => return Ok(ExitCode::from(1)),
+                other => other?,
+            };
             if r.installed.is_empty() {
                 eprintln!("mtx: already installed and up to date");
+            }
+        }
+        Cmd::Config { key, value, unset } => {
+            let mut ctx = open(&root)?;
+            match (key, value) {
+                (None, _) => {
+                    for (k, values, help) in mtx_core::config::KEYS {
+                        let v = ctx.db.get(k)?.unwrap_or_else(|| "(default)".into());
+                        println!("{k} = {v}\n    {values}: {help}");
+                    }
+                    if let Ok(env) = std::env::var("MTX_AUTOINSTALL") {
+                        println!("$MTX_AUTOINSTALL = {env} (overrides autoinstall)");
+                    }
+                }
+                (Some(k), None) if unset => {
+                    mtx_core::config::unset(&mut ctx, &k)?;
+                    eprintln!("mtx: {k} reset to its default");
+                }
+                (Some(k), None) => {
+                    if !mtx_core::config::KEYS.iter().any(|(name, _, _)| *name == k) {
+                        bail!("unknown setting `{k}`");
+                    }
+                    println!("{}", ctx.db.get(&k)?.unwrap_or_else(|| "(default)".into()));
+                }
+                (Some(k), Some(v)) => {
+                    let v = mtx_core::config::set(&mut ctx, &k, &v)?;
+                    eprintln!("mtx: {k} = {v}");
+                }
+            }
+        }
+        Cmd::Log { lines, problems } => {
+            let now = mtx_core::db::now_secs();
+            let entries = mtx_core::logview::tail(&root);
+            let shown: Vec<_> = entries.iter().filter(|e| !problems || e.is_problem()).collect();
+            for e in &shown[shown.len().saturating_sub(lines)..] {
+                println!("{:>12}  [{}] {}", mtx_core::logview::age(now, e.at), e.pid, e.msg);
             }
         }
         Cmd::Remove { packages, force } => {
@@ -359,6 +433,9 @@ fn hook(prog: &str) -> ExitCode {
         },
         Err(e) => {
             eprintln!("mtx: {prog} {name}: {e:#}");
+            if let Ok(root) = Root::discover(None) {
+                mtx_core::ctx::append_log(&root, &format!("error: {prog} {name}: {e:#}"));
+            }
             ExitCode::from(1)
         }
     }

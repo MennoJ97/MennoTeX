@@ -94,6 +94,10 @@ pub fn resolve<'a>(idx: &'a Index, kind: &Kind, name: &str) -> Option<Hit<'a>> {
     None
 }
 
+fn is_declined(e: &anyhow::Error) -> bool {
+    e.chain().any(|c| c.downcast_ref::<crate::consent::Declined>().is_some())
+}
+
 fn autoinstall_enabled() -> bool {
     !matches!(std::env::var("MTX_AUTOINSTALL").as_deref(), Ok("0" | "no" | "false"))
 }
@@ -130,16 +134,20 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
         }
         Ok(_) => Some((pkg, rel)),
         Err(e) if is_network_error(&e) => {
-            ctx.log(format!("cannot install {pkg} for {name}: {e:#}"));
+            ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
             return Ok(None);
         }
         Err(e) => return Err(e),
     };
     let Some((pkg, rel)) = target else { return Ok(None) };
-    ctx.log(format!("{name} → installing package {pkg}"));
+    ctx.log(format!("{name} → package {pkg}"));
+    ctx.ask_for = Some(name.to_string());
     if let Err(e) = install::install(&mut ctx, &[&pkg], Reason::Auto) {
+        if is_declined(&e) {
+            return Ok(None);
+        }
         if is_network_error(&e) {
-            ctx.log(format!("cannot install {pkg}: {e:#}"));
+            ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
             return Ok(None);
         }
         return Err(e);
@@ -171,16 +179,19 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
     }
     if let Err(e) = ctx.refresh(false) {
         if is_network_error(&e) {
-            ctx.log(format!("cannot install {pkg}: {e:#}"));
+            ctx.log(format!("error: cannot install {pkg}: {e:#}"));
             return Ok(None);
         }
         return Err(e);
     }
-    ctx.log(format!("{} → installing package {pkg}", rel.rsplit('/').next().unwrap_or(rel)));
+    let file = rel.rsplit('/').next().unwrap_or(rel);
+    ctx.log(format!("{file} → package {pkg}"));
+    ctx.ask_for = Some(file.to_string());
     let report = match install::install(&mut ctx, &[pkg], Reason::Auto) {
         Ok(r) => r,
+        Err(e) if is_declined(&e) => return Ok(None),
         Err(e) if is_network_error(&e) => {
-            ctx.log(format!("cannot install {pkg}: {e:#}"));
+            ctx.log(format!("error: cannot install {pkg}: {e:#}"));
             return Ok(None);
         }
         Err(e) => return Err(e),

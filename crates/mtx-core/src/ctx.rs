@@ -45,9 +45,23 @@ pub struct Ctx {
     pub db: Db,
     repo: Option<Repo>,
     quiet: bool,
+    /// Set for automatic installs (a file or program that needs a package):
+    /// the install is then subject to the `autoinstall` policy
+    /// ([`crate::consent`]). Cleared once the user agreed.
+    pub ask_for: Option<String>,
+    /// How to ask the user under the `ask` policy (replaced in tests).
+    pub prompter: fn(&Ctx, &str) -> Option<crate::consent::Answer>,
     /// Tests trust the key of `testdata/tlnet` instead of TeX Live's.
     #[cfg(test)]
     pub test_key: Option<(&'static str, &'static str)>,
+}
+
+/// Append one line to the root's `mtx.log` (no stderr), for callers
+/// without a [`Ctx`], such as `main` reporting an error.
+pub fn append_log(root: &Root, msg: &str) {
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(root.log_path()) {
+        let _ = writeln!(f, "{} [{}] {msg}", now_secs(), std::process::id());
+    }
 }
 
 impl Ctx {
@@ -59,6 +73,8 @@ impl Ctx {
             db,
             repo: None,
             quiet: false,
+            ask_for: None,
+            prompter: crate::consent::ask_user,
             #[cfg(test)]
             test_key: None,
         })
@@ -70,14 +86,14 @@ impl Ctx {
 
     /// Log to stderr (prefixed `mtx:`) and append to `tlpkg/mtx/mtx.log`.
     /// Never writes to stdout: `mtx ensure` reserves stdout for kpathsea.
+    /// Failures start with `error:`, refused installs with `declined:`
+    /// (`mtx log --problems` and `mtx doctor` look for them).
     pub fn log(&self, msg: impl AsRef<str>) {
         let msg = msg.as_ref();
         if !self.quiet {
             eprintln!("mtx: {msg}");
         }
-        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(self.root.log_path()) {
-            let _ = writeln!(f, "{} [{}] {msg}", now_secs(), std::process::id());
-        }
+        append_log(&self.root, msg);
     }
 
     /// The configured repository: `$MTX_REPOSITORY`, then the stored

@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T00:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -73,26 +73,15 @@ archives. See the [development playbook](/playbooks/development.md).
    `mtx install-binaries` to fetch a release or a run artifact itself (private repo →
    needs `gh` auth or a token; consider signing the manifest, plan §5.8). Publishing a
    Release means rerunning the workflow with `release: true`, which needs the user's OK.
-3. **Install feedback: an `ask` setting and failure logging** (requested by the user
-   on 2026-10-08):
-   - **`MTX_AUTOINSTALL=ask`** (plan §5.9). The resolver already reads
-     `MTX_AUTOINSTALL` (environment or `texmf.cnf`, also per program); today `0`
-     disables installs and anything else installs. Add `ask`, decided in mtx, not in C.
-     `mtx ensure` runs with stdin from `/dev/null`, often under an editor with no
-     terminal, so: prompt on `/dev/tty` if there is one, else an `osascript` dialog
-     (30 s timeout), else a configured fallback (plan: `yes`; MiKTeX's headless "ask"
-     silently means no). One first compile can trigger ~40 installs, so offer
-     "always for this document/session" and ask once per batch in `mtx prefetch`.
-     The resolver's per-run `failed` list already keeps a "no" from being asked twice
-     in one run. A `mtx config set autoinstall ask` command would make it discoverable.
-   - **Log failures to `tlpkg/mtx/mtx.log`.** Successful installs are logged via
-     `ctx.log`, but errors only go to stderr (`mtx: error: …` in `crates/mtx/src/main.rs`,
-     and the hook error path), so the log shows installs but not why one failed
-     (offline, all mirrors bad, signature mismatch).
-   - **Related gap:** stderr never reaches TeX's `.log`, which editors (LaTeX Workshop,
-     TeXstudio) parse, so editor users only see "File `foo.sty' not found". Ideas: an
-     `mtx log` view of recent failures, `mtx doctor` reporting them, or handing a note
-     to the engine to write into its log (kpathsea cannot see that file).
+3. **Install feedback:** done 2026-10-08 ([decision 0007](/decisions/0007-install-consent.md)):
+   `mtx config autoinstall yes|no|ask` (`$MTX_AUTOINSTALL` overrides), `ask` via terminal,
+   dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;
+   failures and refusals in `mtx.log`, shown by `mtx log --problems` and `mtx doctor`.
+   Still open:
+   - Click through the `osascript` dialog once (only its syntax was checked; a GUI
+     editor without a terminal triggers it). Ask the user before popping dialogs.
+   - Getting the reason into TeX's own `.log` (what editors show) is not possible from
+     kpathsea; a C change could print a `! mtx: …` line to the terminal/log via the engine.
 4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
    commit `38c0bac`). When tlnet serves a newer release, `refresh` switches the
    repository to `historic:2026` (the frozen `tlnet-final`, resolved over the tug.org

@@ -195,3 +195,78 @@ fn bootstrap_from_carries_requested_and_on_demand_packages() {
     let empty = Root::new(root.dir.join("nothing-here"));
     assert!(crate::bootstrap::carried_packages(&ctx.tlpdb().unwrap(), &empty).is_err());
 }
+
+mod consent_tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+    use crate::consent::{Answer, Declined};
+
+    fn auto_install(ctx: &mut Ctx, pkg: &str) -> anyhow::Result<install::Report> {
+        ctx.ask_for = Some(format!("{pkg}.sty"));
+        install::install(ctx, &[pkg], Reason::Auto)
+    }
+
+    #[test]
+    fn autoinstall_no_declines_and_logs() {
+        let (_d, root, mut ctx) = setup(&testdata_repo());
+        ctx.refresh(true).unwrap();
+        ctx.db.set("autoinstall", "no").unwrap();
+        drop(ctx);
+        assert!(ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap().is_none());
+        assert!(!root.texmf_dist().join("tex/latex/foo/foo.sty").exists());
+        let problems: Vec<_> = crate::logview::tail(&root).into_iter().filter(|e| e.is_problem()).collect();
+        assert_eq!(problems.len(), 1);
+        assert!(problems[0].msg.starts_with("declined: foo.sty needs package foo and 1 more"), "{}", problems[0].msg);
+        // Explicit installs are not subject to the policy.
+        let mut ctx = Ctx::open(root.clone()).unwrap();
+        ctx.set_quiet(true);
+        ctx.test_key = Some((KEY, FPR));
+        install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    }
+
+    #[test]
+    fn ask_without_any_ui_uses_the_fallback() {
+        let (_d, _root, mut ctx) = setup(&testdata_repo());
+        ctx.refresh(true).unwrap();
+        ctx.db.set("autoinstall", "ask").unwrap();
+        ctx.prompter = |_, _| None;
+        auto_install(&mut ctx, "bar").unwrap(); // fallback defaults to yes
+        ctx.db.set("ask_fallback", "no").unwrap();
+        let err = auto_install(&mut ctx, "fonts-x").unwrap_err();
+        assert!(err.downcast_ref::<Declined>().is_some(), "{err:#}");
+        assert!(!ctx.db.installed().unwrap().contains_key("fonts-x"));
+    }
+
+    static ASKED: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn ask_all_covers_the_rest_of_the_run() {
+        let (_d, _root, mut ctx) = setup(&testdata_repo());
+        ctx.refresh(true).unwrap();
+        ctx.db.set("autoinstall", "ask").unwrap();
+        ctx.prompter = |_, q| {
+            assert!(q.starts_with("foo.sty needs package foo and 1 more"), "{q}");
+            ASKED.fetch_add(1, Ordering::SeqCst);
+            Some(Answer::All)
+        };
+        auto_install(&mut ctx, "foo").unwrap();
+        auto_install(&mut ctx, "fonts-x").unwrap(); // not asked again
+        assert_eq!(ASKED.load(Ordering::SeqCst), 1);
+        let installed = ctx.db.installed().unwrap();
+        assert_eq!(installed["foo"].reason, "auto");
+        assert!(installed.contains_key("fonts-x"));
+    }
+
+    #[test]
+    fn ask_none_declines_the_rest_of_the_run() {
+        let (_d, _root, mut ctx) = setup(&testdata_repo());
+        ctx.refresh(true).unwrap();
+        ctx.db.set("autoinstall", "ask").unwrap();
+        ctx.prompter = |_, _| Some(Answer::None);
+        assert!(auto_install(&mut ctx, "foo").is_err());
+        ctx.prompter = |_, _| panic!("asked again after `none`");
+        assert!(auto_install(&mut ctx, "fonts-x").is_err());
+        assert!(ctx.db.installed().unwrap().is_empty());
+    }
+}

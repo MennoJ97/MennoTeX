@@ -147,6 +147,18 @@ impl Db {
         Ok(())
     }
 
+    pub fn unset(&self, key: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM kv WHERE key = ?1", [key])?;
+        Ok(())
+    }
+
+    /// All (key, value) pairs whose key starts with `prefix`.
+    pub fn with_prefix(&self, prefix: &str) -> Result<Vec<(String, String)>> {
+        let mut stmt = self.conn.prepare("SELECT key, value FROM kv WHERE substr(key, 1, length(?1)) = ?1")?;
+        let rows = stmt.query_map([prefix], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     /// Mirrors recorded as bad (host, unix time).
     pub fn bad_mirrors(&self) -> Result<Vec<(String, u64)>> {
         let mut stmt = self.conn.prepare("SELECT key, value FROM kv WHERE key LIKE 'bad_mirror:%'")?;

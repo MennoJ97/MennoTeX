@@ -153,11 +153,23 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
         );
     }
 
+    // Installs that failed or were declined recently: editors show only
+    // TeX's log, which never contains mtx's messages.
+    let now = now_secs();
+    let problems = crate::logview::tail(root).into_iter().filter(|e| e.is_problem() && now.saturating_sub(e.at) < 86400).count();
+    if problems > 0 {
+        push(&mut out, Severity::Warning, format!("{problems} failed or declined install(s) in the last 24 hours; see `mtx log --problems`"));
+    }
+    if let Ok(p) = crate::consent::policy(ctx) {
+        if p != crate::consent::Policy::Yes {
+            push(&mut out, Severity::Ok, format!("autoinstall is {}", p.as_str()));
+        }
+    }
+
     // Network state.
     if ctx.offline()? {
         push(&mut out, Severity::Warning, "offline marker set (a network error happened in the last minute)");
     }
-    let now = now_secs();
     for (host, at) in ctx.db.bad_mirrors()? {
         if now.saturating_sub(at) < crate::ctx::MIRROR_PIN_SECS {
             push(&mut out, Severity::Warning, format!("avoiding mirror {host} (failed verification or TLS {} min ago)", now.saturating_sub(at) / 60));

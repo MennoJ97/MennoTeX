@@ -153,6 +153,17 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         return Ok(Report::default());
     }
     let size: u64 = plan.iter().filter_map(|n| tlpdb.get(n)).map(|p| p.container_size).sum();
+    if let Some(trigger) = ctx.ask_for.clone() {
+        // The requested packages first, for the prompt.
+        let mut shown: Vec<String> = plan.iter().filter(|n| roots.contains(&n.as_str())).cloned().collect();
+        shown.extend(plan.iter().filter(|n| !roots.contains(&n.as_str())).cloned());
+        let req = crate::consent::Request { trigger: &trigger, packages: &shown, bytes: size };
+        let prompter = ctx.prompter;
+        if !crate::consent::decide(ctx, &req, &mut |c, q| prompter(c, q))? {
+            return Err(crate::consent::Declined { trigger, packages: summarize(&shown), why: "see mtx log".into() }.into());
+        }
+        ctx.ask_for = None;
+    }
     ctx.log(format!("installing {} package(s), {:.1} MiB: {}", plan.len(), size as f64 / 1048576.0, summarize(&plan)));
     let (archives, bytes) = download(ctx, tlpdb, &plan)?;
 

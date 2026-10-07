@@ -4,7 +4,9 @@
 
 pub mod binaries;
 pub mod bootstrap;
+pub mod config;
 pub mod configfiles;
+pub mod consent;
 pub mod ctx;
 pub mod db;
 pub mod doctor;
@@ -15,6 +17,7 @@ pub mod fontnames;
 pub mod formats;
 pub mod index;
 pub mod install;
+pub mod logview;
 pub mod lsr;
 pub mod prefetch;
 pub mod repo;

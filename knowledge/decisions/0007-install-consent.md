@@ -1,0 +1,54 @@
+---
+type: Decision
+title: Asking before automatic installs
+description: An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.
+tags: [decision, policy, ask, logging, ux]
+status: stable
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T00:30:00Z }
+verified:
+  - { by: process:cargo-test, at: 2026-10-08T00:30:00Z }
+---
+
+# Context
+
+PLAN.md §5.9 asks for `MTX_AUTOINSTALL` = `1` / `0` / `ask`, with `ask` prompting on
+the terminal, else an `osascript` dialog with a 30 s timeout, else a fallback of `yes`
+(MiKTeX's headless "ask" silently means no). The user asked for this on 2026-10-08,
+together with logging of failed installs: TeX's own `.log`, which editors parse,
+never contains mtx's stderr, so an editor user only sees "File `foo.sty' not found".
+
+# Decision
+
+- **Where it is decided:** in mtx (`consent.rs`), not in the kpathsea resolver. The
+  resolver skips mtx only for values starting with `0`, `n` or `f`, so `ask` reaches
+  mtx with no C change, and the CI binaries stay valid.
+- **Policy source:** `$MTX_AUTOINSTALL`, else the `autoinstall` setting
+  (`mtx config autoinstall yes|no|ask`, stored in `installed.sqlite`), else yes. An
+  `ask` written into `texmf.cnf` is seen by C but not by mtx; use `mtx config`.
+- **What is gated:** automatic installs only: kpathsea misses (`ensure`,
+  `ensure_path`, fonts by name) and command shims (`mtx install --for PROGRAM`). The
+  gate is in `install_once`, after planning and before downloading, so the question
+  names the package, how many more come with it, and the size. Explicit `mtx install`,
+  `prefetch`, `update`, `repair` and `bootstrap` never ask.
+- **How it asks:** `/dev/tty` if the process has a terminal (`[Y]es, [a]ll for this
+  run, [n]o, n[o]ne for this run`), else (not over SSH, and unless `ask_dialog no`) an
+  `osascript` dialog with Don't Install / Install All / Install, giving up after 30 s,
+  else `ask_fallback` (default yes).
+- **One answer per compile:** "all" and "none" are stored as `ask_run:<parent pid>` for
+  an hour. kpathsea forks `mtx ensure` from the TeX engine, so the parent is the compile.
+- **Logging:** failures are logged as `error: …`, refusals as `declined: …`; `main`
+  and the Phase 0 hooks append their errors to `mtx.log` too. `mtx log [--problems]`
+  shows recent entries; `mtx doctor` warns about problems in the last 24 hours.
+
+# Consequences
+
+- Tested: unit and offline tests for policy parsing, the fallback, "all"/"none" covering
+  later installs, refusals leaving nothing installed, and the dialog's result parsing.
+  End to end with the CI binaries: under `expect`, one terminal answer `a` covered three
+  installs of one pdfLaTeX run; without a terminal and with `ask_fallback no`, the run
+  failed with "File `epigraph.sty' not found", and `mtx log --problems` and `mtx doctor`
+  explained why. The dialog's AppleScript compiles (`osacompile`), but a dialog has not
+  been clicked through yet.
+- Writing a note into TeX's own log is still not possible (kpathsea cannot see that file).
+- Shims written by older mtx versions are rewritten on the next shim sync (any install
+  or `mtx repair`), which gives them `--for`.

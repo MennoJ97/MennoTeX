@@ -429,6 +429,8 @@ These go in `texmf.cnf` (readable by C) or `~/Library/MennoTeX/mtx.toml` (CLI-on
 | `prefetch` | `none` / `depends` / `requires` | `requires` |
 | `docs` | `never` / `on-texdoc` / `always` | `on-texdoc`: `texdoc foo` → `mtx` fetches `foo.doc` |
 
+*As built* ([decision 0007](knowledge/decisions/0007-install-consent.md)): settings live in the installed database and are changed with `mtx config` (`autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors`); `$MTX_AUTOINSTALL` overrides `autoinstall`. There is no `mtx.toml`. `ask` offers "all"/"none" for the rest of a compile. `mtx log` shows failed and declined installs.
+
 ### 5.10 CLI (first version)
 
 ```

@@ -33,7 +33,7 @@ fn shim_script(program: &str, package: &str) -> String {
          \x20 echo \"mtx: installing {package} did not provide {program}\" >&2; exit 127\n\
          fi\n\
          d=$(cd \"$(dirname \"$0\")\" && pwd)\n\
-         \"$d/mtx\" install {package} >&2 || exit 127\n\
+         \"$d/mtx\" install --for {program} {package} >&2 || exit 127\n\
          MTX_SHIM_ACTIVE=1 exec \"$d/{program}\" \"$@\"\n"
     )
 }
@@ -80,11 +80,16 @@ pub fn sync(ctx: &Ctx, tlpdb: &Tlpdb) -> Result<(usize, usize)> {
         }
         wanted.insert(prog.clone());
         let path = bin.join(&prog);
+        let script = shim_script(&prog, &pkg);
         if path.symlink_metadata().is_ok() {
-            continue; // a shim already, or a real program from elsewhere
+            // A real program from elsewhere stays; a shim from an older mtx
+            // is rewritten.
+            if !is_shim(&path) || fs::read_to_string(&path).is_ok_and(|s| s == script) {
+                continue;
+            }
         }
         let tmp = bin.join(format!(".{prog}.shim-tmp"));
-        fs::write(&tmp, shim_script(&prog, &pkg))?;
+        fs::write(&tmp, script)?;
         fs::set_permissions(&tmp, fs::Permissions::from_mode(0o755))?;
         fs::rename(&tmp, &path)?;
         created += 1;
@@ -126,5 +131,24 @@ mod tests {
         assert!(is_shim(&f));
         fs::write(&f, "#!/bin/sh\necho real\n").unwrap();
         assert!(!is_shim(&f));
+    }
+
+    #[test]
+    fn sync_rewrites_outdated_shims_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = Ctx::open(crate::root::Root::new(dir.path())).unwrap();
+        let db = Tlpdb::parse(
+            "name biber\ncategory Package\nrevision 1\ndepend biber.ARCH\n\n\
+             name biber.universal-darwin\ncategory Package\nrevision 1\nbinfiles arch=universal-darwin size=1\n bin/universal-darwin/biber\n bin/universal-darwin/mtxtestreal\n",
+        )
+        .unwrap();
+        let bin = ctx.root.bin_dir();
+        fs::create_dir_all(&bin).unwrap();
+        let old = shim_script("biber", "biber").replace(" --for biber", "");
+        fs::write(bin.join("biber"), &old).unwrap();
+        fs::write(bin.join("mtxtestreal"), "#!/bin/sh\necho real\n").unwrap();
+        sync(&ctx, &db).unwrap();
+        assert_eq!(fs::read_to_string(bin.join("biber")).unwrap(), shim_script("biber", "biber"));
+        assert_eq!(fs::read_to_string(bin.join("mtxtestreal")).unwrap(), "#!/bin/sh\necho real\n");
     }
 }
