@@ -76,6 +76,8 @@ enum Cmd {
     Regen,
     /// Check the installation and the environment for problems.
     Doctor,
+    /// Install what a .tex file statically needs, in one go.
+    Prefetch { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -207,6 +209,16 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 let r = install::install(&mut ctx, &names, Reason::Upgrade)?;
                 eprintln!("mtx: upgraded {} package(s)", r.installed.len());
             }
+        }
+        Cmd::Prefetch { file } => {
+            let mut ctx = open(&root)?;
+            ctx.refresh(false)?;
+            let r = mtx_core::prefetch::prefetch(&mut ctx, &file)?;
+            eprintln!(
+                "mtx: prefetched {} package(s), {:.1} MiB downloaded",
+                r.installed.len(),
+                r.bytes_downloaded as f64 / 1048576.0
+            );
         }
         Cmd::Doctor => {
             let ctx = open(&root)?;

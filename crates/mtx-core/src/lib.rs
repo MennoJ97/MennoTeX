@@ -13,6 +13,7 @@ pub mod extract;
 pub mod index;
 pub mod install;
 pub mod lsr;
+pub mod prefetch;
 pub mod repo;
 pub mod root;
 pub mod verify;

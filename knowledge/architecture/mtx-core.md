@@ -27,6 +27,7 @@ verified:
 | `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update` | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until recorded, and journaled packages count as not installed, so an interrupted install is redone on next use |
 | `ensure` | Hook entry point | Miss path touches only the index |
 | `bootstrap` | Core set + hyphenation + hooks + root `texmf.cnf` | Hooks and `texmf.cnf` are written before `updmap` runs |
+| `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
 | `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, avoided mirrors | Exit 1 only for problems, not warnings |
 | `root` | Installation layout (TeX Live compatible) | `tool_path()` = our bin + system dirs only |
 

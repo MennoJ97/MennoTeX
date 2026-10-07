@@ -66,6 +66,7 @@ test document still makes 18 such calls.
 
 - Install journal and recovery of interrupted installs (tested).
 - `mtx update [--dry-run]`: upgrades outdated packages, keeping each package's reason.
+- `mtx prefetch doc.tex` (Phase 3 item): on the test article, 39 packages in one batch (2.3 s, cached archives); the following pdfLaTeX run needed 6 on-demand installs instead of 43 (`tcolorbox` libraries load `listings`, `tikzfill`, `pdfcol` indirectly; `ec` comes from font loading).
 - `mtx doctor` (Phase 3 item): detects the MiKTeX symlinks in `/usr/local/bin` that shadow MennoTeX on this Mac.
 
 # Phases 2–4
