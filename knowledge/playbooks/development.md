@@ -18,6 +18,10 @@ cargo test
 
 Rust comes from Homebrew (`brew install rust`); there is no rustup toolchain file yet.
 
+Offline tests use the signed fake repository in `crates/mtx-core/testdata/tlnet`;
+regenerate it with `tools/make_test_repo.sh` (needs Homebrew `gpg`) after changing its
+contents, and commit the result.
+
 # Throw-away installation
 
 Use a scratch root so nothing touches `~/Library/MennoTeX`:

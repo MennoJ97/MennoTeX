@@ -16,3 +16,6 @@ pub mod repo;
 pub mod root;
 pub mod verify;
 pub mod tlpdb;
+
+#[cfg(test)]
+mod local_repo_tests;

@@ -66,6 +66,17 @@ impl Verifier {
         Ok(Verifier { keys })
     }
 
+    /// Trust only `armored` (whose primary fingerprint must be
+    /// `fingerprint`): the test repository in `testdata/tlnet`.
+    #[cfg(test)]
+    pub fn with_key(armored: &str, fingerprint: &str) -> Result<Verifier> {
+        let (key, _) = SignedPublicKey::from_string(armored)?;
+        if fingerprint_hex(&key) != fingerprint.trim() {
+            bail!("test key fingerprint mismatch");
+        }
+        Ok(Verifier { keys: vec![key] })
+    }
+
     /// Verify an ASCII-armored detached signature over `data`.
     pub fn verify_detached(&self, data: &[u8], armored_sig: &str) -> Result<Verified> {
         let (sig, _) = DetachedSignature::from_string(armored_sig).context("parsing signature")?;

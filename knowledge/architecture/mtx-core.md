@@ -5,9 +5,9 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T13:00:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
+  - { by: process:cargo-test, at: 2026-10-07T13:00:00Z }
 ---
 
 # Modules
@@ -30,5 +30,14 @@ verified:
 
 # Tests
 
-`cargo test` runs unit tests for every module above (20 as of 2026-10-07),
-including a real tlnet signature fixture in `crates/mtx-core/testdata/`.
+`cargo test` runs 24 tests (2026-10-07):
+
+- unit tests for every module above, including a real tlnet signature fixture
+  (`testdata/texlive.tlpdb.sha512{,.asc}`);
+- `local_repo_tests.rs`: offline end-to-end tests against `testdata/tlnet`, a tiny
+  repository (`foo` depends on `bar`; `fonts-x`) signed with a throw-away key that has
+  TeX Live's structure (certification-only primary + signing subkey). They cover
+  refresh → `ensure_path` with siblings, Phase 0 name resolution, failover from an
+  unreachable pinned mirror, and rejection of a corrupted archive.
+  `Ctx::test_key` / `Verifier::with_key` exist only under `cfg(test)`.
+  Regenerate the repository with `tools/make_test_repo.sh` (needs `gpg`).

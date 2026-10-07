@@ -35,13 +35,23 @@ pub struct Ctx {
     pub db: Db,
     repo: Option<Repo>,
     quiet: bool,
+    /// Tests trust the key of `testdata/tlnet` instead of TeX Live's.
+    #[cfg(test)]
+    pub test_key: Option<(&'static str, &'static str)>,
 }
 
 impl Ctx {
     pub fn open(root: Root) -> Result<Ctx> {
         fs::create_dir_all(root.mtx_dir()).with_context(|| format!("creating {}", root.mtx_dir().display()))?;
         let db = Db::open(&root.db_path())?;
-        Ok(Ctx { root, db, repo: None, quiet: false })
+        Ok(Ctx {
+            root,
+            db,
+            repo: None,
+            quiet: false,
+            #[cfg(test)]
+            test_key: None,
+        })
     }
 
     pub fn set_quiet(&mut self, quiet: bool) {
@@ -193,7 +203,14 @@ impl Ctx {
         }
 
         let asc = String::from_utf8(repo.get_bytes("tlpkg/texlive.tlpdb.sha512.asc")?)?;
-        let verified = Verifier::new(Some(&keyring))?
+        #[cfg(test)]
+        let verifier = match self.test_key {
+            Some((key, fpr)) => Verifier::with_key(key, fpr)?,
+            None => Verifier::new(Some(&keyring))?,
+        };
+        #[cfg(not(test))]
+        let verifier = Verifier::new(Some(&keyring))?;
+        let verified = verifier
             .verify_detached(&sha_file, &asc)
             .with_context(|| format!("verifying the package database from {}", repo.base))?;
         if verified.expired_key_warning {
