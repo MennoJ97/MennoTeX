@@ -4,7 +4,7 @@ title: Phase 0 uses tlnet binaries and stock mktex hooks
 description: Develop and test mtx against unmodified universal-darwin binaries from tlnet, hooking in through MKTEXTEX/mktextfm, before building patched binaries.
 tags: [decision, phase-0]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:30:00Z }
 ---
 
 # Decision
@@ -27,7 +27,7 @@ once with `module 'pdftexcmds' not found` and succeeds on the next run (see
 # Known gaps (accepted for Phase 0)
 
 - Font files, maps and `\openin` lookups cannot trigger installs; the core set therefore includes `amsfonts` (Type 1 Computer Modern + maps).
-- LuaTeX lookups cannot trigger installs.
+- LuaTeX's Lua-side lookups (`kpse.find_file`, `require`) cannot trigger installs; its `\input`-style lookups can.
 - Each hook call forks `mtx` (about 6 ms per miss).
 - Files of a just-installed package other than the requested one are invisible to the running process until its next start.
 

@@ -1,0 +1,83 @@
+diff -ru a/texk/kpathsea/db.c b/texk/kpathsea/db.c
+--- a/texk/kpathsea/db.c	2026-10-07 09:42:50
++++ b/texk/kpathsea/db.c	2026-10-07 09:42:50
+@@ -291,6 +291,14 @@
+   return matched;
+ }
+ 
++/* MennoTeX: let the on-demand resolver (mtx-ondemand.c) decide whether a
++   file would be found in a path element, with the same // semantics. */
++boolean
++kpathsea_path_elt_match (const_string filename, const_string path_elt)
++{
++  return match (filename, path_elt);
++}
++
+ 
+ /* If DB_DIR is a prefix of PATH_ELT, return true; otherwise false.
+    That is, the question is whether to try the db for a file looked up
+diff -ru a/texk/kpathsea/db.h b/texk/kpathsea/db.h
+--- a/texk/kpathsea/db.h	2026-10-07 09:42:50
++++ b/texk/kpathsea/db.h	2026-10-07 09:42:50
+@@ -48,6 +48,10 @@
+    Called by mktex() in tex-make.c.  */
+ extern void kpathsea_db_insert (kpathsea kpse, const_string fname);
+ 
++/* MennoTeX: true if FILENAME (a full path) lies in PATH_ELT. */
++extern boolean kpathsea_path_elt_match (const_string filename,
++                                        const_string path_elt);
++
+ #endif /* MAKE_KPSE_DLL */
+ 
+ #endif /* not KPATHSEA_DB_H */
+diff -ru a/texk/kpathsea/tex-file.c b/texk/kpathsea/tex-file.c
+--- a/texk/kpathsea/tex-file.c	2026-10-07 09:42:50
++++ b/texk/kpathsea/tex-file.c	2026-10-07 09:42:50
+@@ -1128,6 +1128,20 @@
+     free (target[count]);
+   free (target);
+ 
++  /* MennoTeX: if nothing was found, try installing the package that
++     provides the file. Unlike mktex* below this ignores must_exist, since
++     \openin, Lua's kpse.find_file and font lookups all pass false; a miss
++     costs one lookup in a memory-mapped index.  */
++  if (! *ret && !all) {
++    string found = kpathsea_ondemand_find (kpse, format, name);
++    if (found) {
++      free (ret);
++      ret = XTALLOC (2, string);
++      ret[0] = found;
++      ret[1] = NULL;
++    }
++  }
++
+   /* If nothing was found, call mktex* to create a missing file.  Since
+      this returns a single string, morph it into a list.  */
+   if (! *ret && must_exist) {
+diff -ru a/texk/kpathsea/tex-make.c b/texk/kpathsea/tex-make.c
+--- a/texk/kpathsea/tex-make.c	2026-10-07 09:42:50
++++ b/texk/kpathsea/tex-make.c	2026-10-07 09:42:50
+@@ -584,3 +584,7 @@
+ standalone-compile-command: "gcc -g -I. -I.. -I$wk/.. -DTEST -DMAKE_KPSE_DLL tex-make.c $wk/.libs/libkpathsea.a && ./a.out" 
+ End:
+ */
++
++/* MennoTeX on-demand installation; kept in its own file so the TeX Live
++   build system needs no changes. */
++#include "mtx-ondemand.c"
+diff -ru a/texk/kpathsea/tex-make.h b/texk/kpathsea/tex-make.h
+--- a/texk/kpathsea/tex-make.h	2026-10-07 09:42:50
++++ b/texk/kpathsea/tex-make.h	2026-10-07 09:42:50
+@@ -32,6 +32,12 @@
+    the file is passed through environment variables.  See the mktexpk
+    stuff in `tex-make.c' for an example. */
+ 
++/* MennoTeX: install the TeX Live package providing NAME on demand and
++   return its path, or NULL. See mtx-ondemand.c. */
++extern KPSEDLL string kpathsea_ondemand_find (kpathsea kpse,
++                                              kpse_file_format_type format,
++                                              const_string name);
++
+ extern KPSEDLL string kpathsea_make_tex (kpathsea kpse,
+                                  kpse_file_format_type format,
+                                  const_string base_file);

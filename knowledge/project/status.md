@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -52,6 +52,16 @@ Hook cost: a miss (file in no package, e.g. `hyperref.cfg`) costs 5.9 ms after w
 close to the 3.5 ms floor of spawning any process; a warm pdfLaTeX run of the
 test document still makes 18 such calls.
 
-# Phases 1–4
+# Phase 1: kpathsea patch and own arm64 build (in progress)
 
-Phase 1 (kpathsea patch, own arm64 build) is next. See `PLAN.md` §7.
+| Item | State |
+|---|---|
+| Resolver `mtx-ondemand.c` + patch | written, compiles with `-Wall -Wextra`; not yet run ([decision 0003](/decisions/0003-kpathsea-patch-shape.md)) |
+| `mtx ensure --package/--path --siblings` | done |
+| `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
+| `build/build-texlive.sh` | first build failed on C23 (libgd); fixed with `ac_cv_prog_cc_c23=no`, rebuilding ([build notes](/upstream/texlive-build.md)) |
+| Corpus of 50 documents, first-run success for all three engines | not started |
+
+# Phases 2–4
+
+Not started. See `PLAN.md` §7.
