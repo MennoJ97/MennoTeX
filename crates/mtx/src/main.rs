@@ -36,7 +36,7 @@ enum Cmd {
     Ensure {
         /// kpathsea format name, e.g. `tex`, `tfm`, `type1 fonts`
         /// (Phase 0 hooks: mtx chooses the file itself).
-        #[arg(long, required_unless_present = "package")]
+        #[arg(long, required_unless_present_any = ["package", "font_name"])]
         format: Option<String>,
         /// Package kpathsea chose (Phase 1 patch); requires --path.
         #[arg(long, requires = "path")]
@@ -47,6 +47,9 @@ enum Cmd {
         /// Also print every other file this call installed.
         #[arg(long)]
         siblings: bool,
+        /// NAME is a font name ("TeX Gyre Pagella"), not a file name.
+        #[arg(long, conflicts_with_all = ["format", "package"])]
+        font_name: bool,
         name: String,
     },
     /// Install MennoTeX-built (kpathsea-patched) binaries from a directory
@@ -130,8 +133,9 @@ fn run(cli: Cli) -> Result<ExitCode> {
             );
             eprintln!("mtx: add {} to your PATH", root.bin_dir().display());
         }
-        Cmd::Ensure { format, package, path, siblings, name } => {
+        Cmd::Ensure { format, package, path, siblings, font_name, name } => {
             let found = match (package, path, format) {
+                _ if font_name => ensure::ensure_font_name(&root, &name, siblings)?,
                 (Some(pkg), Some(rel), _) => ensure::ensure_path(&root, &pkg, &rel, siblings)?,
                 (_, _, Some(format)) => {
                     let Some(kind) = ensure::kind(&format) else { return Ok(ExitCode::from(1)) };

@@ -1,0 +1,62 @@
+diff -ru a/texk/web2c/xetexdir/XeTeXFontMgr_Mac.mm b/texk/web2c/xetexdir/XeTeXFontMgr_Mac.mm
+--- a/texk/web2c/xetexdir/XeTeXFontMgr_Mac.mm	2026-10-07 10:57:06
++++ b/texk/web2c/xetexdir/XeTeXFontMgr_Mac.mm	2026-10-07 10:57:07
+@@ -35,6 +35,7 @@
+ extern "C" {
+ #endif
+ #include <w2c/config.h>
++#include <kpathsea/tex-file.h>
+ #ifdef __cplusplus
+ }
+ #endif
+@@ -42,7 +43,39 @@
+ #include "XeTeXFontMgr_Mac.h"
+ 
+ #include <Cocoa/Cocoa.h>
++#include <set>
+ 
++/* MennoTeX: fonts in the TeX tree are invisible to CoreText, so name
++   lookups ("TeX Gyre Pagella") fail even for installed fonts. Ask
++   kpathsea, whose MennoTeX resolver maps font names to files (installing
++   the font's package when needed), and register every font in that file's
++   directory with CoreText for this process, so the whole family is
++   found. Tried once per name. */
++static bool
++registerTexFontsForName(const std::string& name)
++{
++    static std::set<std::string> tried;
++    if (!tried.insert(name).second)
++        return false;
++    char* path = kpse_find_file(name.c_str(), kpse_opentype_format, false);
++    if (!path)
++        path = kpse_find_file(name.c_str(), kpse_truetype_format, false);
++    if (!path)
++        return false;
++    NSString* dir = [[NSString stringWithUTF8String: path] stringByDeletingLastPathComponent];
++    free(path);
++    NSMutableArray* urls = [NSMutableArray array];
++    for (NSString* f in [[NSFileManager defaultManager] contentsOfDirectoryAtPath: dir error: nil]) {
++        NSString* ext = [[f pathExtension] lowercaseString];
++        if ([ext isEqualToString: @"otf"] || [ext isEqualToString: @"ttf"] || [ext isEqualToString: @"ttc"])
++            [urls addObject: [NSURL fileURLWithPath: [dir stringByAppendingPathComponent: f]]];
++    }
++    if ([urls count] == 0)
++        return false;
++    CTFontManagerRegisterFontsForURLs((CFArrayRef) urls, kCTFontManagerScopeProcess, NULL);
++    return true;
++}
++
+ CTFontDescriptorRef findFontWithName(CFStringRef name, CFStringRef key)
+ {
+     CFStringRef keys[] = { key };
+@@ -207,6 +240,10 @@
+         CFRelease(matched);
+         return;
+     }
++
++    // MennoTeX: not a system font; try the TeX tree, then search again.
++    if (registerTexFontsForName(name))
++        searchForHostPlatformFonts(name);
+ }
+ 
+ NSAutoreleasePool* pool = NULL;

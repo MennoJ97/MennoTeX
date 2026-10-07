@@ -14,60 +14,26 @@ the map files named in its addMap/addMixedMap directives. The tlpdb should
 come from a verified source, e.g. an mtx root's tlpkg/mtx/texlive.tlpdb.
 """
 import concurrent.futures as cf
-import hashlib
 import io
 import lzma
 import os
-import re
 import sys
 import tarfile
-import urllib.request
 
-REDIRECTOR = "https://mirror.ctan.org/systems/texlive/tlnet/"
+sys.path.insert(0, os.path.dirname(__file__))
+import tlnetlib  # noqa: E402
+
 OUT = os.path.join(os.path.dirname(__file__), "..", "crates", "mtx-core", "data", "fontmaps.tsv.xz")
 
 
-def parse_tlpdb(path):
-    pkgs = {}
-    for block in open(path, encoding="utf-8").read().split("\n\n"):
-        m = re.match(r"name (\S+)", block)
-        if not m or "." in m.group(1):
-            continue
-        maps = re.findall(r"^execute add(?:Mixed)?Map (\S+)", block, re.M)
-        if not maps:
-            continue
-        size = int((re.search(r"^containersize (\d+)", block, re.M) or [0, 0])[1])
-        sha = (re.search(r"^containerchecksum (\S+)", block, re.M) or [0, ""])[1]
-        pkgs[m.group(1)] = (set(maps), size, sha)
-    return pkgs
-
-
-def pinned_mirror():
-    req = urllib.request.Request(REDIRECTOR + "tlpkg/texlive.tlpdb.sha512", method="HEAD")
-
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *a, **k):
-            return None
-
-    try:
-        urllib.request.build_opener(NoRedirect).open(req)
-        return REDIRECTOR
-    except urllib.error.HTTPError as e:
-        loc = e.headers.get("Location", "")
-        return loc[: -len("tlpkg/texlive.tlpdb.sha512")] if loc else REDIRECTOR
-
-
-def fetch(mirror, cache, name, size, sha):
-    path = os.path.join(cache, f"{name}.tar.xz")
-    if os.path.exists(path) and hashlib.sha512(open(path, "rb").read()).hexdigest() == sha:
-        return path
-    data = urllib.request.urlopen(f"{mirror}archive/{name}.tar.xz", timeout=120).read()
-    if len(data) != size or hashlib.sha512(data).hexdigest() != sha:
-        raise RuntimeError(f"{name}: archive does not match the tlpdb")
-    with open(path + ".part", "wb") as f:
-        f.write(data)
-    os.replace(path + ".part", path)
-    return path
+def map_packages(tlpdb):
+    """name -> (map files from addMap/addMixedMap, size, sha)."""
+    out = {}
+    for name, p in tlnetlib.parse_tlpdb(tlpdb).items():
+        maps = {e.split()[1] for e in p["executes"] if e.split()[0] in ("addMap", "addMixedMap")}
+        if maps:
+            out[name] = (maps, p["size"], p["sha"])
+    return out
 
 
 def map_fonts(archive, wanted_maps):
@@ -90,12 +56,12 @@ def main():
     tlpdb = sys.argv[1]
     cache = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser("~/Library/Caches/MennoTeX/fontmap-build")
     os.makedirs(cache, exist_ok=True)
-    pkgs = parse_tlpdb(tlpdb)
-    mirror = pinned_mirror()
+    pkgs = map_packages(tlpdb)
+    mirror = tlnetlib.pinned_mirror()
     print(f"{len(pkgs)} packages with font maps, {sum(s for _, s, _ in pkgs.values()) / 2**20:.0f} MiB, mirror {mirror}")
     table = {}
     with cf.ThreadPoolExecutor(8) as pool:
-        futures = {pool.submit(fetch, mirror, cache, n, s, h): n for n, (_, s, h) in pkgs.items()}
+        futures = {pool.submit(tlnetlib.fetch, mirror, cache, n, s, h): n for n, (_, s, h) in pkgs.items()}
         for i, fut in enumerate(cf.as_completed(futures), 1):
             name = futures[fut]
             try:

@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:20:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -78,6 +78,12 @@ test document still makes 18 such calls.
   no-package miss, vs 2 ms for `/usr/bin/true`).
 - `kpsewhich tcolorbox.sty` (a `must_exist=false` lookup) installs tcolorbox and 7
   dependencies, 0.26 s with cached archives.
+
+# Phase 4 items done early
+
+- Fonts by name ([decision 0005](/decisions/0005-fonts-by-name.md)): corpus document
+  `fontspec-by-name` passes on XeLaTeX (first run) and LuaLaTeX (with prefetch).
+  Corpus now 18 documents: pdfLaTeX 16/16, XeLaTeX 18/18, LuaLaTeX 18/18 on fresh roots.
 
 # Phase 2 items done early
 

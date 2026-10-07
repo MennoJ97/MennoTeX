@@ -30,12 +30,13 @@ verified:
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
 | `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
 | `fontmaps` | Embedded TeX-font → map-package table ([decision 0004](/decisions/0004-font-map-index.md)); installs add map packages for TFMs they bring | Skips packages that map their own fonts |
+| `fontnames` | Embedded font-name → (package, file) table ([decision 0005](/decisions/0005-fonts-by-name.md)); `ensure_font_name`; prefetch reads fontspec commands | Full/PS names beat family names |
 | `shims` | Command shims: a script for every program of a not-installed tlnet binary package; first run does `mtx install <pkg>` (which unpacks the real program over the shim) and re-execs | Never shadows `/usr/bin` or `/bin` commands or `man`; resynced after bootstrap, removals and installs of binary packages; `MTX_SHIM_ACTIVE` prevents loops |
 | `root` | Installation layout (TeX Live compatible) | `tool_path()` = our bin + system dirs only |
 
 # Tests
 
-`cargo test` runs 33 tests (2026-10-07):
+`cargo test` runs 37 tests (2026-10-07):
 
 - unit tests for every module above, including a real tlnet signature fixture
   (`testdata/texlive.tlpdb.sha512{,.asc}`);

@@ -46,7 +46,7 @@ Compiles every `tests/documents/*.tex` and prints, per document: result, pages,
 packages installed on demand and seconds. Header comments control a run:
 `% engines: pdflatex xelatex lualatex` (others are skipped) and
 `% tools: biber|bibtex|makeindex|makeglossaries` (run between TeX runs; a third TeX
-run follows). Bibliographies are embedded with `filecontents*` so each document is
+run follows), `% prefetch: <engines>` (run `mtx prefetch` first for those engines). Bibliographies are embedded with `filecontents*` so each document is
 self-contained. The corpus covers beamer, biblatex/biber, natbib/bibtex,
 fontspec/unicode-math, babel, KOMA-Script, memoir + index, pgfplots/tikz-cd, tables,
 theorems, listings/algorithm2e, mhchem/chemfig, Libertinus + microtype,

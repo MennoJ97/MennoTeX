@@ -87,6 +87,36 @@ pub fn scan(text: &str) -> BTreeSet<(&'static str, String)> {
     out
 }
 
+/// Font names given to fontspec (`\setmainfont{TeX Gyre Pagella}`,
+/// `\newfontfamily\x[…]{Font}`, `\babelfont{rm}{Font}`, …).
+pub fn scan_fonts(text: &str) -> BTreeSet<String> {
+    let text = strip_comments(text);
+    let mut out = BTreeSet::new();
+    let plain = ["\\setmainfont", "\\setsansfont", "\\setmonofont", "\\setmathfont", "\\setromanfont", "\\fontspec"];
+    for cmd in plain {
+        out.extend(command_args(&text, cmd).into_iter().map(|a| a.trim().to_string()));
+    }
+    // A control sequence or a {family} argument comes before the font.
+    for cmd in ["\\newfontfamily", "\\newfontface", "\\setfontfamily", "\\babelfont"] {
+        let mut rest = text.as_str();
+        while let Some(pos) = rest.find(cmd) {
+            rest = &rest[pos + cmd.len()..];
+            let mut s = rest.trim_start();
+            if let Some(cs) = s.strip_prefix('\\') {
+                s = cs.trim_start_matches(|c: char| c.is_ascii_alphabetic()).trim_start();
+            } else if s.starts_with('{') && cmd == "\\babelfont" {
+                match s.find('}') {
+                    Some(end) => s = s[end + 1..].trim_start(),
+                    None => continue,
+                }
+            }
+            out.extend(command_args(&format!("\\x{s}"), "\\x").into_iter().take(1).map(|a| a.trim().to_string()));
+        }
+    }
+    out.retain(|f| !f.is_empty() && !f.contains(['\\', '#']));
+    out
+}
+
 /// Local files `\input`/`\include`d by `text`, relative to `dir`.
 fn local_inputs(text: &str, dir: &Path) -> Vec<PathBuf> {
     let text = strip_comments(text);
@@ -107,6 +137,7 @@ fn local_inputs(text: &str, dir: &Path) -> Vec<PathBuf> {
 /// Install everything `doc` (and its local includes) statically requires.
 pub fn prefetch(ctx: &mut Ctx, doc: &Path) -> Result<Report> {
     let mut wanted: BTreeSet<(&'static str, String)> = BTreeSet::new();
+    let mut fonts: BTreeSet<String> = BTreeSet::new();
     let mut seen_docs = BTreeSet::new();
     let mut docs = vec![doc.to_path_buf()];
     while let Some(d) = docs.pop() {
@@ -115,7 +146,22 @@ pub fn prefetch(ctx: &mut Ctx, doc: &Path) -> Result<Report> {
         }
         let text = fs::read_to_string(&d).with_context(|| format!("reading {}", d.display()))?;
         wanted.extend(scan(&text));
+        fonts.extend(scan_fonts(&text));
         docs.extend(local_inputs(&text, d.parent().unwrap_or(Path::new("."))));
+    }
+    // Fonts by file name are ordinary lookups; by name they go through the
+    // font-name index. luaotfload resolves fontspec's `name:` requests
+    // before any kpathsea lookup, so installing them here is what makes a
+    // first LuaLaTeX run work.
+    let mut font_packages: BTreeSet<String> = BTreeSet::new();
+    for f in &fonts {
+        let lower = f.to_ascii_lowercase();
+        if [".otf", ".ttf", ".ttc"].iter().any(|e| lower.ends_with(e)) {
+            let kind = if lower.ends_with(".otf") { "opentype fonts" } else { "truetype fonts" };
+            wanted.insert((kind, f.clone()));
+        } else if let Some(ff) = crate::fontnames::lookup(f) {
+            font_packages.insert(ff.package);
+        }
     }
 
     let mut total = Report::default();
@@ -125,7 +171,10 @@ pub fn prefetch(ctx: &mut Ctx, doc: &Path) -> Result<Report> {
     for _round in 0..8 {
         let idx = Index::open(&ctx.root.index_path())?;
         let installed = ctx.db.installed()?;
-        let mut packages: BTreeSet<String> = BTreeSet::new();
+        let mut packages: BTreeSet<String> = std::mem::take(&mut font_packages)
+            .into_iter()
+            .filter(|p| !installed.contains_key(p))
+            .collect();
         let mut to_scan: Vec<String> = Vec::new();
         for (fmt, name) in &wanted {
             let Some(hit) = resolve(&idx, kind(fmt).expect("known format"), name) else { continue };
@@ -186,6 +235,18 @@ mod tests {
                 "tex:xcolor.sty",
             ]
         );
+    }
+
+    #[test]
+    fn scans_fontspec_font_names() {
+        let src = r"\setmainfont{TeX Gyre Pagella}[Numbers=OldStyle]
+\setsansfont[Scale=0.9]{TeX Gyre Heros}
+\newfontfamily\headingfont[Color=red]{Libertinus Sans}
+\babelfont{rm}[Language=Default]{Noto Serif}
+\setmathfont{texgyrepagella-math.otf}
+% \setmonofont{Commented Out}";
+        let got: Vec<String> = scan_fonts(src).into_iter().collect();
+        assert_eq!(got, vec!["Libertinus Sans", "Noto Serif", "TeX Gyre Heros", "TeX Gyre Pagella", "texgyrepagella-math.otf"]);
     }
 
     #[test]

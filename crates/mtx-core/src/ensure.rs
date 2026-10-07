@@ -201,6 +201,29 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
     Ok(Some(out))
 }
 
+/// A font requested by name (fontspec, XeTeX, luaotfload): install the
+/// package shipping it and return the font file, followed (with `siblings`)
+/// by the package's other font files, so the caller can make the whole
+/// family available.
+pub fn ensure_font_name(root: &Root, request: &str, siblings: bool) -> Result<Option<Vec<PathBuf>>> {
+    let Some(font) = crate::fontnames::lookup(request) else { return Ok(None) };
+    let target = root.dir.join(&font.path);
+    if !target.exists() {
+        let Some(_) = ensure_path(root, &font.package, &font.path, false)? else { return Ok(None) };
+    }
+    let mut out = vec![target];
+    if siblings {
+        let ctx = Ctx::open(root.clone())?;
+        for f in ctx.db.files_of(&font.package)? {
+            let is_font = ["otf", "ttf", "ttc"].iter().any(|e| f.to_ascii_lowercase().ends_with(&format!(".{e}")));
+            if is_font && f != font.path {
+                out.push(root.dir.join(f));
+            }
+        }
+    }
+    Ok(Some(out))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -7,6 +7,7 @@
 # Header comments in a document control the run:
 #   % engines: pdflatex xelatex lualatex   (skipped for other engines)
 #   % tools: biber | bibtex | makeindex | makeglossaries
+#   % prefetch: lualatex     (run `mtx prefetch` first for these engines)
 # Each document is compiled, its tools run, then compiled again (a third
 # time when tools ran), like a real build.
 #
@@ -27,6 +28,7 @@ for doc in "$@"; do
   name=$(basename "$doc" .tex)
   engines=$(sed -n 's/^% engines: *//p' "$doc" | head -1)
   tools=$(sed -n 's/^% tools: *//p' "$doc" | head -1)
+  prefetch=$(sed -n 's/^% prefetch: *//p' "$doc" | head -1)
   if [ -n "$engines" ] && ! echo " $engines " | grep -q " $engine "; then
     printf '%-26s %-8s skip   (engines: %s)\n' "$name" "$engine" "$engines"
     skip=$((skip + 1)); continue
@@ -35,7 +37,12 @@ for doc in "$@"; do
   before=$(mtx list | wc -l | tr -d ' ')
   start=$(date +%s)
   result=ok
-  if ! tex "$name" >"$work/$name.run1" 2>&1; then
+  if echo " $prefetch " | grep -q " $engine "; then
+    mtx prefetch "$work/$name.tex" >"$work/$name.prefetch" 2>&1 || result="FAILED(prefetch)"
+  fi
+  if [ "$result" != ok ]; then
+    :
+  elif ! tex "$name" >"$work/$name.run1" 2>&1; then
     result=FAILED
   else
     for tool in $tools; do

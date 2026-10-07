@@ -11,6 +11,7 @@ pub mod doctor;
 pub mod ensure;
 pub mod extract;
 pub mod fontmaps;
+pub mod fontnames;
 pub mod index;
 pub mod install;
 pub mod lsr;

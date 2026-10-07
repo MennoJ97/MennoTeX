@@ -286,11 +286,24 @@ mtx_lookup (kpathsea kpse, kpse_file_format_type format, const_string base,
   return best;
 }
 
-/* Run `mtx ensure` for HIT and NAME. Every line it prints is a file it
-   made available; insert them all into the db. Return the first, which is
-   the requested file, if it is readable. */
+/* Directories created by an install are invisible to kpathsea's cached
+   `//` expansions (elt-dirs.c), which luaotfload, for example, uses to
+   rescan its fonts. Forget them; they are rebuilt on demand. The cached
+   lists are leaked on purpose, since a caller may still hold one. */
+static void
+mtx_flush_dir_cache (kpathsea kpse)
+{
+  unsigned i;
+  for (i = 0; i < kpse->cache_length; i++)
+    free ((string) kpse->the_cache[i].key);
+  kpse->cache_length = 0;
+}
+
+/* Run mtx with ARGV (ARGV[0] is replaced by $SELFAUTOLOC/mtx). Every line
+   it prints is a file it made available; insert them all into the db.
+   Return the first, if readable. */
 static string
-mtx_run (kpathsea kpse, const mtx_hit *hit, const_string name)
+mtx_run (kpathsea kpse, char **argv)
 {
   string loc = kpathsea_var_value (kpse, "SELFAUTOLOC");
   string prog = loc ? concat (loc, "/mtx") : NULL;
@@ -298,7 +311,6 @@ mtx_run (kpathsea kpse, const mtx_hit *hit, const_string name)
   size_t out_len = 0;
   int pipefd[2], devnull;
   pid_t pid;
-  char *argv[10];
 
   free (loc);
   if (!prog || pipe (pipefd) != 0) {
@@ -306,15 +318,6 @@ mtx_run (kpathsea kpse, const mtx_hit *hit, const_string name)
     return NULL;
   }
   argv[0] = prog;
-  argv[1] = (char *) "ensure";
-  argv[2] = (char *) "--package";
-  argv[3] = (char *) hit->pkg;
-  argv[4] = (char *) "--path";
-  argv[5] = hit->rel;
-  argv[6] = (char *) "--siblings";
-  argv[7] = (char *) "--";
-  argv[8] = (char *) name;
-  argv[9] = NULL;
 
   pid = fork ();
   if (pid == 0) {
@@ -363,12 +366,58 @@ mtx_run (kpathsea kpse, const mtx_hit *hit, const_string name)
         if (!*nl)
           break;
       }
+      mtx_flush_dir_cache (kpse);
     }
   }
   close (pipefd[0]);
   free (out);
   free (prog);
   return ret;
+}
+
+/* Formats whose lookups may carry a font *name* ("TeX Gyre Pagella")
+   instead of a file name: XeTeX (MennoTeX patch) asks for OpenType and
+   TrueType fonts by name, and luaotfload probes a name as a TFM before it
+   rescans its font database. */
+static boolean
+mtx_font_format (kpse_file_format_type format)
+{
+  return format == kpse_opentype_format || format == kpse_truetype_format
+         || format == kpse_tfm_format || format == kpse_ofm_format;
+}
+
+static boolean
+mtx_fontname_ok (const_string name)
+{
+  const_string p;
+  if (!name[0] || name[0] == '-' || strlen (name) > 200)
+    return false;
+  for (p = name; *p; p++)
+    if (!ISALNUM (*p) && *p != ' ' && *p != '-' && *p != '+' && *p != '_' && *p != '.')
+      return false;
+  return true;
+}
+
+/* Install the package providing the font named NAME and return its file.
+   For TFM/OFM probes the font is installed but NULL is returned, so that
+   luaotfload goes on to rescan its font database and finds it there. */
+static string
+mtx_find_font_name (kpathsea kpse, kpse_file_format_type format, const_string name)
+{
+  char *argv[6];
+  string found;
+  argv[0] = NULL;
+  argv[1] = (char *) "ensure";
+  argv[2] = (char *) "--font-name";
+  argv[3] = (char *) "--siblings";
+  argv[4] = (char *) name;
+  argv[5] = NULL;
+  found = mtx_run (kpse, argv);
+  if (found && (format == kpse_tfm_format || format == kpse_ofm_format)) {
+    free (found);
+    return NULL;
+  }
+  return found;
 }
 
 string
@@ -382,11 +431,23 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
   unsigned i;
   mtx_hit best = { -1, 0, 0, NULL, NULL, NULL };
 
-  if (!mtx_format_allowed (format) || !name || !mtx_name_ok (name))
+  if (!mtx_format_allowed (format) || !name)
     return NULL;
   for (i = 0; i < STR_LIST_LENGTH (mtx.failed); i++)
     if (STREQ (STR_LIST_ELT (mtx.failed, i), name))
       return NULL;
+  if (!mtx_name_ok (name)) {
+    /* Not a file name, but maybe a font name ("TeX Gyre Pagella"). */
+    if (mtx_font_format (format) && mtx_fontname_ok (name)) {
+      setting = kpathsea_var_value (kpse, "MTX_AUTOINSTALL");
+      if (!setting || (*setting != '0' && *setting != 'n' && *setting != 'f'))
+        ret = mtx_find_font_name (kpse, format, name);
+      free (setting);
+      str_list_add (&mtx.failed, xstrdup (name)); /* ask mtx once per run */
+      return ret;
+    }
+    return NULL;
+  }
   if (!mtx_load (kpse))
     return NULL;
 
@@ -419,12 +480,33 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
       ret = xstrdup (best.path);
     } else {
       setting = kpathsea_var_value (kpse, "MTX_AUTOINSTALL");
-      if (!setting || (*setting != '0' && *setting != 'n' && *setting != 'f'))
-        ret = mtx_run (kpse, &best, name);
+      if (!setting || (*setting != '0' && *setting != 'n' && *setting != 'f')) {
+        char *argv[10];
+        argv[0] = NULL;
+        argv[1] = (char *) "ensure";
+        argv[2] = (char *) "--package";
+        argv[3] = (char *) best.pkg;
+        argv[4] = (char *) "--path";
+        argv[5] = best.rel;
+        argv[6] = (char *) "--siblings";
+        argv[7] = (char *) "--";
+        argv[8] = (char *) name;
+        argv[9] = NULL;
+        ret = mtx_run (kpse, argv);
+      }
       free (setting);
       if (!ret)
         str_list_add (&mtx.failed, xstrdup (name));
     }
+  } else if (mtx_font_format (format) && !slash) {
+    /* One-word font names ("Inconsolata") look like file names but are in
+       no package's file list. */
+    setting = kpathsea_var_value (kpse, "MTX_AUTOINSTALL");
+    if (!setting || (*setting != '0' && *setting != 'n' && *setting != 'f'))
+      ret = mtx_find_font_name (kpse, format, name);
+    free (setting);
+    if (!ret)
+      str_list_add (&mtx.failed, xstrdup (name));
   }
 
   for (i = 0; i < STR_LIST_LENGTH (candidates); i++)

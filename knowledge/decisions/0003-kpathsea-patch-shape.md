@@ -28,6 +28,10 @@ sources:
   `-dev`, then smaller archive. It then runs
   `$SELFAUTOLOC/mtx ensure --package P --path REL --siblings -- NAME` and inserts
   every printed path into the in-memory `ls-R` hash.
+- Since 2026-10-07 the resolver also maps font *names* for the font formats
+  ([decision 0005](/decisions/0005-fonts-by-name.md)) and clears kpathsea's cached
+  `//` expansions after every install (new directories would otherwise stay invisible).
+  A second patch, `0002-xetex-tex-tree-fonts-by-name.patch`, changes XeTeX.
 - Formats that never trigger installs: `cnf`, `ls-R`, `fmt`/`base`/`mem`, `gf`/`pk`/glyph, pool files.
 - `MTX_AUTOINSTALL=0` (environment or `texmf.cnf`, per program possible) disables
   installs; mtx sets it for tools it runs while holding its lock.
