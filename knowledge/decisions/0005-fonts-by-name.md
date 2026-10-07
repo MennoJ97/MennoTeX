@@ -1,10 +1,10 @@
 ---
 type: Decision
 title: On-demand fonts selected by name
-description: An embedded font-name index plus small XeTeX and resolver changes make fontspec names install their packages; LuaLaTeX relies on mtx prefetch for the first run.
+description: An embedded font-name index plus small XeTeX and resolver changes make fontspec names install their packages; a luaotfload-main.lua overlay makes LuaLaTeX's first run work too.
 tags: [decision, fonts, fontspec, xetex, luaotfload]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:00:00Z }
 verified:
   - { by: process:tests/run_documents.sh, at: 2026-10-07T12:15:00Z }
 ---
@@ -32,10 +32,21 @@ verified:
 - XeLaTeX: `fontspec-by-name.tex` (Pagella, Heros, Cursor by name) compiles on the
   first run; regular, bold and italic faces are embedded. Better than stock MacTeX,
   where this fails even with the fonts installed.
-- LuaLaTeX: first run without prefetch fails (the font is installed during that run;
-  the next run works); with `mtx prefetch` it works on the first run.
+- LuaLaTeX (until 2026-10-08): first run without prefetch failed (the font was installed
+  during that run; the next run worked); with `mtx prefetch` it worked on the first run.
+- LuaLaTeX with the overlay below (2026-10-08, CI-built binaries, fresh root): the
+  first run works without prefetch; all five faces are embedded.
 
-# Not done
+# LuaLaTeX overlay (added 2026-10-08)
 
-Patching luaotfload to probe kpathsea before its reload would remove the need for
-prefetch, but luaotfload is a frequently updated tlnet package; not worth it yet.
+Patching luaotfload itself was rejected: it is a frequently updated tlnet package.
+Instead mtx writes `<root>/texmf-mtx/tex/luatex/mtx/luaotfload-main.lua`
+(`crates/mtx-core/data/luaotfload-main.lua`) into a tree that the root `texmf.cnf`
+puts first through `TEXMFAUXTREES`. The LaTeX kernel loads luaotfload only through
+`require('luaotfload-main')`, and luaotfload's own file is just `return
+require'luaotfload'` (see [fonts by name](/upstream/fonts-by-name.md)). Our copy does the
+same, then wraps `luaotfload.main` so the `name` resolver runs twice on a miss:
+first with `config.luaotfload.db.update_live = false` (no reload; the fallback's
+kpathsea `tfm` probe installs the package), then normally (the one reload finds the
+font). Installed by `bootstrap`, `install-binaries` and `repair`; nothing in tlnet
+is modified.

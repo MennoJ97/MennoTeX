@@ -98,7 +98,7 @@ enum Cmd {
     /// Check the installation and the environment for problems.
     Doctor,
     /// Fix what `mtx doctor` reports: missing font-map packages, interrupted
-    /// installs, generated files, ls-R and shims.
+    /// installs, hooks and overlay, generated files, ls-R and shims.
     Repair,
     /// Install what a .tex file statically needs, in one go.
     Prefetch { file: PathBuf },
@@ -255,9 +255,9 @@ fn run(cli: Cli) -> Result<ExitCode> {
             let mut ctx = open(&root)?;
             let fixed = install::repair(&mut ctx)?;
             if fixed.is_empty() {
-                eprintln!("mtx: regenerated configuration, ls-R and shims; no packages needed fixing");
+                eprintln!("mtx: regenerated hooks, configuration, ls-R and shims; no packages needed fixing");
             } else {
-                eprintln!("mtx: installed {}; regenerated configuration, ls-R and shims", fixed.join(", "));
+                eprintln!("mtx: installed {}; regenerated hooks, configuration, ls-R and shims", fixed.join(", "));
             }
         }
         Cmd::Prefetch { file } => {

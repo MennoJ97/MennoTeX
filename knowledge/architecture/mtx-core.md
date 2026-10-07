@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T22:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T22:30:00Z }
 ---
@@ -26,7 +26,7 @@ verified:
 | `configfiles` | `fmtutil.cnf`, `updmap.cfg`, `language.*` | Output matches tlmgr byte for byte apart from the generated-by line (see [tlmgr config generation](/upstream/tlmgr-config.md)) |
 | `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update`; `remove` (refuses while another installed package depends on the target, keeps shared files, removes emptied directories, rebuilds ls-R) | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until recorded, and journaled packages count as not installed, so an interrupted install is redone on next use |
 | `ensure` | Hook entry point | Miss path touches only the index |
-| `bootstrap` | Core set + hyphenation + hooks + root `texmf.cnf`; `--from ROOT` carries another installation's explicit and auto packages over | Hooks and `texmf.cnf` are written before `updmap` runs; bootstrap and dependency packages are not carried (the new release brings its own) |
+| `bootstrap` | Core set + hyphenation + hooks + root `texmf.cnf` + overlay tree `texmf-mtx` (LuaLaTeX fonts by name, [decision 0005](/decisions/0005-fonts-by-name.md)); `--from ROOT` carries another installation's explicit and auto packages over | Hooks and `texmf.cnf` are written before `updmap` runs; bootstrap and dependency packages are not carried (the new release brings its own) |
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
 | `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors, a newer TeX Live release; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
 | `fontmaps` | Embedded TeX-font → map-package table ([decision 0004](/decisions/0004-font-map-index.md)); installs add map packages for TFMs they bring | Skips packages that map their own fonts |
@@ -37,7 +37,7 @@ verified:
 
 # Tests
 
-`cargo test` runs 42 tests (2026-10-08):
+`cargo test` runs 43 tests (2026-10-08):
 
 - unit tests for every module above, including a real tlnet signature fixture
   (`testdata/texlive.tlpdb.sha512{,.asc}`);

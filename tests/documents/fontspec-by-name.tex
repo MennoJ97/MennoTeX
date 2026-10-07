@@ -1,11 +1,9 @@
 % engines: xelatex lualatex
-% prefetch: lualatex
 % Fonts selected by family name, not installed beforehand: XeTeX asks
-% kpathsea (MennoTeX XeTeX patch), luaotfload probes the name as a TFM;
-% both reach mtx's font-name index, which installs the package. fontspec
-% sends LuaTeX `name:` requests, which luaotfload resolves (and gives up
-% on) before any kpathsea lookup, so LuaLaTeX needs `mtx prefetch` to
-% succeed on the first run; the failed run installs the fonts for the next.
+% kpathsea (MennoTeX XeTeX patch); for LuaLaTeX, mtx's luaotfload-main.lua
+% overlay resolves fontspec's `name:` requests once without luaotfload's
+% database reload, so its kpathsea probe installs the package before the
+% reload. Both reach mtx's font-name index. No prefetch needed.
 \documentclass{article}
 \usepackage{fontspec}
 \setmainfont{TeX Gyre Pagella}

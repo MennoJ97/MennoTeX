@@ -6,6 +6,7 @@
 //! <root>/bin/universal-darwin/   programs, symlinks to scripts, mtx itself
 //! <root>/texmf-dist/             packages (with ls-R)
 //! <root>/texmf-var/              generated files: formats, font maps, language.*
+//! <root>/texmf-mtx/              mtx's overlay, searched first (TEXMFAUXTREES)
 //! <root>/texmf.cnf               our kpathsea overrides
 //! <root>/tlpkg/mtx/              index, installed database, cache, lock, log
 //! ```
@@ -58,6 +59,11 @@ impl Root {
     }
     pub fn texmf_var(&self) -> PathBuf {
         self.dir.join("texmf-var")
+    }
+    /// mtx's own small tree, searched before all others (see
+    /// `bootstrap::install_overlay`).
+    pub fn texmf_overlay(&self) -> PathBuf {
+        self.dir.join("texmf-mtx")
     }
     pub fn texmf_config(&self) -> PathBuf {
         self.dir.join("texmf-config")

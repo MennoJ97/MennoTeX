@@ -77,6 +77,10 @@ TEXMFHOME = ~/Library/texmf
 TEXMFVAR = $TEXMFROOT/texmf-user-var
 TEXMFCONFIG = $TEXMFROOT/texmf-user-config
 
+% mtx's overlay tree, searched before all others. It is searched on disk:
+% kpathsea loads ls-R only for the trees in TEXMFDBS.
+TEXMFAUXTREES = $TEXMFROOT/texmf-mtx,
+
 {hook}"
     )
 }
@@ -89,11 +93,36 @@ fn write_executable(path: &Path, content: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Install the root texmf.cnf, a copy of the running mtx, and the kpathsea
-/// hook links for `mode`.
+/// Files of the overlay tree, `<root>/texmf-mtx`: (path in the tree, content).
+const OVERLAY: &[(&str, &str)] =
+    &[("tex/luatex/mtx/luaotfload-main.lua", include_str!("../data/luaotfload-main.lua"))];
+
+/// Write mtx's overlay tree, which TEXMFAUXTREES puts ahead of every other
+/// tree. It holds a `luaotfload-main.lua` that makes LuaLaTeX's first run
+/// work with fonts selected by name (see the file). No ls-R: kpathsea only
+/// reads those for TEXMFDBS trees, and this one is searched on disk.
+pub fn install_overlay(root: &Root) -> Result<()> {
+    let tree = root.texmf_overlay();
+    for (rel, content) in OVERLAY {
+        let path = tree.join(rel);
+        fs::create_dir_all(path.parent().expect("overlay files are in directories"))?;
+        if fs::read(&path).ok().as_deref() != Some(content.as_bytes()) {
+            let tmp = path.with_extension("mtx-tmp");
+            fs::write(&tmp, content)?;
+            fs::rename(&tmp, &path)?;
+        }
+    }
+    // An ls-R written by earlier versions would be ignored; remove it.
+    let _ = fs::remove_file(tree.join("ls-R"));
+    Ok(())
+}
+
+/// Install the root texmf.cnf, the overlay tree, a copy of the running mtx,
+/// and the kpathsea hook links for `mode`.
 pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
     let bin = root.bin_dir();
     fs::create_dir_all(&bin)?;
+    install_overlay(root)?;
     fs::write(root.dir.join("texmf.cnf"), root_texmf_cnf(mode))?;
     let exe = std::env::current_exe().context("locating the mtx executable")?;
     let dest = bin.join("mtx");
@@ -219,4 +248,23 @@ pub fn bootstrap(root: &Root, repository: Option<&str>, from: Option<&Root>) -> 
     let shims = fs::read_dir(root.bin_dir())?.flatten().filter(|e| crate::shims::is_shim(&e.path())).count();
     ctx.log(format!("{shims} command shims for programs installed on first use"));
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlay_tree_is_searched_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = Root::new(dir.path());
+        install_overlay(&root).unwrap();
+        let lua = fs::read_to_string(root.texmf_overlay().join("tex/luatex/mtx/luaotfload-main.lua")).unwrap();
+        assert!(lua.contains("require'luaotfload'"));
+        // Idempotent.
+        install_overlay(&root).unwrap();
+        for mode in [HookMode::Mktex, HookMode::Kpathsea] {
+            assert!(root_texmf_cnf(mode).contains("TEXMFAUXTREES = $TEXMFROOT/texmf-mtx,\n"));
+        }
+    }
 }

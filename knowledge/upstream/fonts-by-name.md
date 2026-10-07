@@ -4,7 +4,7 @@ title: How fonts are found by name
 description: How XeTeX (macOS), luaotfload and kpathsea resolve fontspec font names, and where on-demand installation can hook in.
 tags: [fonts, xetex, luaotfload, fontspec, kpathsea, coretext]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:00:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:15:00Z }
 sources:
@@ -41,6 +41,24 @@ sources:
 - Installed fonts are found by name: the reload rescans the font directories.
 - The names database lives in the TeX tree's var directory and is generated on the
   first font request of a run if missing.
+- `lookup_font_name` and `lookup_font_file` reload only when
+  `config.luaotfload.db.update_live == true` (read at call time) and not yet reloaded
+  in this run (a file-local flag). `lookup_font_name_cached` caches hits only.
+- `luaotfload.resolvers` is a public table; `fonts.definers.resolvers` wraps its
+  entries lazily through `__index` on first use.
+- The LaTeX kernel (`latex.ltx`) loads luaotfload with `require('luaotfload-main')`
+  then calls `luaotfload.main()`; `luaotfload-main.lua` is a compatibility wrapper
+  containing only `return require'luaotfload'`.
+
+# Overlay trees (texmf.cnf)
+
+- `TEXMFAUXTREES` (default `{}`) is spliced in front of `TEXMF`; values must end
+  with a comma. tlmgr's `auxtrees` subcommand manages it.
+- kpathsea loads `ls-R` only for the trees in `TEXMFDBS`
+  (`{!!$TEXMFLOCAL,!!$TEXMFSYSCONFIG,!!$TEXMFSYSVAR,!!$TEXMFDIST}`), which does not
+  include aux trees. A `!!` (ls-R only) aux tree is therefore never searched; aux trees
+  must be searched on disk. Found the hard way: the first overlay used `!!` and
+  kpsewhich kept returning texmf-dist's file.
 
 # kpathsea
 

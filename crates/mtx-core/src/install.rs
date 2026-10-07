@@ -351,6 +351,8 @@ pub fn repair(ctx: &mut Ctx) -> Result<Vec<String>> {
         fixed.extend(r.installed.into_iter().map(|(n, _)| n));
     }
     let _ = fs::remove_dir_all(ctx.root.dir.join(".staging"));
+    let mode = crate::bootstrap::HookMode::current(ctx)?;
+    crate::bootstrap::install_hooks(&ctx.root, mode)?;
     lsr::rebuild(&ctx.root.texmf_dist())?;
     apply_regen(ctx, &tlpdb, Regen::all(), &[])?;
     crate::shims::sync(ctx, &tlpdb)?;
