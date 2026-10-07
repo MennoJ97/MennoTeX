@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: [Handoff](/project/handoff.md): real installation done (no PATH change), CI step done, LuaLaTeX font-name gap closed, corpus at 26.
 * **Update**: LuaLaTeX fonts by name work on the first run through mtx's `luaotfload-main.lua` overlay ([decision 0005](/decisions/0005-fonts-by-name.md), [fonts by name](/upstream/fonts-by-name.md)); `TEXMFDBS` excludes aux trees, so the overlay is searched on disk.
 * **Update**: First CI binary build: 14 min, artifact installed and used for the corpus ([playbook](/playbooks/development.md), [status](/project/status.md)).
 * **Update**: [Handoff](/project/handoff.md): release transitions item now reflects [decision 0006](/decisions/0006-release-transitions.md) and lists what is still open.

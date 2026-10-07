@@ -5,28 +5,36 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:45:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-07T13:00:00Z }
-  - { by: process:tests/run_documents.sh, at: 2026-10-07T13:00:00Z }
+  - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
+  - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
 ---
 
 # Where things stand (2026-10-08)
 
 - **Phases 0 and 1 work.** A 30 MB bootstrap plus our patched TeX Live 2026.1 arm64
-  build compiles the 18-document corpus on the first run from a fresh root:
-  pdfLaTeX 16/16 (2 are XeTeX/LuaTeX-only), XeLaTeX 18/18, LuaLaTeX 18/18.
+  build compiles the 26-document corpus on the first run from a fresh root:
+  pdfLaTeX 23/23 (3 are XeTeX/LuaTeX-only), XeLaTeX 26/26, LuaLaTeX 26/26, using the
+  binaries from the **first GitHub CI build** (2026-10-08, 14 min, 39 MB artifact).
   Details and numbers: [status](/project/status.md).
 - **Done beyond the plan's phase 1:** command shims, `mtx prefetch`/`doctor`/`repair`/
   `update`/`remove`, an install journal, a font-map index (`ec` → `cm-super`),
-  fonts by name (XeTeX patch + font-name index), concurrency-safe format builds.
+  fonts by name on all engines (XeTeX patch, font-name index, and a `luaotfload-main.lua`
+  overlay for LuaLaTeX's first run), concurrency-safe format builds, release
+  transitions ([decision 0006](/decisions/0006-release-transitions.md)), `bootstrap --from`.
+- **Real installation exists** at `~/Library/MennoTeX/2026` (CI binaries, kpathsea hook
+  mode, overlay); `mtx doctor` is clean with its bin directory first on PATH. PATH was
+  **not** changed: in a normal shell MiKTeX's `/usr/local/bin` links still win.
 - **Repository:** private `MennoJ97/MennoTeX`, branch `main`, all work committed and
-  pushed. 39 `cargo test` tests; the OKF bundle checks clean.
+  pushed. 43 `cargo test` tests; the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
 The previous session's build trees and test roots lived in a session scratch
-directory and are gone. To get going again:
+directory and are gone. Instead of building locally you can install the CI artifact
+(see the [development playbook](/playbooks/development.md); run 37694133534 keeps it for
+GitHub's artifact retention period). To get going again:
 
 ```bash
 cargo build --release && cargo test
@@ -44,23 +52,27 @@ archives. See the [development playbook](/playbooks/development.md).
 # Decisions the user made
 
 - **CI:** the binary build workflow (`.github/workflows/build-binaries.yml`) is
-  **manual only** (private repo; macOS minutes billed at 10×). It has never been run;
-  ask before triggering it. No other workflows were added (a cheap Linux
+  **manual only** (private repo; macOS minutes billed at 10×). The user approved one
+  run on 2026-10-08 (done, without publishing a Release); ask before any further run. No other workflows were added (a cheap Linux
   `cargo test` + OKF check on push would also need the user's OK).
-- **Real installation on this Mac** (`~/Library/MennoTeX/2026`, PATH ahead of MiKTeX):
-  the user said **"not yet"** (again on 2026-10-08). Keep testing in scratch roots until asked.
+- **Real installation on this Mac:** on 2026-10-08 one session recorded "not yet", while
+  in another the user chose **"install, no PATH edit"** and, asked about the conflict,
+  **"finish the install"**. So `~/Library/MennoTeX/2026` is installed, and the user
+  switches PATH themselves: do not edit `~/.zprofile` or other shell files unless asked.
+  Keep running tests in scratch roots; the real root is for the user's own use.
 - **Knowledge upkeep:** keep `knowledge/` current in the same commit (see `CLAUDE.md`).
 
 # Next steps, in priority order
 
-1. **Ask the user about installing for real** and, if yes, do it: bootstrap
-   `~/Library/MennoTeX/2026`, install the binaries, add the bin directory to `PATH`
-   (`~/.zprofile`, ahead of MiKTeX's `/usr/local/bin` links; `mtx doctor` must come out
-   clean). Then smoke-test editors: TeXShop, VS Code LaTeX Workshop, TeXstudio
-   (they look in `/Library/TeX/texbin`; plan §5.2 describes TeXDist registration).
-2. **Run the manual CI workflow once** (with the user's OK) to prove the GitHub build;
-   then teach `mtx install-binaries` to fetch a release (private repo → needs `gh`
-   auth or a token; consider signing the manifest, plan §5.8).
+1. **Editors with the real installation.** Once the user has put
+   `~/Library/MennoTeX/2026/bin/universal-darwin` first on PATH (or asks for help with
+   it), smoke-test TeXShop, VS Code LaTeX Workshop and TeXstudio. GUI apps do not read
+   `~/.zprofile`; they look in `/Library/TeX/texbin` (plan §5.2: TeXDist registration
+   needs admin once, so ask first).
+2. **Release downloads:** the CI build works (step done 2026-10-08). Next, teach
+   `mtx install-binaries` to fetch a release or a run artifact itself (private repo →
+   needs `gh` auth or a token; consider signing the manifest, plan §5.8). Publishing a
+   Release means rerunning the workflow with `release: true`, which needs the user's OK.
 3. **Install feedback: an `ask` setting and failure logging** (requested by the user
    on 2026-10-08):
    - **`MTX_AUTOINSTALL=ask`** (plan §5.9). The resolver already reads
@@ -95,12 +107,15 @@ archives. See the [development playbook](/playbooks/development.md).
      bump `root::RELEASE`, rebuild with the patches, rerun the corpus.
    - A one-command upgrade from the old mtx needs release downloads (step 2);
      until then `mtx doctor` names the command.
-5. **Grow the corpus** toward the plan's 50 documents (e.g. arXiv sources, kept locally;
-   theses, CVs, letters, exams, music/chess/linguistics packages, CJK).
+5. **Grow the corpus** from 26 toward the plan's 50 documents (e.g. arXiv sources, kept
+   locally; theses, posters with real fonts, Japanese with LuaTeX-ja, music with
+   musixtex (needs `musixflx` between runs), Arabic/Hebrew with bidi).
 6. **Known gaps** (each has a note in the knowledge bundle):
-   - LuaLaTeX + fontspec font *names* need `mtx prefetch` for the first run (luaotfload
-     resolves `name:` before kpathsea; [decision 0005](/decisions/0005-fonts-by-name.md)).
-     Option: a luaotfload overlay or a callback hook.
+   - LuaLaTeX fonts by name: **fixed** by the overlay `texmf-mtx/…/luaotfload-main.lua`
+     ([decision 0005](/decisions/0005-fonts-by-name.md)). It assumes luaotfload's
+     `resolvers.name` and `config.luaotfload.db.update_live` keep their shape; if a
+     luaotfload update breaks `fontspec-by-name` under LuaLaTeX, look there first.
+     Anonymous requests (`\font\x="Name"`) are not wrapped.
    - Font packages first needed after pdfTeX's first `\shipout` are missing from that run's
      map (plan §5.7); a pdfTeX/LuaTeX map-reload patch would fix it.
    - Roots made before the font-map rule need `mtx repair`; a `mktexpk` fallback could
@@ -111,9 +126,9 @@ archives. See the [development playbook](/playbooks/development.md).
    from `tools/build_fontmap_index.py` / `tools/build_fontname_index.py` (download all
    font packages once, ~850 MiB each, mostly shared). Regenerate when font packages
    change; ideally a manual CI job.
-8. **PLAN.md drift:** the archive cache lives in `<root>/tlpkg/mtx/cache` (not
-   `~/Library/Caches`), binaries are pinned to the 2026.1 release branch, and the
-   resolver also handles font names. Update PLAN.md or point it at the knowledge bundle.
+8. **PLAN.md drift:** "as built" notes now cover the layout (§5.2), binaries (§5.8), the
+   index (§5.5) and release transitions (§4.3). Other sections may still drift; the
+   knowledge bundle is authoritative.
 
 # Gotchas for whoever continues
 
@@ -131,5 +146,11 @@ archives. See the [development playbook](/playbooks/development.md).
   8 `local_repo_tests` fail with `NotFound` under `cargo test` but pass with
   `-p mtx-core`. Fix: `cargo clean -p mtx-core`; check with
   `strings target/debug/deps/mtx_core-* | grep testdata`.
+- Two sessions have worked in this same checkout at once (2026-10-08): fetch and check
+  `git log` before committing, and keep commits small.
+- kpathsea reads `ls-R` only for `TEXMFDBS` trees: a `!!` entry outside them (such as
+  an aux tree) is never searched.
+- texlive.info (historic mirror) shows non-browser clients a bot challenge with HTTP 200;
+  do not work around it.
 - Release binaries are stripped: check for the patch with
   `strings pdftex | grep MTX_AUTOINSTALL`.

@@ -65,7 +65,7 @@ test document still makes 18 such calls.
 | Document corpus (17 documents, 2026-10-07, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
 | CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×). **First run 2026-10-07 succeeded** (run 37694133534): 14 min 16 s, artifact `mennotex-bin-2026-6a3001880-arm64-darwin` (39 MB, 153 programs, `SHA256SUMS` verified); its binaries ran the 26-document corpus |
 | Binary channel | `mtx install-binaries` takes a directory or a release archive (`--sums SHA256SUMS`); the workflow can publish a GitHub Release. No signature yet: the repository is private, so release downloads need GitHub auth anyway |
-| Real installation on this Mac | deferred by the user; all testing in scratch roots |
+| Real installation on this Mac | **installed 2026-10-08** at `~/Library/MennoTeX/2026` with the CI binaries (user's choice: no PATH edit). With its bin directory first on PATH, `mtx doctor` is clean and pdfLaTeX, XeLaTeX and LuaLaTeX each compiled a corpus document on the first run; in the user's normal PATH, MiKTeX still shadows it. Testing stays in scratch roots |
 
 ## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
 
