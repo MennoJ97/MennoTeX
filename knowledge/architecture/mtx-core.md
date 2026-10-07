@@ -24,7 +24,7 @@ verified:
 | `extract` | Unpack `.tar.xz` via a staging dir | No absolute paths, no `..`, symlinks must stay inside the root; skips `tlpkg/tlpobj/` |
 | `lsr` | Rebuild/append kpathsea `ls-R` | Repeated directory blocks are legal |
 | `configfiles` | `fmtutil.cnf`, `updmap.cfg`, `language.*` | Output matches tlmgr byte for byte apart from the generated-by line (see [tlmgr config generation](/upstream/tlmgr-config.md)) |
-| `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update` | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until recorded, and journaled packages count as not installed, so an interrupted install is redone on next use |
+| `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update`; `remove` (refuses while another installed package depends on the target, keeps shared files, removes emptied directories, rebuilds ls-R) | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until recorded, and journaled packages count as not installed, so an interrupted install is redone on next use |
 | `ensure` | Hook entry point | Miss path touches only the index |
 | `bootstrap` | Core set + hyphenation + hooks + root `texmf.cnf` | Hooks and `texmf.cnf` are written before `updmap` runs |
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
@@ -33,7 +33,7 @@ verified:
 
 # Tests
 
-`cargo test` runs 25 tests (2026-10-07):
+`cargo test` runs 29 tests (2026-10-07):
 
 - unit tests for every module above, including a real tlnet signature fixture
   (`testdata/texlive.tlpdb.sha512{,.asc}`);
@@ -41,7 +41,7 @@ verified:
   repository (`foo` depends on `bar`; `fonts-x`) signed with a throw-away key that has
   TeX Live's structure (certification-only primary + signing subkey). They cover
   refresh → `ensure_path` with siblings, Phase 0 name resolution, failover from an
-  unreachable pinned mirror, rejection of a corrupted archive, and redoing an
-  interrupted (journaled) install.
+  unreachable pinned mirror, rejection of a corrupted archive, redoing an
+  interrupted (journaled) install, and dependency-aware removal.
   `Ctx::test_key` / `Verifier::with_key` exist only under `cfg(test)`.
   Regenerate the repository with `tools/make_test_repo.sh` (needs `gpg`).

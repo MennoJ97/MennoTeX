@@ -259,3 +259,58 @@ fn invalidate_formats(ctx: &Ctx, installed: &[&Package], regen: Regen, changed: 
     }
     Ok(())
 }
+
+/// Remove installed packages. Refuses (unless `force`) when another
+/// installed package depends on one of them. Files shared with other
+/// packages are kept. Returns the removed package names.
+pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>> {
+    let tlpdb = ctx.tlpdb()?;
+    let installed = ctx.db.installed()?;
+    let targets: BTreeSet<&str> = names.iter().copied().filter(|n| installed.contains_key(*n)).collect();
+    if !force {
+        for (other, _) in &installed {
+            if targets.contains(other.as_str()) {
+                continue;
+            }
+            if let Some(p) = tlpdb.get(other) {
+                for dep in p.resolved_depends() {
+                    if targets.contains(dep.as_str()) {
+                        bail!("{other} depends on {dep}; remove it too or use --force");
+                    }
+                }
+            }
+        }
+    }
+    let lock = fs::File::create(ctx.root.lock_path())?;
+    lock.lock()?;
+    let mut regen = Regen::default();
+    let mut removed = Vec::new();
+    for name in &targets {
+        for f in ctx.db.files_of(name)? {
+            if ctx.db.other_owners(&f, name)? == 0 {
+                let path = ctx.root.dir.join(&f);
+                let _ = fs::remove_file(&path);
+                // Drop directories that became empty (best effort).
+                let mut dir = path.parent();
+                while let Some(d) = dir.filter(|d| *d != ctx.root.dir && fs::remove_dir(d).is_ok()) {
+                    dir = d.parent();
+                }
+            }
+        }
+        ctx.db.forget(name)?;
+        if let Some(p) = tlpdb.get(name) {
+            regen.merge(Regen::for_package(p));
+        }
+        removed.push(name.to_string());
+    }
+    // Appending cannot remove entries, so rebuild.
+    lsr::rebuild(&ctx.root.texmf_dist())?;
+    if regen.any() {
+        apply_regen(ctx, &tlpdb, regen, &removed)?;
+    }
+    drop(lock);
+    if !removed.is_empty() {
+        ctx.log(format!("removed {}", removed.join(", ")));
+    }
+    Ok(removed)
+}

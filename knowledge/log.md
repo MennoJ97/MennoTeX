@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Added `mtx remove` ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: Added `mtx prefetch` with measured effect ([status](/project/status.md)).
 * **Update**: Added `mtx doctor` ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).
 * **Update**: Install journal and `mtx update` ([mtx-core](/architecture/mtx-core.md), [status](/project/status.md)).

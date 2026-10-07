@@ -129,3 +129,20 @@ fn interrupted_install_is_redone() {
     assert!(!root.journal_dir().join("bar").exists());
     assert_eq!(ctx.db.installed().unwrap()["bar"].reason, "dependency");
 }
+
+#[test]
+fn remove_respects_dependencies() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    let err = install::remove(&mut ctx, &["bar"], false).unwrap_err();
+    assert!(err.to_string().contains("foo depends on bar"), "{err:#}");
+
+    assert_eq!(install::remove(&mut ctx, &["foo"], false).unwrap(), vec!["foo"]);
+    assert!(!root.texmf_dist().join("tex/latex/foo").exists(), "empty directories are removed");
+    assert!(root.texmf_dist().join("tex/latex/bar/bar.sty").exists());
+    let lsr = fs::read_to_string(root.texmf_dist().join("ls-R")).unwrap();
+    assert!(!lsr.contains("foo.sty") && lsr.contains("bar.sty"));
+    assert_eq!(install::remove(&mut ctx, &["bar"], false).unwrap(), vec!["bar"]);
+    assert!(ctx.db.installed().unwrap().is_empty());
+}

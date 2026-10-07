@@ -54,6 +54,13 @@ enum Cmd {
     InstallBinaries { dir: PathBuf },
     /// Install packages (and their dependencies).
     Install { packages: Vec<String> },
+    /// Remove packages.
+    Remove {
+        packages: Vec<String>,
+        /// Remove even if other installed packages depend on them.
+        #[arg(long)]
+        force: bool,
+    },
     /// Show which package provides a file.
     Which {
         name: String,
@@ -146,6 +153,14 @@ fn run(cli: Cli) -> Result<ExitCode> {
             let r = install::install(&mut ctx, &names, Reason::Explicit)?;
             if r.installed.is_empty() {
                 eprintln!("mtx: already installed and up to date");
+            }
+        }
+        Cmd::Remove { packages, force } => {
+            let mut ctx = open(&root)?;
+            let names: Vec<&str> = packages.iter().map(String::as_str).collect();
+            let removed = install::remove(&mut ctx, &names, force)?;
+            if removed.is_empty() {
+                eprintln!("mtx: none of these packages are installed");
             }
         }
         Cmd::Which { name, format } => {
