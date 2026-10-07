@@ -17,8 +17,12 @@ use crate::repo::{ChecksumMismatch, Repo, is_network_error, sha512_file};
 use crate::tlpdb::{Package, Tlpdb};
 
 /// Files mtx provides itself. tlnet's versions are never unpacked over them.
-pub const PROTECTED: &[&str] =
-    &["bin/universal-darwin/mtx", "bin/universal-darwin/mktextex", "bin/universal-darwin/mktextfm"];
+pub const PROTECTED: &[&str] = &[
+    "bin/universal-darwin/mtx",
+    "bin/universal-darwin/mktextex",
+    "bin/universal-darwin/mktextfm",
+    "bin/universal-darwin/mktexfmt",
+];
 
 #[derive(Debug, Default)]
 pub struct Report {

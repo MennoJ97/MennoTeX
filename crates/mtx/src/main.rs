@@ -109,6 +109,9 @@ fn main() -> ExitCode {
     if prog == "mktextex" || prog == "mktextfm" {
         return hook(&prog);
     }
+    if prog == "mktexfmt" {
+        return mktexfmt();
+    }
     let cli = Cli::parse();
     match run(cli) {
         Ok(code) => code,
@@ -286,6 +289,42 @@ fn run(cli: Cli) -> Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// `mktexfmt NAME.fmt`: build the format (serialized, atomic) and print
+/// its path; other requests (`.base`, `.mem`, options) go to TeX Live's.
+fn mktexfmt() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let root = match Root::discover(None) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("mtx: mktexfmt: {e:#}");
+            return ExitCode::from(1);
+        }
+    };
+    match args.as_slice() {
+        [name] if !name.starts_with('-') && (name.ends_with(".fmt") || !name.contains('.')) => {
+            match mtx_core::formats::mkfmt(&root, name) {
+                Ok(path) => {
+                    println!("{}", path.display());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("mtx: mktexfmt {name}: {e:#}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        _ => {
+            use std::os::unix::process::CommandExt;
+            let err = std::process::Command::new(root.texmf_dist().join("scripts/texlive/fmtutil.pl"))
+                .arg0("mktexfmt")
+                .args(&args)
+                .exec();
+            eprintln!("mtx: cannot run TeX Live's mktexfmt: {err}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 /// kpathsea hook mode: `mktextex NAME` or `mktextfm NAME` (the name is the

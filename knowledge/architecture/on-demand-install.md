@@ -39,8 +39,15 @@ sources:
 
 kpathsea hooks only see files TeX looks up. Commands (`biber`, `latexmk`,
 `makeglossaries`, …) are covered by [command shims](/architecture/mtx-core.md): bootstrap
-creates about 325, and the first `biber --version` installs `biber` (67.8 MiB, a
+creates about 470 (2026-10), and the first `biber --version` installs `biber` (67.8 MiB, a
 universal arm64/x86_64 binary) and runs it.
+
+# Formats
+
+`mktexfmt` is also a link to `mtx` (both hook modes). TeX Live's own mktexfmt copies
+the finished format over the old file, which broke concurrent runs (see
+[TeX Live scripts](/upstream/texlive-scripts.md)); mtx serializes builds per format
+and renames the result into place.
 
 # Protocol rules for `mtx ensure`
 

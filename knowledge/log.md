@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Format-build race found by the concurrency test and fixed with mtx as `mktexfmt` ([TeX Live scripts](/upstream/texlive-scripts.md), [mtx-core](/architecture/mtx-core.md)).
 * **Update**: Concurrency test passes ([status](/project/status.md), [playbook](/playbooks/development.md)).
 * **Creation**: [Decision 0005](/decisions/0005-fonts-by-name.md) and [fonts by name](/upstream/fonts-by-name.md); corpus at 18 documents ([status](/project/status.md)).
 * **Update**: Manual-only binary build workflow and archive installs ([playbook](/playbooks/development.md), [status](/project/status.md)).

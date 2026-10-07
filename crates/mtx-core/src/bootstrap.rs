@@ -106,7 +106,9 @@ pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
         HookMode::Mktex => "mtx",
         HookMode::Kpathsea => "../../texmf-dist/scripts/texlive/mktextfm",
     };
-    for (hook, target) in [("mktextex", "mtx"), ("mktextfm", mktextfm)] {
+    // mktexfmt is mtx in every mode: it serializes concurrent format builds
+    // and installs the result atomically (see formats.rs).
+    for (hook, target) in [("mktextex", "mtx"), ("mktextfm", mktextfm), ("mktexfmt", "mtx")] {
         let link = bin.join(hook);
         if link.symlink_metadata().is_ok() {
             fs::remove_file(&link)?;
@@ -146,7 +148,8 @@ pub fn bootstrap(root: &Root, repository: Option<&str>) -> Result<install::Repor
     lsr::rebuild(&root.texmf_dist())?;
     let tlpdb = ctx.tlpdb()?;
     install::apply_regen(&ctx, &tlpdb, Regen::all(), &[])?;
-    let (shims, _) = crate::shims::sync(&ctx, &tlpdb)?;
+    crate::shims::sync(&ctx, &tlpdb)?;
+    let shims = fs::read_dir(root.bin_dir())?.flatten().filter(|e| crate::shims::is_shim(&e.path())).count();
     ctx.log(format!("{shims} command shims for programs installed on first use"));
     Ok(report)
 }

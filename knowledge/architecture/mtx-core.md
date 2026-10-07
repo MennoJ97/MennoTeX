@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T13:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T13:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T13:00:00Z }
 ---
@@ -31,12 +31,13 @@ verified:
 | `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
 | `fontmaps` | Embedded TeX-font → map-package table ([decision 0004](/decisions/0004-font-map-index.md)); installs add map packages for TFMs they bring | Skips packages that map their own fonts |
 | `fontnames` | Embedded font-name → (package, file) table ([decision 0005](/decisions/0005-fonts-by-name.md)); `ensure_font_name`; prefetch reads fontspec commands | Full/PS names beat family names |
+| `formats` | `mktexfmt` (mtx multi-call): per-format lock, re-check, `fmtutil-sys --byfmt --fmtdir <staging>`, atomic rename into `texmf-var/web2c/<engine>/`, ls-R append | Never overwrites a format another process may be reading; fmtutil output goes to stderr (kpathsea reads stdout) |
 | `shims` | Command shims: a script for every program of a not-installed tlnet binary package; first run does `mtx install <pkg>` (which unpacks the real program over the shim) and re-execs | Never shadows `/usr/bin` or `/bin` commands or `man`; resynced after bootstrap, removals and installs of binary packages; `MTX_SHIM_ACTIVE` prevents loops |
 | `root` | Installation layout (TeX Live compatible) | `tool_path()` = our bin + system dirs only |
 
 # Tests
 
-`cargo test` runs 37 tests (2026-10-07):
+`cargo test` runs 39 tests (2026-10-07):
 
 - unit tests for every module above, including a real tlnet signature fixture
   (`testdata/texlive.tlpdb.sha512{,.asc}`);

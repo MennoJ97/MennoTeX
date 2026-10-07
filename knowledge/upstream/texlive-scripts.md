@@ -33,6 +33,13 @@ sources:
   lookups; with mtx's hook those install packages during the build
   (observed: `atveryend`, `atbegshi` for `pdflatex.fmt`).
 - `mktexfmt` guards against recursion with the `mktexfmt_loop` environment variable.
+- **Not safe under concurrency.** fmtutil builds in a system temp directory and then
+  `TeXLive::TLUtils::copy("-f", …)`s the format over the destination (around
+  `fmtutil.pl:950`). When several runs miss the same format, each rebuilds it and
+  overwrites the file while others read it: `pdflatex: fatal: Could not undump 1 4-byte
+  item(s) from …/pdflatex.fmt` (1 of 8 runs in `tests/run_concurrent.sh`). MennoTeX's
+  `mktexfmt` therefore locks per format, re-checks, builds with `--fmtdir` into a
+  staging directory and renames.
 
 # updmap
 
