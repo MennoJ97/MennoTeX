@@ -61,8 +61,9 @@ test document still makes 18 such calls.
 | `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
 | `build/build-texlive.sh` | release build of `tags/texlive-2026.1` with the patch: exit 0 in 20 min, 153 arm64 Mach-O programs (stripped), "TeX Live 2026" banners, minimum macOS 13.0, no non-system dylibs; kpathsea's own tests 10/10 ([build notes](/upstream/texlive-build.md)) |
 | Document corpus (17 documents, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
-| CI build on GitHub Actions | not started (macOS minutes on a private repo are billed at 10×) |
-| Binary channel (signed release assets) | not started; binaries are installed from a local build with `mtx install-binaries` |
+| CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×); not run yet. Packaging step dry-run locally: 39 MB archive of 153 programs + `SHA256SUMS` |
+| Binary channel | `mtx install-binaries` takes a directory or a release archive (`--sums SHA256SUMS`); the workflow can publish a GitHub Release. No signature yet: the repository is private, so release downloads need GitHub auth anyway |
+| Real installation on this Mac | deferred by the user; all testing in scratch roots |
 
 ## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
 

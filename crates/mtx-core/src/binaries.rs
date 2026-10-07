@@ -44,6 +44,44 @@ fn remove_formats(dir: &Path) -> Result<usize> {
     Ok(n)
 }
 
+/// Install from a release archive (`mennotex-bin-*.tar.xz`, as built by
+/// `.github/workflows/build-binaries.yml`), optionally checking it against
+/// a `SHA256SUMS` file first.
+pub fn install_binaries_archive(ctx: &mut Ctx, archive: &Path, sums: Option<&Path>) -> Result<usize> {
+    let name = archive.file_name().and_then(|n| n.to_str()).context("archive name")?;
+    if let Some(sums) = sums {
+        let want = fs::read_to_string(sums)?
+            .lines()
+            .find_map(|l| l.split_once("  ").filter(|(_, f)| *f == name).map(|(h, _)| h.to_string()))
+            .with_context(|| format!("{name} is not listed in {}", sums.display()))?;
+        let got = {
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(fs::read(archive)?);
+            hex::encode(h.finalize())
+        };
+        if got != want {
+            bail!("{name}: SHA-256 does not match {}", sums.display());
+        }
+    }
+    let tmp = ctx.root.mtx_dir().join(format!("unpack-{}", std::process::id()));
+    fs::create_dir_all(&tmp)?;
+    let result = (|| {
+        let file = fs::File::open(archive)?;
+        let mut tar = tar::Archive::new(liblzma::read::XzDecoder::new(std::io::BufReader::new(file)));
+        // unpack() refuses absolute paths and `..` components.
+        tar.unpack(&tmp).with_context(|| format!("unpacking {name}"))?;
+        let dir = fs::read_dir(&tmp)?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| p.is_dir())
+            .context("archive has no top-level directory")?;
+        install_binaries(ctx, &dir)
+    })();
+    let _ = fs::remove_dir_all(&tmp);
+    result
+}
+
 /// Copy every Mach-O executable in `dir` (e.g. `inst/bin/<triplet>/` of a
 /// texlive-source build) into the installation, and switch on-demand
 /// installation from the mktex hooks to the kpathsea patch.

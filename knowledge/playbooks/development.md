@@ -54,6 +54,21 @@ glossaries, standalone TikZ and moderncv. Logs stay in the printed temp
 directory. Use a fresh root to measure first-run behaviour; set `MTX_CACHE` to
 an existing root's `tlpkg/mtx/cache` to skip re-downloading archives.
 
+# Building the TeX Live binaries
+
+Locally (about 20 minutes on 12 cores):
+
+```bash
+git clone --depth 1 --branch tags/texlive-2026.1 https://github.com/TeX-Live/texlive-source.git /tmp/tl2026
+build/build-texlive.sh /tmp/tl2026
+mtx --root /tmp/mtxroot install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darwin*/
+```
+
+On GitHub: run the **Build TeX Live binaries** workflow by hand (Actions tab,
+`workflow_dispatch`; optionally publish a release). It is manual on purpose: each
+run costs roughly 450–600 billed minutes on a private repo. Install its artifact
+with `mtx install-binaries mennotex-bin-…tar.xz --sums SHA256SUMS`.
+
 # Useful commands
 
 - `mtx doctor`: run it first when something behaves oddly. On this Mac it flags MiKTeX in `/usr/local/bin` shadowing `pdflatex`, `lualatex`, `kpsewhich`, … unless PATH is reduced.

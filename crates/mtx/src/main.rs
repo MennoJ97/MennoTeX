@@ -50,8 +50,15 @@ enum Cmd {
         name: String,
     },
     /// Install MennoTeX-built (kpathsea-patched) binaries from a directory
-    /// and switch on-demand installation to the kpathsea patch.
-    InstallBinaries { dir: PathBuf },
+    /// or a release archive (mennotex-bin-*.tar.xz) and switch on-demand
+    /// installation to the kpathsea patch.
+    InstallBinaries {
+        /// Directory of programs, or a .tar.xz release archive.
+        source: PathBuf,
+        /// SHA256SUMS file to verify the archive against.
+        #[arg(long)]
+        sums: Option<PathBuf>,
+    },
     /// Install packages (and their dependencies).
     Install { packages: Vec<String> },
     /// Remove packages.
@@ -144,9 +151,13 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 None => ExitCode::from(1),
             });
         }
-        Cmd::InstallBinaries { dir } => {
+        Cmd::InstallBinaries { source, sums } => {
             let mut ctx = open(&root)?;
-            let n = binaries::install_binaries(&mut ctx, &dir)?;
+            let n = if source.is_dir() {
+                binaries::install_binaries(&mut ctx, &source)?
+            } else {
+                binaries::install_binaries_archive(&mut ctx, &source, sums.as_deref())?
+            };
             eprintln!("mtx: installed {n} binaries; on-demand installation now uses the kpathsea patch");
         }
         Cmd::Install { packages } => {

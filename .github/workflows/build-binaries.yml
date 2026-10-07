@@ -1,0 +1,81 @@
+# Builds MennoTeX's TeX Live binaries (texlive-source + kpathsea on-demand
+# patch) for Apple Silicon. Manual only: on a private repository macOS
+# minutes are billed at 10x, and one build takes roughly 45-60 minutes.
+name: Build TeX Live binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also publish the binaries as a GitHub Release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # only used when publishing a release
+
+jobs:
+  build:
+    runs-on: macos-15  # arm64
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch texlive-source at the pinned revision
+        run: |
+          rev=$(cat build/texlive-source.rev)
+          git init -q "$RUNNER_TEMP/texlive-source"
+          cd "$RUNNER_TEMP/texlive-source"
+          git remote add origin https://github.com/TeX-Live/texlive-source.git
+          git fetch -q --depth 1 origin "$rev"
+          git checkout -q FETCH_HEAD
+          echo "TL_SRC=$RUNNER_TEMP/texlive-source" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: build/build-texlive.sh "$TL_SRC"
+
+      - name: Check the binaries
+        run: |
+          set -eu
+          test "$(cat "$TL_SRC/Work/exitstatus.txt")" = 0
+          bin=$(ls -d "$TL_SRC"/inst/bin/*/)
+          for p in pdftex xetex luahbtex kpsewhich dvipdfmx; do
+            "$bin$p" --version | head -1
+            strings "$bin$p" | grep -q MTX_AUTOINSTALL || { echo "$p lacks the on-demand patch"; exit 1; }
+            if otool -L "$bin$p" | tail -n +2 | grep -vE '/usr/lib/|/System/Library/'; then
+              echo "$p links non-system libraries"; exit 1
+            fi
+          done
+          echo "BIN_DIR=$bin" >> "$GITHUB_ENV"
+
+      - name: Package
+        run: |
+          set -eu
+          release=$(grep -m1 -o 'TeX Live 20[0-9][0-9]' <("$BIN_DIR/pdftex" --version) | tr -dc 0-9)
+          rev=$(cut -c1-9 build/texlive-source.rev)
+          name="mennotex-bin-$release-$rev-arm64-darwin"
+          mkdir -p "dist/$name"
+          for f in "$BIN_DIR"*; do
+            if [ -f "$f" ] && [ ! -L "$f" ] && file "$f" | grep -q Mach-O; then cp "$f" "dist/$name/"; fi
+          done
+          cp build/texlive-source.rev "dist/$name/"
+          tar -C dist -cJf "dist/$name.tar.xz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.xz" > SHA256SUMS)
+          echo "ARCHIVE=$name" >> "$GITHUB_ENV"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: |
+            dist/${{ env.ARCHIVE }}.tar.xz
+            dist/SHA256SUMS
+
+      - name: Publish release
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$ARCHIVE" "dist/$ARCHIVE.tar.xz" dist/SHA256SUMS \
+            --title "$ARCHIVE" \
+            --notes "TeX Live programs built from texlive-source $(cat build/texlive-source.rev) with the MennoTeX kpathsea on-demand patch. Install with: mtx install-binaries <unpacked directory>."
