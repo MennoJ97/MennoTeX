@@ -7,6 +7,7 @@ pub mod bootstrap;
 pub mod configfiles;
 pub mod ctx;
 pub mod db;
+pub mod doctor;
 pub mod ensure;
 pub mod extract;
 pub mod index;

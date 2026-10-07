@@ -147,6 +147,18 @@ impl Db {
         Ok(())
     }
 
+    /// Mirrors recorded as bad (host, unix time).
+    pub fn bad_mirrors(&self) -> Result<Vec<(String, u64)>> {
+        let mut stmt = self.conn.prepare("SELECT key, value FROM kv WHERE key LIKE 'bad_mirror:%'")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out = Vec::new();
+        for r in rows {
+            let (k, v) = r?;
+            out.push((k.trim_start_matches("bad_mirror:").to_string(), v.parse().unwrap_or(0)));
+        }
+        Ok(out)
+    }
+
     pub fn get_u64(&self, key: &str) -> Result<Option<u64>> {
         Ok(self.get(key)?.and_then(|v| v.parse().ok()))
     }

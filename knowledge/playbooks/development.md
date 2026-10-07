@@ -49,6 +49,8 @@ an existing root's `tlpkg/mtx/cache` to skip re-downloading archives.
 
 # Useful commands
 
+- `mtx doctor`: run it first when something behaves oddly. On this Mac it flags MiKTeX in `/usr/local/bin` shadowing `pdflatex`, `lualatex`, `kpsewhich`, … unless PATH is reduced.
+
 - `mtx which <file> [--format tfm]`: which package provides a file and whether it is installed.
 - `mtx info <pkg>`, `mtx list`, `mtx refresh`, `mtx regen`.
 - `tlpkg/mtx/mtx.log` in the root records every install and verification.

@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Added `mtx doctor` ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).
 * **Update**: Install journal and `mtx update` ([mtx-core](/architecture/mtx-core.md), [status](/project/status.md)).
 * **Update**: Offline end-to-end tests against a signed fake repository ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).
 * **Creation**: [Decision 0003](/decisions/0003-kpathsea-patch-shape.md) and [texlive-source build notes](/upstream/texlive-build.md); Phase 1 started in [status](/project/status.md).

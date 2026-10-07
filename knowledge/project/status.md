@@ -66,6 +66,7 @@ test document still makes 18 such calls.
 
 - Install journal and recovery of interrupted installs (tested).
 - `mtx update [--dry-run]`: upgrades outdated packages, keeping each package's reason.
+- `mtx doctor` (Phase 3 item): detects the MiKTeX symlinks in `/usr/local/bin` that shadow MennoTeX on this Mac.
 
 # Phases 2–4
 

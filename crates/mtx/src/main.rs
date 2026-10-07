@@ -74,6 +74,8 @@ enum Cmd {
     },
     /// Regenerate fmtutil.cnf, updmap.cfg, language.* and font maps.
     Regen,
+    /// Check the installation and the environment for problems.
+    Doctor,
 }
 
 fn main() -> ExitCode {
@@ -204,6 +206,23 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 let names: Vec<&str> = outdated.iter().map(|(n, _, _)| n.as_str()).collect();
                 let r = install::install(&mut ctx, &names, Reason::Upgrade)?;
                 eprintln!("mtx: upgraded {} package(s)", r.installed.len());
+            }
+        }
+        Cmd::Doctor => {
+            let ctx = open(&root)?;
+            let path = std::env::var("PATH").unwrap_or_default();
+            let findings = mtx_core::doctor::check(&ctx, &path)?;
+            let worst = findings.iter().map(|f| f.severity).max();
+            for f in &findings {
+                let tag = match f.severity {
+                    mtx_core::doctor::Severity::Ok => "ok",
+                    mtx_core::doctor::Severity::Warning => "warning",
+                    mtx_core::doctor::Severity::Problem => "PROBLEM",
+                };
+                println!("{tag:>8}  {}", f.message);
+            }
+            if worst == Some(mtx_core::doctor::Severity::Problem) {
+                return Ok(ExitCode::from(1));
             }
         }
         Cmd::Regen => {
