@@ -90,11 +90,23 @@ impl Ctx {
                     Repo::at(&m)
                 }
                 _ => {
-                    let r = Repo::resolve(&configured).inspect_err(|e| {
-                        if is_network_error(e) {
-                            self.mark_offline();
+                    // The redirector picks a mirror at random; skip ones that
+                    // recently served data failing verification.
+                    let mut r = None;
+                    for _ in 0..6 {
+                        let cand = Repo::resolve(&configured).inspect_err(|e| {
+                            if is_network_error(e) {
+                                self.mark_offline();
+                            }
+                        })?;
+                        let bad = self.db.get_u64(&format!("bad_mirror:{}", cand.host()))?;
+                        let is_bad = bad.is_some_and(|t| now_secs().saturating_sub(t) < MIRROR_PIN_SECS);
+                        r = Some(cand);
+                        if !is_bad {
+                            break;
                         }
-                    })?;
+                    }
+                    let r = r.expect("at least one resolution attempt");
                     self.db.set("mirror", &r.base)?;
                     self.db.set("mirror_for", &configured)?;
                     self.db.set("mirror_pinned_at", &now_secs().to_string())?;
@@ -113,6 +125,18 @@ impl Ctx {
     pub fn unpin_mirror(&mut self) -> Result<()> {
         self.repo = None;
         self.db.set("mirror_pinned_at", "0")
+    }
+
+    /// Avoid the current mirror for a day and pick another one.
+    pub fn reject_mirror(&mut self) -> Result<()> {
+        if let Some(r) = &self.repo {
+            let host = r.host().to_string();
+            if !host.is_empty() {
+                self.log(format!("avoiding mirror {host} for 24 hours"));
+                self.db.set(&format!("bad_mirror:{host}"), &now_secs().to_string())?;
+            }
+        }
+        self.unpin_mirror()
     }
 
     /// Make sure the local package database is current (see PLAN.md §4.3).

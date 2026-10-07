@@ -146,17 +146,17 @@ impl Repo {
                 };
                 total += n as u64;
                 if size > 0 && total > size {
-                    bail!("{rel}: larger than the expected {size} bytes");
+                    return Err(ChecksumMismatch { file: rel.to_string(), detail: format!("larger than the expected {size} bytes") }.into());
                 }
                 hasher.update(&buf[..n]);
                 out.write_all(&buf[..n])?;
             }
             if size > 0 && total != size {
-                bail!("{rel}: got {total} bytes, expected {size}");
+                return Err(ChecksumMismatch { file: rel.to_string(), detail: format!("got {total} bytes, expected {size}") }.into());
             }
             let got = hex::encode(hasher.finalize());
             if !got.eq_ignore_ascii_case(sha512_hex) {
-                return Err(ChecksumMismatch { file: rel.to_string() }.into());
+                return Err(ChecksumMismatch { file: rel.to_string(), detail: "SHA-512 differs".into() }.into());
             }
             out.sync_all()?;
             fs::rename(&tmp, dest)?;
@@ -169,12 +169,21 @@ impl Repo {
     }
 }
 
-/// The archive on the mirror does not match the database we have; usually
-/// the mirror synced in between, so the caller should refresh and retry.
+/// The archive on the mirror does not match the signed database: either the
+/// mirror synced in between, or it serves a broken file. The caller should
+/// refresh and retry, then switch mirrors.
 #[derive(Debug, thiserror::Error)]
-#[error("checksum mismatch for {file} (the mirror probably changed underneath us)")]
+#[error("integrity check failed for {file}: {detail}")]
 pub struct ChecksumMismatch {
     pub file: String,
+    pub detail: String,
+}
+
+impl Repo {
+    /// Host part of the base URL (empty for local repositories).
+    pub fn host(&self) -> &str {
+        self.base.split("://").nth(1).and_then(|r| r.split('/').next()).unwrap_or("")
+    }
 }
 
 /// SHA-512 of a file already on disk, as lowercase hex.

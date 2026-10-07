@@ -104,7 +104,7 @@ pub fn install(ctx: &mut Ctx, roots: &[&str], reason: Reason) -> Result<Report> 
                 attempt += 1;
                 ctx.log(format!("{e:#}; refreshing the package database and retrying"));
                 if attempt == 2 {
-                    ctx.unpin_mirror()?;
+                    ctx.reject_mirror()?;
                 }
                 ctx.refresh(true)?;
             }

@@ -19,7 +19,7 @@ use crate::root::Root;
 /// `amsfonts` carries the Type 1 Computer Modern fonts and their maps:
 /// with the Phase 0 hooks, pdfTeX's font-file lookups cannot trigger
 /// installs, so the default fonts must be present up front.
-pub const CORE: &[&str] = &["scheme-infraonly", "latex-bin", "l3backend", "amsfonts", "hyphen-base"];
+pub const CORE: &[&str] = &["scheme-infraonly", "latex-bin", "amsfonts", "hyphen-base"];
 
 /// kpathsea overrides for the installation (read before texmf-dist's texmf.cnf).
 pub const ROOT_TEXMF_CNF: &str = "\
@@ -93,7 +93,16 @@ pub fn bootstrap(root: &Root, repository: Option<&str>) -> Result<install::Repor
 
     let hyphen: Vec<&str> =
         tlpdb.content_packages().filter(|p| p.executes_of("AddHyphen").next().is_some()).map(|p| p.name.as_str()).collect();
-    let roots: Vec<&str> = CORE.iter().copied().chain(hyphen).collect();
+    // Package names change between releases (l3backend merged into
+    // l3kernel in 2026); skip core names the repository no longer has.
+    let core = CORE.iter().copied().filter(|n| {
+        let known = tlpdb.get(n).is_some();
+        if !known {
+            ctx.log(format!("warning: core package {n} is not in this repository; skipping"));
+        }
+        known
+    });
+    let roots: Vec<&str> = core.chain(hyphen).collect();
     let report = install::install(&mut ctx, &roots, Reason::Bootstrap)?;
 
     lsr::rebuild(&root.texmf_dist())?;
