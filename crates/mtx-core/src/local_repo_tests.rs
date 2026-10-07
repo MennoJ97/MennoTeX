@@ -146,3 +146,52 @@ fn remove_respects_dependencies() {
     assert_eq!(install::remove(&mut ctx, &["bar"], false).unwrap(), vec!["bar"]);
     assert!(ctx.db.installed().unwrap().is_empty());
 }
+
+fn testdata(sub: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata").join(sub)
+}
+
+#[test]
+fn next_release_pins_the_frozen_repository() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+
+    // tlnet moves on to TeX Live 2027. The first historic mirror is down.
+    ctx.db.set("repository", &format!("file://{}", testdata("tlnet-next").display())).unwrap();
+    ctx.unpin_mirror().unwrap();
+    let historic = format!("file://{}", testdata("historic").display());
+    ctx.db.set("historic_mirrors", &format!("http://127.0.0.1:9/ {historic}")).unwrap();
+
+    assert!(matches!(ctx.refresh(true).unwrap(), Freshness::Updated { from: Some(4242), to: 4300 }));
+    assert_eq!(ctx.db.get("repository").unwrap().as_deref(), Some("historic:2026"));
+    assert_eq!(ctx.db.get_u64("newer_release").unwrap(), Some(2027));
+    let mirror = ctx.db.get("mirror").unwrap().unwrap();
+    assert_eq!(mirror, format!("{historic}/systems/texlive/2026/tlnet-final/"));
+    assert!(ctx.tlpdb().unwrap().config.frozen);
+
+    // Installs keep working from the frozen repository, and it stays pinned.
+    install::install(&mut ctx, &["fonts-x"], Reason::Explicit).unwrap();
+    assert!(root.texmf_dist().join("fonts/tfm/public/x/x10.tfm").exists());
+    assert_eq!(ctx.refresh(true).unwrap(), Freshness::Unchanged);
+}
+
+#[test]
+fn bootstrap_from_carries_requested_and_on_demand_packages() {
+    let (_d, old_root, mut old) = setup(&testdata_repo());
+    old.refresh(true).unwrap();
+    install::install(&mut old, &["foo"], Reason::Explicit).unwrap();
+    install::install(&mut old, &["fonts-x"], Reason::Auto).unwrap();
+    old.db.record("dropped-in-2027", 1, Reason::Explicit, &[]).unwrap();
+    drop(old);
+
+    let (_d2, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    let c = crate::bootstrap::carried_packages(&ctx.tlpdb().unwrap(), &old_root).unwrap();
+    // bar came in as foo's dependency; foo brings it again.
+    assert_eq!(c.explicit, vec!["foo"]);
+    assert_eq!(c.auto, vec!["fonts-x"]);
+    assert_eq!(c.unknown, vec!["dropped-in-2027"]);
+    let empty = Root::new(root.dir.join("nothing-here"));
+    assert!(crate::bootstrap::carried_packages(&ctx.tlpdb().unwrap(), &empty).is_err());
+}

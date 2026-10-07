@@ -5,13 +5,17 @@ description: Layout, signing chain, archive formats and mirror behaviour of tlne
 resource: https://mirror.ctan.org/systems/texlive/tlnet/
 tags: [tlnet, texlive, repository, security, mirrors]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T22:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 sources:
   - id: keyext
     resource: https://www.tug.org/texlive/files/texlive.asc
     title: TeX Live distribution public key
+    author: team:tex-live
+  - id: historic
+    resource: https://tug.org/historic/
+    title: TeX Live historic archive and its mirrors
     author: team:tex-live
 ---
 
@@ -62,4 +66,27 @@ files. See [decision 0004](/decisions/0004-font-map-index.md) for the extracted 
 - `nl.mirrors.cicku.me` served a corrupt `archive/amsfonts.tar.xz` (3,626,288 bytes instead of the signed 3,626,284) while other mirrors were correct. mtx now treats size/hash mismatches as integrity failures, retries, then avoids that mirror for 24 h.
 - `mirror.lyrahosting.com` intermittently presented an **expired TLS certificate** (not valid after 2026-08-04) on 2026-10-07; requests sometimes succeeded, so it is probably several hosts behind one name. mtx now fails over: on a network/TLS error it re-resolves the redirector; if that answers, the mirror is avoided for 24 h and another is pinned; if not, mtx goes offline for 60 s.
 
+# Release transitions and the historic archive (checked 2026-10-08)
+
+- Each release's last tlnet state is kept as `systems/texlive/<release>/tlnet-final/`
+  in TeX Live's **historic archive**, same layout as tlnet, with a signed
+  `tlpkg/texlive.tlpdb.sha512.asc`.[^historic]
+- 2025's `tlnet-final` declares `frozen/1`, `release/2025`, `minrelease/2016`,
+  revision 78234. Its signature was made on **2026-03-01** with the same subkey
+  `D8F2F860…`, and verifies against the 2026 keyring. So freezing happens about a
+  month before tlnet switches to the next release (April), and the previous
+  release's frozen repository exists by the time tlnet moves on.
+- `mirror.ctan.org` does **not** carry the historic archive: it redirects
+  `systems/texlive/historic/…` to a CTAN mirror, which answers 404.
+- Historic mirrors listed by tug.org[^historic], all serving 2025's `tlnet-final`
+  (database and archives) on 2026-10-08: `ftp.math.utah.edu/pub/tex/historic/`,
+  `ftp.tu-chemnitz.de/pub/tug/historic/`, `texlive.info/historic/`,
+  `mirrors.tuna.tsinghua.edu.cn/tex-historic-archive/`, `mirror.nju.edu.cn/tex-historic/`.
+  `ftp.tug.org` presents a TLS certificate for another host name.
+- **texlive.info** is behind an Anubis bot challenge: with mtx's User-Agent, every
+  path (also missing ones) returns **HTTP 200** with an HTML challenge page;
+  curl's default User-Agent gets the real 200/404. mtx leaves it out of its
+  default list and checks that the probe file is a checksum, not just its status.
+
 [^keyext]: TeX Live distribution public key
+[^historic]: TeX Live historic archive and its mirrors

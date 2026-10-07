@@ -1,6 +1,9 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Creation**: [Decision 0006](/decisions/0006-release-transitions.md): release transitions pin the frozen historic repository; `mtx bootstrap --from` ([mtx-core](/architecture/mtx-core.md)).
+* **Update**: `.gitignore` excluded the test repository's `texlive.tlpdb.xz` (`*.tlpdb.xz` was meant for downloaded data), so offline tests only passed in the original working copy; now tracked and checked in a clean worktree.
+* **Update**: Historic archive layout, mirrors, freeze timing and texlive.info's bot wall recorded in [tlnet](/upstream/tlnet.md).
 * **Creation**: [Handoff](/project/handoff.md) for the next session; `CLAUDE.md` now points every session at it.
 
 ## 2026-10-07

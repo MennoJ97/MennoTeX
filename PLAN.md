@@ -226,6 +226,7 @@ On any `mtx` operation that touches the network, including every on-the-fly inst
 **Yearly release transition.** `00texlive.config` declares `release/2026`. When tlnet moves to 2027, packages may require 2027 engines.
 - `mtx` detects the new release number, stops auto-upgrading, and pins to the frozen `historic/systems/texlive/2026/tlnet-final` repository.
 - It then offers `mtx upgrade-release`, which installs 2027 binaries side by side (`~/Library/MennoTeX/2027/`).
+- *As built* ([decision 0006](knowledge/decisions/0006-release-transitions.md)): the pin is automatic inside `refresh`; moving up is the next release's MennoTeX build running `mtx bootstrap --from <old root>` side by side, not a command of the old mtx.
 
 ---
 

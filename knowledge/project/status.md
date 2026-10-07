@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T13:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T22:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -92,6 +92,7 @@ test document still makes 18 such calls.
 - `mtx update [--dry-run]`: upgrades outdated packages, keeping each package's reason.
 - `mtx prefetch doc.tex` (Phase 3 item): on the test article, 39 packages in one batch (2.3 s, cached archives); the following pdfLaTeX run needed 6 on-demand installs instead of 43 (`tcolorbox` libraries load `listings`, `tikzfill`, `pdfcol` indirectly; `ec` comes from font loading).
 - `mtx doctor` (Phase 3 item): detects the MiKTeX symlinks in `/usr/local/bin` that shadow MennoTeX on this Mac.
+- Release transitions (PLAN.md §4.3, [decision 0006](/decisions/0006-release-transitions.md)): when tlnet serves the next release, `refresh` pins `historic:2026` (tested offline with a signed 2027 repository and a frozen historic one). Against the real historic mirrors on 2026-10-08, `historic:2026` correctly fails (not frozen yet, all four mirrors 404) without going offline; 2025's frozen repository verifies with the current keyring. `mtx bootstrap --from <root>` carries packages to a new root.
 
 # Phases 2–4
 

@@ -5,14 +5,15 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::configfiles::Regen;
 use crate::ctx::Ctx;
-use crate::db::Reason;
+use crate::db::{Db, Reason};
 use crate::install;
 use crate::lsr;
 use crate::root::Root;
+use crate::tlpdb::Tlpdb;
 
 /// The core set (PLAN.md §5.10). Hyphenation packages are added on top,
 /// because pdfTeX/XeTeX formats bake patterns in at build time.
@@ -118,8 +119,71 @@ pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
     Ok(())
 }
 
-/// Create or repair the installation at `root`.
-pub fn bootstrap(root: &Root, repository: Option<&str>) -> Result<install::Report> {
+/// Packages to carry over from another installation, typically the
+/// previous release's root (`mtx bootstrap --from`).
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Carried {
+    /// Asked for by name (`mtx install`): stay explicit.
+    pub explicit: Vec<String>,
+    /// Installed on demand: stay auto.
+    pub auto: Vec<String>,
+    /// Not in this repository (renamed or dropped between releases).
+    pub unknown: Vec<String>,
+}
+
+/// What `other` has installed, minus bootstrap packages and dependencies:
+/// this bootstrap and the dependency closures bring their own, and both can
+/// change between releases.
+pub fn carried_packages(tlpdb: &Tlpdb, other: &Root) -> Result<Carried> {
+    if !other.is_bootstrapped() {
+        bail!("{} is not a MennoTeX installation", other.dir.display());
+    }
+    let mut c = Carried::default();
+    for (name, i) in Db::open(&other.db_path())?.installed()? {
+        let list = match i.reason.as_str() {
+            "explicit" => &mut c.explicit,
+            "auto" => &mut c.auto,
+            _ => continue,
+        };
+        if tlpdb.get(&name).is_some() {
+            list.push(name);
+        } else {
+            c.unknown.push(name);
+        }
+    }
+    Ok(c)
+}
+
+/// Install what [`carried_packages`] finds in `other`.
+fn carry_over(ctx: &mut Ctx, tlpdb: &Tlpdb, other: &Root, report: &mut install::Report) -> Result<()> {
+    let c = carried_packages(tlpdb, other)?;
+    ctx.log(format!(
+        "carrying over {} requested and {} on-demand package(s) from {}",
+        c.explicit.len(),
+        c.auto.len(),
+        other.dir.display()
+    ));
+    if !c.unknown.is_empty() {
+        ctx.log(format!("not in this release, skipped: {}", c.unknown.join(", ")));
+    }
+    for (names, reason) in [(&c.explicit, Reason::Explicit), (&c.auto, Reason::Auto)] {
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let r = install::install(ctx, &names, reason)?;
+        report.installed.extend(r.installed);
+        report.files += r.files;
+        report.bytes_downloaded += r.bytes_downloaded;
+    }
+    Ok(())
+}
+
+/// Create or repair the installation at `root`; with `from`, also install
+/// the packages another installation has (see [`carried_packages`]).
+pub fn bootstrap(root: &Root, repository: Option<&str>, from: Option<&Root>) -> Result<install::Report> {
+    if let Some(other) = from {
+        if fs::canonicalize(&other.dir).ok() == fs::canonicalize(&root.dir).ok() {
+            bail!("--from must name another installation than {}", root.dir.display());
+        }
+    }
     fs::create_dir_all(&root.dir).with_context(|| format!("creating {}", root.dir.display()))?;
     let mut ctx = Ctx::open(root.clone())?;
     if let Some(r) = repository {
@@ -143,7 +207,10 @@ pub fn bootstrap(root: &Root, repository: Option<&str>) -> Result<install::Repor
         known
     });
     let roots: Vec<&str> = core.chain(hyphen).collect();
-    let report = install::install(&mut ctx, &roots, Reason::Bootstrap)?;
+    let mut report = install::install(&mut ctx, &roots, Reason::Bootstrap)?;
+    if let Some(other) = from {
+        carry_over(&mut ctx, &tlpdb, other, &mut report)?;
+    }
 
     lsr::rebuild(&root.texmf_dist())?;
     let tlpdb = ctx.tlpdb()?;

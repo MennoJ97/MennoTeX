@@ -17,6 +17,36 @@ use anyhow::{Context, Result, anyhow, bail};
 use sha2::{Digest, Sha512};
 
 pub const DEFAULT_REPOSITORY: &str = "https://mirror.ctan.org/systems/texlive/tlnet/";
+
+/// Mirrors of TeX Live's historic archive, from <https://tug.org/historic/>.
+/// `mirror.ctan.org` does not carry it, so there is no redirector.
+/// texlive.info is left out: it answers non-browser clients with a bot
+/// challenge page and HTTP 200.
+pub const HISTORIC_MIRRORS: &[&str] = &[
+    "https://ftp.math.utah.edu/pub/tex/historic/",
+    "https://ftp.tu-chemnitz.de/pub/tug/historic/",
+    "https://mirrors.tuna.tsinghua.edu.cn/tex-historic-archive/",
+    "https://mirror.nju.edu.cn/tex-historic/",
+];
+
+const HISTORIC_SCHEME: &str = "historic:";
+
+/// The repository setting for a release's frozen final repository. Like
+/// `mirror.ctan.org`, it names a set of mirrors that is resolved to one.
+pub fn frozen_repository(release: u32) -> String {
+    format!("{HISTORIC_SCHEME}{release}")
+}
+
+/// The release of a `historic:<release>` repository setting.
+pub fn frozen_release(repository: &str) -> Option<u32> {
+    repository.strip_prefix(HISTORIC_SCHEME)?.parse().ok()
+}
+
+/// A release's frozen final tlnet on one historic mirror.
+pub fn historic_tlnet(mirror: &str, release: u32) -> String {
+    let mirror = mirror.trim_end_matches('/');
+    format!("{mirror}/systems/texlive/{release}/tlnet-final/")
+}
 const PROBE: &str = "tlpkg/texlive.tlpdb.sha512";
 
 #[derive(Clone)]
@@ -101,6 +131,20 @@ impl Repo {
             bail!("{url}: HTTP {status}");
         }
         Ok(repo)
+    }
+
+    /// Fetch the database checksum file and check that it is one: some
+    /// servers answer missing files or unwanted clients with an HTML page
+    /// and HTTP 200.
+    pub fn probe(&self) -> Result<()> {
+        let body = self.get_bytes(PROBE)?;
+        let text = String::from_utf8_lossy(&body);
+        let mut words = text.split_whitespace();
+        let sum_ok = words.next().is_some_and(|w| w.len() == 128 && w.bytes().all(|b| b.is_ascii_hexdigit()));
+        if !sum_ok || words.next() != Some("texlive.tlpdb") {
+            bail!("{}{PROBE} is not a TeX Live database checksum", self.base);
+        }
+        Ok(())
     }
 
     fn open(&self, rel: &str) -> Result<Box<dyn Read + Send>> {
@@ -224,5 +268,16 @@ mod tests {
         assert!(err.downcast_ref::<ChecksumMismatch>().is_some());
         assert!(!bad.exists());
         assert!(repo.download_verified("archive/x.tar.xz", &bad, 4, &sum).is_err());
+    }
+
+    #[test]
+    fn probe_rejects_pages_that_are_not_checksums() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("tlpkg")).unwrap();
+        let repo = Repo::at(&format!("file://{}", dir.path().display()));
+        fs::write(dir.path().join(PROBE), "<!doctype html><title>Oh noes!</title>").unwrap();
+        assert!(repo.probe().is_err());
+        fs::write(dir.path().join(PROBE), format!("{}  texlive.tlpdb\n", "ab".repeat(64))).unwrap();
+        repo.probe().unwrap();
     }
 }

@@ -1,5 +1,6 @@
 # Decisions
 
+* [0006: Release transitions](0006-release-transitions.md) - When tlnet moves to the next TeX Live release, an installation stays on its own release via the frozen historic repository; moving up is a new MennoTeX build plus `mtx bootstrap --from`.
 * [0001: Build on TeX Live, copy MiKTeX's idea](0001-texlive-base.md) - TeX Live engines and tlnet with a new Rust package manager.
 * [0005: On-demand fonts selected by name](0005-fonts-by-name.md) - Font-name index, XeTeX CoreText registration, prefetch for LuaLaTeX.
 * [0004: Embedded font-map index](0004-font-map-index.md) - Installing TFMs also installs the packages whose maps cover them (ec → cm-super).

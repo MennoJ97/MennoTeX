@@ -5,3 +5,5 @@
 /scratch/
 *.tlpdb
 *.tlpdb.xz
+# ...but the signed test repositories need theirs
+!crates/mtx-core/testdata/**/*.tlpdb.xz

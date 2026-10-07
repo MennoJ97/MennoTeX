@@ -30,6 +30,10 @@ enum Cmd {
         /// Repository URL or directory (default: mirror.ctan.org).
         #[arg(long)]
         repository: Option<String>,
+        /// Also install the packages another installation has, e.g. the
+        /// previous TeX Live release's root after a release upgrade.
+        #[arg(long, value_name = "ROOT")]
+        from: Option<PathBuf>,
     },
     /// Install the package providing a missing file and print its path
     /// (the kpathsea hook protocol: path on stdout, exit 1 if not found).
@@ -125,9 +129,10 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<ExitCode> {
     let root = Root::discover(cli.root.as_deref())?;
     match cli.cmd {
-        Cmd::Bootstrap { repository } => {
+        Cmd::Bootstrap { repository, from } => {
             eprintln!("mtx: bootstrapping {}", root.dir.display());
-            let r = bootstrap::bootstrap(&root, repository.as_deref())?;
+            let from = from.map(|p| Root::discover(Some(&p))).transpose()?;
+            let r = bootstrap::bootstrap(&root, repository.as_deref(), from.as_ref())?;
             eprintln!(
                 "mtx: installed {} packages ({} files, {:.1} MiB downloaded)",
                 r.installed.len(),

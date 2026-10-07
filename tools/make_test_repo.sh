@@ -1,5 +1,6 @@
 #!/bin/sh
 # Generate crates/mtx-core/testdata/tlnet: a tiny fake TeX Live repository
+# (plus tlnet-next and historic/, for release transitions)
 # signed with a throw-away test key that has TeX Live's key structure
 # (certification-only primary key + signing subkey). Dev-time only; needs
 # gpg. The output is committed so tests run offline and without gpg.
@@ -43,12 +44,27 @@ entry() { # name reloc depends... ; prints a tlpdb record
   xz -dc "$a" | tar -tf - | grep -v '^tlpkg/' | sed 's|^| RELOC/|'
   echo
 }
-{
-  printf 'name 00texlive.config\ncategory TLCore\nrevision 1\ndepend release/2026\ndepend revision/4242\n\n'
-  entry bar 1
-  entry fonts-x 1
-  entry foo 1 bar
-} > "$out/tlpkg/texlive.tlpdb"
-(cd "$out/tlpkg" && shasum -a 512 texlive.tlpdb > texlive.tlpdb.sha512 && xz -9e texlive.tlpdb)
-gpg --batch --quiet --armor --detach-sign -o "$out/tlpkg/texlive.tlpdb.sha512.asc" "$out/tlpkg/texlive.tlpdb.sha512"
-echo "test repository written to $out (key $fpr)"
+# write_repo DIR RELEASE REVISION FROZEN: the packages above as a signed
+# repository declaring that release
+write_repo() {
+  dir=$1; mkdir -p "$dir/archive" "$dir/tlpkg"
+  [ "$dir" = "$out" ] || cp "$out"/archive/*.tar.xz "$dir/archive/"
+  {
+    printf 'name 00texlive.config\ncategory TLCore\nrevision 1\n'
+    printf 'depend frozen/%s\ndepend release/%s\ndepend revision/%s\n\n' "$4" "$2" "$3"
+    entry bar 1
+    entry fonts-x 1
+    entry foo 1 bar
+  } > "$dir/tlpkg/texlive.tlpdb"
+  (cd "$dir/tlpkg" && shasum -a 512 texlive.tlpdb > texlive.tlpdb.sha512 && xz -9e texlive.tlpdb)
+  gpg --batch --quiet --armor --detach-sign -o "$dir/tlpkg/texlive.tlpdb.sha512.asc" "$dir/tlpkg/texlive.tlpdb.sha512"
+}
+# tlnet today; tlnet after the next release; this release's frozen final
+# repository as TeX Live's historic archive lays it out
+next="$here/crates/mtx-core/testdata/tlnet-next"
+historic="$here/crates/mtx-core/testdata/historic"
+rm -rf "$next" "$historic"
+write_repo "$out" 2026 4242 0
+write_repo "$next" 2027 5000 0
+write_repo "$historic/systems/texlive/2026/tlnet-final" 2026 4300 1
+echo "test repositories written to $out, $next, $historic (key $fpr)"

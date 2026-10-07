@@ -137,6 +137,22 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
         }
     }
 
+    // Release: tlnet may have moved on to the next TeX Live (ctx.rs pins
+    // the frozen repository then).
+    if let Some(newer) = ctx.db.get_u64("newer_release")? {
+        let release = crate::root::RELEASE;
+        push(
+            &mut out,
+            Severity::Warning,
+            format!(
+                "TeX Live {newer} is out; this installation stays on TeX Live {release} from its frozen final \
+                 repository and gets no more package updates. To move, install MennoTeX for {newer} and run \
+                 `mtx bootstrap --from {}` with it",
+                root.dir.display()
+            ),
+        );
+    }
+
     // Network state.
     if ctx.offline()? {
         push(&mut out, Severity::Warning, "offline marker set (a network error happened in the last minute)");

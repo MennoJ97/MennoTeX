@@ -4,12 +4,14 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use sha2::{Digest, Sha512};
 
 use crate::db::{Db, now_secs};
 use crate::index;
-use crate::repo::{DEFAULT_REPOSITORY, Repo, is_network_error};
+use crate::repo::{
+    DEFAULT_REPOSITORY, HISTORIC_MIRRORS, Repo, frozen_release, frozen_repository, historic_tlnet, is_network_error,
+};
 use crate::root::{RELEASE, Root};
 use crate::tlpdb::Tlpdb;
 use crate::verify::Verifier;
@@ -28,6 +30,14 @@ pub enum Freshness {
     /// Checked with the mirror; the database has not changed.
     Unchanged,
     Updated { from: Option<u64>, to: u64 },
+}
+
+/// The repository serves another TeX Live release than this mtx manages.
+#[derive(Debug, thiserror::Error)]
+#[error("{repository} serves TeX Live {served}, but this mtx manages TeX Live {release}", release = RELEASE)]
+pub struct ReleaseMismatch {
+    pub repository: String,
+    pub served: u32,
 }
 
 pub struct Ctx {
@@ -71,7 +81,8 @@ impl Ctx {
     }
 
     /// The configured repository: `$MTX_REPOSITORY`, then the stored
-    /// setting, then `mirror.ctan.org`.
+    /// setting, then `mirror.ctan.org`. After a release transition the
+    /// stored setting is `historic:<release>` (see [`Ctx::refresh`]).
     pub fn repository_url(&self) -> Result<String> {
         if let Some(r) = std::env::var_os("MTX_REPOSITORY").filter(|v| !v.is_empty()) {
             return Ok(r.to_string_lossy().into_owned());
@@ -85,6 +96,43 @@ impl Ctx {
 
     pub fn mark_offline(&self) {
         let _ = self.db.set("offline_until", &(now_secs() + OFFLINE_SECS).to_string());
+    }
+
+    /// Whether `host` recently served data that failed verification.
+    fn is_bad_host(&self, host: &str) -> Result<bool> {
+        let bad = self.db.get_u64(&format!("bad_mirror:{host}"))?;
+        Ok(bad.is_some_and(|t| now_secs().saturating_sub(t) < MIRROR_PIN_SECS))
+    }
+
+    /// Mirrors of TeX Live's historic archive: the `historic_mirrors`
+    /// setting (whitespace-separated), else [`HISTORIC_MIRRORS`].
+    pub fn historic_mirrors(&self) -> Result<Vec<String>> {
+        Ok(match self.db.get("historic_mirrors")? {
+            Some(list) => list.split_whitespace().map(str::to_string).collect(),
+            None => HISTORIC_MIRRORS.iter().map(|m| m.to_string()).collect(),
+        })
+    }
+
+    /// Resolve the configured repository to one concrete mirror.
+    /// `historic:<release>` tries the historic mirrors in order, those
+    /// avoided after bad data last.
+    fn resolve_configured(&self, configured: &str) -> Result<Repo> {
+        let Some(release) = frozen_release(configured) else { return Repo::resolve(configured) };
+        let urls: Vec<String> = self.historic_mirrors()?.iter().map(|m| historic_tlnet(m, release)).collect();
+        let (good, bad): (Vec<&String>, Vec<&String>) =
+            urls.iter().partition(|u| !self.is_bad_host(Repo::at(u).host()).unwrap_or(false));
+        let mut last = None;
+        for url in good.into_iter().chain(bad) {
+            match Repo::resolve(url).and_then(|r| r.probe().map(|()| r)) {
+                Ok(r) => return Ok(r),
+                Err(e) => {
+                    self.log(format!("historic mirror failed: {e:#}"));
+                    last = Some(e);
+                }
+            }
+        }
+        let e = last.unwrap_or_else(|| anyhow!("the historic_mirrors setting is empty"));
+        Err(e.context(format!("no historic mirror serves TeX Live {release}'s final repository")))
     }
 
     /// The pinned mirror, resolving the redirector when the pin is stale.
@@ -104,15 +152,15 @@ impl Ctx {
                     // recently served data failing verification.
                     let mut r = None;
                     for _ in 0..6 {
-                        let cand = Repo::resolve(&configured).inspect_err(|e| {
+                        let cand = self.resolve_configured(&configured).inspect_err(|e| {
                             if is_network_error(e) {
                                 self.mark_offline();
                             }
                         })?;
-                        let bad = self.db.get_u64(&format!("bad_mirror:{}", cand.host()))?;
-                        let is_bad = bad.is_some_and(|t| now_secs().saturating_sub(t) < MIRROR_PIN_SECS);
+                        let is_bad = self.is_bad_host(cand.host())?;
                         r = Some(cand);
-                        if !is_bad {
+                        // Historic mirrors are tried in order, not at random.
+                        if !is_bad || frozen_release(&configured).is_some() {
                             break;
                         }
                     }
@@ -152,12 +200,57 @@ impl Ctx {
     /// Make sure the local package database is current (see PLAN.md §4.3).
     /// With `force`, always ask the mirror; otherwise only when the last
     /// check is older than [`FRESHNESS_TTL_SECS`].
+    ///
+    /// When tlnet has moved on to the next TeX Live release, whose packages
+    /// may need that release's engines, the installation stays on its own
+    /// release: the repository becomes that release's frozen final tlnet in
+    /// TeX Live's historic archive, and `newer_release` records the new one.
+    /// A mirror still serving the previous release is avoided like one
+    /// serving bad data.
     pub fn refresh(&mut self, force: bool) -> Result<Freshness> {
         let have_local = self.root.tlpdb_path().exists() && self.root.index_path().exists();
         let checked_at = self.db.get_u64("tlpdb_checked_at")?.unwrap_or(0);
         if !force && have_local && now_secs().saturating_sub(checked_at) < FRESHNESS_TTL_SECS {
             return Ok(Freshness::Fresh);
         }
+        let result = self.refresh_with_failover(have_local);
+        let Some(served) = result.as_ref().err().and_then(|e| e.downcast_ref::<ReleaseMismatch>()).map(|m| m.served)
+        else {
+            return result;
+        };
+        if served > RELEASE {
+            if !self.pin_frozen(served)? {
+                return result;
+            }
+        } else {
+            self.log(format!("mirror still serves TeX Live {served}; switching mirrors"));
+            self.reject_mirror()?;
+        }
+        self.refresh_with_failover(have_local)
+    }
+
+    /// Switch from tlnet to this release's frozen repository after tlnet
+    /// moved to release `newer`. False when that is not ours to change: the
+    /// repository comes from `$MTX_REPOSITORY`, or is already frozen.
+    fn pin_frozen(&mut self, newer: u32) -> Result<bool> {
+        if self.db.get_u64("newer_release")?.is_none_or(|n| n < newer as u64) {
+            self.db.set("newer_release", &newer.to_string())?;
+        }
+        let configured = self.repository_url()?;
+        let from_env = std::env::var_os("MTX_REPOSITORY").is_some_and(|v| !v.is_empty());
+        if from_env || frozen_release(&configured).is_some() {
+            return Ok(false);
+        }
+        self.log(format!(
+            "TeX Live {newer} has been released; staying on TeX Live {RELEASE} with its frozen final repository \
+             (no more package updates; see `mtx doctor`)"
+        ));
+        self.db.set("repository", &frozen_repository(RELEASE))?;
+        self.unpin_mirror()?;
+        Ok(true)
+    }
+
+    fn refresh_with_failover(&mut self, have_local: bool) -> Result<Freshness> {
         match self.refresh_from_mirror(have_local) {
             Err(e) if is_network_error(&e) => {
                 self.failover(&e)?;
@@ -177,7 +270,7 @@ impl Ctx {
     /// fails too, we are offline: record that and return the error.
     pub fn failover(&mut self, cause: &anyhow::Error) -> Result<()> {
         let configured = self.repository_url()?;
-        if let Err(e) = Repo::resolve(&configured) {
+        if let Err(e) = self.resolve_configured(&configured) {
             if is_network_error(&e) {
                 self.mark_offline();
             }
@@ -226,13 +319,10 @@ impl Ctx {
         }
         let text = String::from_utf8(text).context("texlive.tlpdb is not UTF-8")?;
         let tlpdb = Tlpdb::parse(&text)?;
+        // Checked only after verification: an unsigned database must not
+        // be able to move the installation to another repository.
         if tlpdb.config.release != RELEASE {
-            bail!(
-                "{} serves TeX Live {}, but this mtx manages TeX Live {RELEASE}; \
-                 release upgrades are not implemented yet",
-                repo.base,
-                tlpdb.config.release
-            );
+            return Err(ReleaseMismatch { repository: repo.base.clone(), served: tlpdb.config.release }.into());
         }
 
         let tlpdb_path = self.root.tlpdb_path();
