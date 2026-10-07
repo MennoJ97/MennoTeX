@@ -35,6 +35,13 @@ sources:
 6. It prints the absolute path on stdout. kpathsea checks it is readable and
    inserts it into its in-memory hash (`tex-make.c` `kpathsea_db_insert`).[^kpse]
 
+# Programs
+
+kpathsea hooks only see files TeX looks up. Commands (`biber`, `latexmk`,
+`makeglossaries`, …) are covered by [command shims](/architecture/mtx-core.md): bootstrap
+creates about 325, and the first `biber --version` installs `biber` (67.8 MiB, a
+universal arm64/x86_64 binary) and runs it.
+
 # Protocol rules for `mtx ensure`
 
 - stdout carries only the path; all messages go to stderr and `tlpkg/mtx/mtx.log`.

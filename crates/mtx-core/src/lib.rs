@@ -16,6 +16,7 @@ pub mod lsr;
 pub mod prefetch;
 pub mod repo;
 pub mod root;
+pub mod shims;
 pub mod verify;
 pub mod tlpdb;
 

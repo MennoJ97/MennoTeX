@@ -48,6 +48,11 @@ with `MACOSX_DEPLOYMENT_TARGET=13.0`, `TL_MAKE_FLAGS=-jN`, and an environment re
   scratch directory and fails (118 of 122 web2c tests passed, 3 skipped); the
   engine output itself matched. The build script passes `check_target=all` to skip
   the in-build test run.
+- **The 2026 release needs C++17 for XeTeX.** At `tags/texlive-2026.1`, web2c's
+  `configure.ac` only requires C++11 (`AX_CXX_COMPILE_STDCXX([11])`), so XeTeX's C++
+  is compiled with Apple clang's default standard, but the bundled ICU headers use
+  C++17 (`std::is_same_v`, `auto` template parameters) and fail to compile. Trunk
+  already requires C++17. The build script sets `CXX`/`OBJCXX` to `c++ -std=gnu++17`.
 - **Never run `make all install` as one parallel make:** TeX Live's makefiles must
   serialize them (concurrent `tangle`/`convert` of `upbibtex.p` fails). For
   incremental rebuilds after a kpathsea change: `make -jN all && make install` in

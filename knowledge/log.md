@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Command shims ([on-demand installation](/architecture/on-demand-install.md)); C++17 requirement of the 2026 release recorded in [build notes](/upstream/texlive-build.md).
 * **Update**: Phase 1 resolver works for all three engines on the first run ([status](/project/status.md)); build pinned to the 2026.1 release branch ([build notes](/upstream/texlive-build.md)).
 * **Update**: Added `mtx remove` ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: Added `mtx prefetch` with measured effect ([status](/project/status.md)).

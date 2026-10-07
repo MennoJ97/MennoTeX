@@ -146,5 +146,7 @@ pub fn bootstrap(root: &Root, repository: Option<&str>) -> Result<install::Repor
     lsr::rebuild(&root.texmf_dist())?;
     let tlpdb = ctx.tlpdb()?;
     install::apply_regen(&ctx, &tlpdb, Regen::all(), &[])?;
+    let (shims, _) = crate::shims::sync(&ctx, &tlpdb)?;
+    ctx.log(format!("{shims} command shims for programs installed on first use"));
     Ok(report)
 }

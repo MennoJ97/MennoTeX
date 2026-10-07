@@ -194,6 +194,10 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     if regen.any() {
         apply_regen(ctx, tlpdb, regen, &plan)?;
     }
+    // A binary package replaced its shims with real programs.
+    if plan.iter().any(|n| crate::tlpdb::arch_suffix(n).is_some()) {
+        crate::shims::sync(ctx, tlpdb)?;
+    }
     drop(lock);
     Ok(report)
 }
@@ -305,6 +309,7 @@ pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>>
     }
     // Appending cannot remove entries, so rebuild.
     lsr::rebuild(&ctx.root.texmf_dist())?;
+    crate::shims::sync(ctx, &tlpdb)?;
     if regen.any() {
         apply_regen(ctx, &tlpdb, regen, &removed)?;
     }

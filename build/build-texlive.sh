@@ -52,6 +52,12 @@ jobs=$(sysctl -n hw.ncpu)
 # function definitions in the bundled libgd (gd_nnquant.c). Staying on the
 # compiler's default (C17) builds everything unchanged.
 c23_off="ac_cv_prog_cc_c23=no"
+# The 2026 release's web2c only asks for C++11, so XeTeX is compiled with
+# the compiler's default C++ standard, but the bundled ICU's headers need
+# C++17 (std::is_same_v, auto template parameters). Trunk has since raised
+# web2c to C++17 (AX_CXX_COMPILE_STDCXX([17])); do the same here.
+cxx="CXX=c++ -std=gnu++17"
+objcxx="OBJCXX=c++ -std=gnu++17"
 cd "$src"
 build_args="--disable-xdvik --without-x"
 # `make world` ends with the full test suite. Run in parallel, one e-upTeX
@@ -60,12 +66,14 @@ build_args="--disable-xdvik --without-x"
 make_flags="-j$jobs check_target=all"
 if [ $clean = yes ]; then
   exec env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C \
-    MACOSX_DEPLOYMENT_TARGET=13.0 TL_MAKE_FLAGS="$make_flags" "$c23_off" \
+    MACOSX_DEPLOYMENT_TARGET=13.0 TL_MAKE_FLAGS="$make_flags" "$c23_off" "$cxx" "$objcxx" \
     ./Build $build_args
 else
   # Rebuild after source changes without reconfiguring (kpathsea is linked
-  # statically, so every program is relinked).
+  # statically, so every program is relinked). `all` and `install` must not
+  # run in one parallel make (they race on generated sources).
   cd Work
-  exec env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C \
-    MACOSX_DEPLOYMENT_TARGET=13.0 "$c23_off" make -j"$jobs" world
+  env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C \
+    MACOSX_DEPLOYMENT_TARGET=13.0 "$c23_off" "$cxx" "$objcxx" make -j"$jobs" all \
+    && env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C make install
 fi
