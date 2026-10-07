@@ -2,6 +2,7 @@
 
 ## 2026-10-08
 * **Update**: LuaLaTeX fonts by name work on the first run through mtx's `luaotfload-main.lua` overlay ([decision 0005](/decisions/0005-fonts-by-name.md), [fonts by name](/upstream/fonts-by-name.md)); `TEXMFDBS` excludes aux trees, so the overlay is searched on disk.
+* **Update**: First CI binary build: 14 min, artifact installed and used for the corpus ([playbook](/playbooks/development.md), [status](/project/status.md)).
 * **Update**: [Handoff](/project/handoff.md): release transitions item now reflects [decision 0006](/decisions/0006-release-transitions.md) and lists what is still open.
 * **Update**: [Handoff](/project/handoff.md): next step for an `ask` install setting and logging install failures to `mtx.log`, as requested by the user; gotcha about stale test binaries from another clone sharing `target/`.
 * **Creation**: [Decision 0006](/decisions/0006-release-transitions.md): release transitions pin the frozen historic repository; `mtx bootstrap --from` ([mtx-core](/architecture/mtx-core.md)).

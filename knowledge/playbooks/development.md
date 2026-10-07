@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -74,9 +74,16 @@ mtx --root /tmp/mtxroot install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darw
 ```
 
 On GitHub: run the **Build TeX Live binaries** workflow by hand (Actions tab,
-`workflow_dispatch`; optionally publish a release). It is manual on purpose: each
-run costs roughly 450–600 billed minutes on a private repo. Install its artifact
-with `mtx install-binaries mennotex-bin-…tar.xz --sums SHA256SUMS`.
+`workflow_dispatch`; optionally publish a release). It is manual on purpose: macOS
+minutes are billed at 10× on a private repo. The first run (2026-10-07, run
+37694133534) took 14 min 16 s (build 13 min), about 150 billed minutes, and produced a
+39 MB artifact `mennotex-bin-2026-6a3001880-arm64-darwin`. Fetch and install it:
+
+```bash
+gh run download <run-id> -R MennoJ97/MennoTeX -D /tmp/ci
+(cd /tmp/ci/mennotex-bin-* && shasum -a 256 -c SHA256SUMS)
+mtx --root /tmp/mtxroot install-binaries /tmp/ci/mennotex-bin-*/*.tar.xz --sums /tmp/ci/mennotex-bin-*/SHA256SUMS
+```
 
 # Useful commands
 

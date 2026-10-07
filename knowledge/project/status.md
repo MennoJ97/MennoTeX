@@ -5,9 +5,10 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T22:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:30:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
+  - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
+  - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
 ---
 
 # Phase 0: spike on unmodified binaries (in progress)
@@ -60,8 +61,9 @@ test document still makes 18 such calls.
 | `mtx ensure --package/--path --siblings` | done |
 | `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
 | `build/build-texlive.sh` | release build of `tags/texlive-2026.1` with the patch: exit 0 in 20 min, 153 arm64 Mach-O programs (stripped), "TeX Live 2026" banners, minimum macOS 13.0, no non-system dylibs; kpathsea's own tests 10/10 ([build notes](/upstream/texlive-build.md)) |
-| Document corpus (17 documents, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
-| CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×); not run yet. Packaging step dry-run locally: 39 MB archive of 153 programs + `SHA256SUMS` |
+| Document corpus, 26 documents (2026-10-08) | **all pass on the first run from a fresh root per engine with the CI-built binaries**: pdfLaTeX 23/23 (3 are XeTeX/LuaTeX-only; 157 s, 247 packages), XeLaTeX 26/26 (212 s, 312 packages), LuaLaTeX 26/26 (210 s, 311 packages); the three corpora ran in parallel with a shared cache. New: exam, KOMA letter, chess (xskak), linguistics (tipa, forest, gb4e), algorithms, song sheets, CJK (ctex + Fandol), tikzposter. `linguistics` and `tikzposter` fail with Phase 0 stock binaries (encoding file, virtual font aer17) and pass with the patch. `fontspec-by-name` no longer needs `% prefetch: lualatex`. Failover hid two bad mirrors during the run ([tlnet](/upstream/tlnet.md)) |
+| Document corpus (17 documents, 2026-10-07, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
+| CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×). **First run 2026-10-07 succeeded** (run 37694133534): 14 min 16 s, artifact `mennotex-bin-2026-6a3001880-arm64-darwin` (39 MB, 153 programs, `SHA256SUMS` verified); its binaries ran the 26-document corpus |
 | Binary channel | `mtx install-binaries` takes a directory or a release archive (`--sums SHA256SUMS`); the workflow can publish a GitHub Release. No signature yet: the repository is private, so release downloads need GitHub auth anyway |
 | Real installation on this Mac | deferred by the user; all testing in scratch roots |
 

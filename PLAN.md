@@ -278,6 +278,11 @@ The layout mirrors TeX Live's, so `SELFAUTOPARENT` logic and every stock script 
 ~/Library/Caches/MennoTeX/archives/      downloaded .tar.xz (LRU; also enables offline reinstall)
 ```
 
+*As built* (details in [knowledge/architecture](knowledge/architecture/)):
+- The tlpdb copy, `files.idx` and the archive cache all live in `tlpkg/mtx/` (cache: `tlpkg/mtx/cache`, or `$MTX_CACHE`); there is no `~/Library/Caches` directory and no `pkgs.idx`.
+- Generated files go to `texmf-var/` (formats, maps) and `texmf-user-var/`, `texmf-user-config/` (TeX Live's scripts refuse `TEXMFVAR == TEXMFSYSVAR`).
+- `texmf-mtx/` is mtx's overlay tree, searched before all others through `TEXMFAUXTREES`; today it holds a `luaotfload-main.lua` that makes fonts selected by name work on LuaLaTeX's first run.
+
 **Naming the binary directory.** The binary directory keeps TeX Live's platform name, `universal-darwin`, even though we only build arm64. Tooling and tlpdb binary package names (`biber.universal-darwin`) assume it. If you prefer an honest name such as `arm64-darwin`, add a mapping in `mtx`.
 
 **Integration with editors and other TeX installs (optional, needs admin once):**
@@ -352,6 +357,8 @@ Pkgs     n_pkgs  × { u32 name_off , u32 revision , u32 container_size , u32 fla
 Strings  NUL-terminated pool
 ```
 
+*As built:* see [files.idx](knowledge/architecture/files-idx.md). Font *names* (fontspec) are not in it: kpathsea hands names to `mtx ensure --font-name`, which uses a font-name table embedded in mtx ([decision 0005](knowledge/decisions/0005-fonts-by-name.md)).
+
 This comes to about 5–6 MB on disk. It is rebuilt whenever the tlpdb changes and replaced by atomic rename. Generate `.h` constants from the Rust side so the C reader cannot drift.
 
 ### 5.6 Installer: transactions and locking
@@ -400,6 +407,8 @@ These fix the MiKTeX weaknesses listed in §2.1:
   - Expect 15–30 minutes on this 12-core Mac.
   - The linker ad-hoc signs arm64 output. To distribute to others, sign with a Developer ID and notarize the `.pkg`.
 - **CI:** GitHub Actions `macos-15` arm64 runners build on every patch change.
+  *As built:* the workflow is manual only (private repository, macOS minutes billed at 10×).
+- *As built:* binaries are built from the TeX Live **release branch** matching tlnet (`build/texlive-source.rev`, `tags/texlive-2026.1`), not trunk, which is already next year's development version. `mtx install-binaries` takes a directory or a release archive with `SHA256SUMS`; the signed manifest and `mtx self-update` are not done.
 - **Publishing:** a GitHub Release with `bin-<release>-<rev>.tar.xz` and a **minisign/Ed25519-signed** manifest (sizes, SHA-256). This is the "MennoTeX binary channel"; `mtx self-update` and `mtx upgrade-release` consume it.
 - **Binaries that are not in texlive-source** (`biber`, and anything else in tlnet's `*.universal-darwin` packages that we don't build) are installed from tlnet like any other package. They are already universal, so native arm64.
   - `mtx` keeps a list of the filenames our own channel provides, and **never** lets a tlnet binary package overwrite them.

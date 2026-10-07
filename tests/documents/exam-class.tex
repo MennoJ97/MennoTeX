@@ -1,0 +1,19 @@
+% engines: pdflatex xelatex lualatex
+\documentclass[addpoints,answers]{exam}
+\usepackage{amsmath}
+\pointsinrightmargin
+\begin{document}
+\begin{center}\textbf{Calculus I: Midterm} \quad (\numpoints\ points)\end{center}
+\begin{questions}
+\question[4] Differentiate $f(x) = x^2 \sin x$.
+\begin{solution} $f'(x) = 2x\sin x + x^2\cos x$. \end{solution}
+\question Consider $g(x) = e^{-x}$.
+\begin{parts}
+\part[3] Compute $\int_0^\infty g(x)\,dx$.
+\begin{solution} $1$. \end{solution}
+\part[2] Is $g$ convex?
+\begin{oneparcheckboxes} \CorrectChoice Yes \choice No \end{oneparcheckboxes}
+\end{parts}
+\end{questions}
+\gradetable[h][questions]
+\end{document}

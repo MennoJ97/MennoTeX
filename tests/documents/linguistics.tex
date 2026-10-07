@@ -1,0 +1,17 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{tipa}
+\usepackage{forest}
+\usepackage{gb4e}
+\begin{document}
+\begin{exe}
+\ex \gll Der Hund bellt.\\
+the dog barks\\
+\trans `The dog barks.'
+\ex \textipa{[D@ "dOg "bA:ks]}
+\end{exe}
+\begin{forest}
+[S [NP [D the] [N dog]] [VP [V barks]]]
+\end{forest}
+\end{document}

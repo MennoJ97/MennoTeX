@@ -64,6 +64,10 @@ files. See [decision 0004](/decisions/0004-font-map-index.md) for the extracted 
 - `mirror.ctan.org` redirects **each request** to a possibly different mirror.
 - Mirrors lag differently: in one session `cicku.me` served tlpdb r80534 while `lyrahosting.com` served r80505.
 - `nl.mirrors.cicku.me` served a corrupt `archive/amsfonts.tar.xz` (3,626,288 bytes instead of the signed 3,626,284) while other mirrors were correct. mtx now treats size/hash mismatches as integrity failures, retries, then avoids that mirror for 24 h.
+- 2026-10-08, during three parallel corpus runs: `mirror.lyrahosting.com` again presented
+  its expired certificate, and `nl.mirrors.cicku.me` served `pst-node.tar.xz` and
+  `translations.tar.xz` with a SHA-512 that did not match the signed database. Both were
+  avoided automatically; every document still compiled on its first run.
 - `mirror.lyrahosting.com` intermittently presented an **expired TLS certificate** (not valid after 2026-08-04) on 2026-10-07; requests sometimes succeeded, so it is probably several hosts behind one name. mtx now fails over: on a network/TLS error it re-resolves the redirector; if that answers, the mirror is avoided for 24 h and another is pinned; if not, mtx goes offline for 60 s.
 
 # Release transitions and the historic archive (checked 2026-10-08)

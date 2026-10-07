@@ -1,0 +1,11 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage{xskak}
+\begin{document}
+\newchessgame
+\mainline{1.e4 e5 2.Nf3 Nc6 3.Bb5 a6}
+\begin{center}
+\chessboard[smallboard, showmover, pgfstyle=border, markfields={b5,c6}]
+\end{center}
+The Ruy Lopez, after \variation{3...Nf6} or the main line.
+\end{document}

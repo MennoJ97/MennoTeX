@@ -1,0 +1,16 @@
+% engines: pdflatex xelatex lualatex
+\documentclass[fromalign=right,fromphone,fromemail,parskip=half]{scrlttr2}
+\usepackage[english]{babel}
+\setkomavar{fromname}{Ada Lovelace}
+\setkomavar{fromaddress}{12 St James's Square\\London}
+\setkomavar{fromphone}{+44 20 0000 0000}
+\setkomavar{fromemail}{ada@example.org}
+\setkomavar{subject}{Notes on the Analytical Engine}
+\begin{document}
+\begin{letter}{Charles Babbage\\1 Dorset Street\\London}
+\opening{Dear Mr Babbage,}
+Please find enclosed my translation of Menabrea's memoir, with notes.
+\closing{Yours sincerely,}
+\encl{Notes A--G}
+\end{letter}
+\end{document}

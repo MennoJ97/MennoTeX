@@ -1,6 +1,6 @@
 # Builds MennoTeX's TeX Live binaries (texlive-source + kpathsea on-demand
 # patch) for Apple Silicon. Manual only: on a private repository macOS
-# minutes are billed at 10x, and one build takes roughly 45-60 minutes.
+# minutes are billed at 10x. The first run (2026-10-07) took 14 minutes.
 name: Build TeX Live binaries
 
 on:
