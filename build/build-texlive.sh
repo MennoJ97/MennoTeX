@@ -4,7 +4,11 @@
 #
 #   build/build-texlive.sh <texlive-source checkout> [--no-patch] [--incremental]
 #
-# The checkout should be at the revision in build/texlive-source.rev.
+# The checkout should be at the revision in build/texlive-source.rev: the
+# TeX Live release branch matching the tlnet release mtx manages (trunk is
+# already next year's development version), e.g.
+#   git clone --depth 1 --branch tags/texlive-2026.1 \
+#     https://github.com/TeX-Live/texlive-source.git
 # Output: <checkout>/inst/bin/<triplet>/ (binaries), <checkout>/Work/build.log.
 #
 # The environment is reduced to system tools on purpose: with Homebrew's
@@ -50,9 +54,13 @@ jobs=$(sysctl -n hw.ncpu)
 c23_off="ac_cv_prog_cc_c23=no"
 cd "$src"
 build_args="--disable-xdvik --without-x"
+# `make world` ends with the full test suite. Run in parallel, one e-upTeX
+# test (euptex-ctrlsym) races with another for its scratch directory and
+# fails the build, so skip it here; run `make check` separately.
+make_flags="-j$jobs check_target=all"
 if [ $clean = yes ]; then
   exec env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C \
-    MACOSX_DEPLOYMENT_TARGET=13.0 TL_MAKE_FLAGS="-j$jobs" "$c23_off" \
+    MACOSX_DEPLOYMENT_TARGET=13.0 TL_MAKE_FLAGS="$make_flags" "$c23_off" \
     ./Build $build_args
 else
   # Rebuild after source changes without reconfiguring (kpathsea is linked

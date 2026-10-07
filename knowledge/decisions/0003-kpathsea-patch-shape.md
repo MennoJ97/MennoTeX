@@ -4,7 +4,9 @@ title: Shape of the kpathsea on-demand patch
 description: The resolver is one C file included by tex-make.c, called from kpathsea_find_file_generic on every miss, and hands installation to mtx.
 tags: [decision, phase-1, kpathsea, c]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:20:00Z }
+verified:
+  - { by: process:tests/run_documents.sh, at: 2026-10-07T10:20:00Z }
 sources:
   - id: kpse
     resource: /upstream/kpathsea.md
@@ -34,6 +36,6 @@ sources:
 
 - One choke point covers every engine and tool, including Lua's `kpse` library.
 - Misses cost a binary search in an mmap'd file; no process is spawned.
-- Printing sibling files fixes the Phase 0 LuaLaTeX failure (Lua modules of a just-installed package).
+- Printing sibling files fixes the Phase 0 LuaLaTeX failure (Lua modules of a just-installed package). Confirmed: LuaLaTeX compiles the test article on the first run (see [status](/project/status.md)).
 
 [^kpse]: kpathsea lookup and mktex hook behaviour

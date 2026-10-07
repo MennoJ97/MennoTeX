@@ -4,8 +4,10 @@ title: Building texlive-source on macOS
 description: What it takes to build TeX Live natively on Apple Silicon, including the C23/libgd problem.
 resource: https://github.com/TeX-Live/texlive-source
 tags: [texlive, build, macos, arm64, autoconf]
-status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:30:00Z }
+status: stable
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:20:00Z }
+verified:
+  - { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:20:00Z }
 sources:
   - id: readme
     resource: https://github.com/TeX-Live/texlive-source/blob/trunk/README.1prerequisites
@@ -36,6 +38,22 @@ with `MACOSX_DEPLOYMENT_TARGET=13.0`, `TL_MAKE_FLAGS=-jN`, and an environment re
   (`error: unknown type name 'nnq'`). Setting the autoconf cache variable
   `ac_cv_prog_cc_c23=no` keeps the compiler default (C17). Observed 2026-10-07 at
   revision 7cd76c1.
+- **Trunk is next year's development version.** In October 2026 trunk reports
+  "TeX Live 2027/dev". Release sources are branches `tags/texlive-2026.0`,
+  `tags/texlive-2026.1` (2026-03-17, includes the post-release dvipdfmx fix) and
+  `branch2026` (same content as 2026.1); trunk was 324 commits ahead. Build the
+  release matching tlnet's `release/` value.
+- **`make world` = all + install + texlinks + `make check`.** Run in parallel, the
+  test `euptexdir/euptex-ctrlsym` races with another test for its `euptests/`
+  scratch directory and fails (118 of 122 web2c tests passed, 3 skipped); the
+  engine output itself matched. The build script passes `check_target=all` to skip
+  the in-build test run.
+- **Never run `make all install` as one parallel make:** TeX Live's makefiles must
+  serialize them (concurrent `tangle`/`convert` of `upbibtex.p` fails). For
+  incremental rebuilds after a kpathsea change: `make -jN all && make install` in
+  `Work/texk` (about 3 minutes: everything statically links kpathsea).
+- Full build time on this Mac (12 cores): about 20 minutes. Output: 487 programs and
+  links in `inst/bin/aarch64-apple-darwin25.6.0/`, 154 of them Mach-O.
 - `xindy` is off by default (`--enable-xindy`); `asymptote` is not part of the default build.
 
 [^readme]: texlive-source README.1prerequisites

@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T13:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:20:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -56,11 +56,25 @@ test document still makes 18 such calls.
 
 | Item | State |
 |---|---|
-| Resolver `mtx-ondemand.c` + patch | written, compiles with `-Wall -Wextra`; not yet run ([decision 0003](/decisions/0003-kpathsea-patch-shape.md)) |
+| Resolver `mtx-ondemand.c` + patch | **works**: all three engines compile the test article on the first run ([decision 0003](/decisions/0003-kpathsea-patch-shape.md)) |
 | `mtx ensure --package/--path --siblings` | done |
 | `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
-| `build/build-texlive.sh` | first build failed on C23 (libgd); fixed with `ac_cv_prog_cc_c23=no`, rebuilding ([build notes](/upstream/texlive-build.md)) |
+| `build/build-texlive.sh` | full native build works (≈20 min, 487 programs/links); now pinned to `tags/texlive-2026.1` ([build notes](/upstream/texlive-build.md)); release build in progress |
 | Corpus of 50 documents, first-run success for all three engines | not started |
+
+## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
+
+| Engine | Phase 0 first run | Phase 1 first run | Install calls (run 1 / run 2) |
+|---|---|---|---|
+| lualatex | failed, needed a rerun | ok, 9 s, 41 packages | 16 / 0 |
+| pdflatex | ok, 30 s, 43 packages | ok, 12 s, 43 packages | 20 / 0 |
+| xelatex | ok, 17 s, 39 packages | ok, 12 s, 39 packages | 15 / 0 |
+
+- Only `mktexfmt` (format builds) still spawns a process; lookups of files that no
+  package has are answered in-process (whole `kpsewhich` run: 6 ms installed, 7 ms
+  no-package miss, vs 2 ms for `/usr/bin/true`).
+- `kpsewhich tcolorbox.sty` (a `must_exist=false` lookup) installs tcolorbox and 7
+  dependencies, 0.26 s with cached archives.
 
 # Phase 2 items done early
 
