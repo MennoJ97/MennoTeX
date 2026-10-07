@@ -20,7 +20,7 @@ verified:
 | `repo` | HTTP/`file://` repository access, verified streaming downloads | Size or SHA-512 mismatch → `ChecksumMismatch` (triggers retry) |
 | `ctx` | Root + DB + pinned mirror + logging + `refresh` | Logs never go to stdout; TTL 1 h; mirror pin 24 h; bad mirrors avoided 24 h; `failover` blames the mirror only if the redirector answers |
 | `db` | SQLite `installed.sqlite`: packages, files, kv state | Reinstall as `auto` never downgrades an `explicit`/`bootstrap` reason; `Reason::Upgrade` keeps the recorded reason |
-| `binaries` | Install MennoTeX-built programs as `mennotex-binaries`; switch to kpathsea hook mode | Only Mach-O files are taken |
+| `binaries` | Install MennoTeX-built programs as `mennotex-binaries`; switch to kpathsea hook mode | Only Mach-O files are taken; deletes all built formats (a format only works with the engine build that dumped it) |
 | `extract` | Unpack `.tar.xz` via a staging dir | No absolute paths, no `..`, symlinks must stay inside the root; skips `tlpkg/tlpobj/` |
 | `lsr` | Rebuild/append kpathsea `ls-R` | Repeated directory blocks are legal |
 | `configfiles` | `fmtutil.cnf`, `updmap.cfg`, `language.*` | Output matches tlmgr byte for byte apart from the generated-by line (see [tlmgr config generation](/upstream/tlmgr-config.md)) |
@@ -28,7 +28,7 @@ verified:
 | `ensure` | Hook entry point | Miss path touches only the index |
 | `bootstrap` | Core set + hyphenation + hooks + root `texmf.cnf` | Hooks and `texmf.cnf` are written before `updmap` runs |
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
-| `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, avoided mirrors | Exit 1 only for problems, not warnings |
+| `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
 | `fontmaps` | Embedded TeX-font → map-package table ([decision 0004](/decisions/0004-font-map-index.md)); installs add map packages for TFMs they bring | Skips packages that map their own fonts |
 | `shims` | Command shims: a script for every program of a not-installed tlnet binary package; first run does `mtx install <pkg>` (which unpacks the real program over the shim) and re-execs | Never shadows `/usr/bin` or `/bin` commands or `man`; resynced after bootstrap, removals and installs of binary packages; `MTX_SHIM_ACTIVE` prevents loops |
 | `root` | Installation layout (TeX Live compatible) | `tool_path()` = our bin + system dirs only |

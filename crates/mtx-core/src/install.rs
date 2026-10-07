@@ -329,3 +329,26 @@ pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>>
     }
     Ok(removed)
 }
+
+/// Fix what `mtx doctor` can fix: install missing font-map packages, redo
+/// interrupted installs, regenerate configuration, ls-R and shims.
+pub fn repair(ctx: &mut Ctx) -> Result<Vec<String>> {
+    let tlpdb = ctx.tlpdb()?;
+    let installed = ctx.db.installed()?;
+    let names: Vec<String> = installed.keys().cloned().collect();
+    let mut todo: BTreeSet<String> = crate::fontmaps::map_packages_for(&tlpdb, &names, &|p| installed.contains_key(p));
+    if let Ok(entries) = fs::read_dir(ctx.root.journal_dir()) {
+        todo.extend(entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()));
+    }
+    let todo: Vec<&str> = todo.iter().map(String::as_str).filter(|n| tlpdb.get(n).is_some()).collect();
+    let mut fixed: Vec<String> = Vec::new();
+    if !todo.is_empty() {
+        let r = install(ctx, &todo, Reason::Dependency)?;
+        fixed.extend(r.installed.into_iter().map(|(n, _)| n));
+    }
+    let _ = fs::remove_dir_all(ctx.root.dir.join(".staging"));
+    lsr::rebuild(&ctx.root.texmf_dist())?;
+    apply_regen(ctx, &tlpdb, Regen::all(), &[])?;
+    crate::shims::sync(ctx, &tlpdb)?;
+    Ok(fixed)
+}

@@ -126,6 +126,17 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
         push(&mut out, Severity::Problem, format!("{} of {total} installed files are missing, e.g. {}", missing.len(), sample.join(", ")));
     }
 
+    // Fonts whose map package is missing (roots created before the
+    // font-map rule): pdfTeX falls back to bitmaps and fails.
+    if let Ok(tlpdb) = ctx.tlpdb() {
+        let names: Vec<String> = installed.keys().cloned().collect();
+        let missing_maps = crate::fontmaps::map_packages_for(&tlpdb, &names, &|p| installed.contains_key(p));
+        if !missing_maps.is_empty() {
+            let list: Vec<&str> = missing_maps.iter().map(String::as_str).collect();
+            push(&mut out, Severity::Problem, format!("installed fonts lack their map packages: {} (run `mtx repair`)", list.join(", ")));
+        }
+    }
+
     // Network state.
     if ctx.offline()? {
         push(&mut out, Severity::Warning, "offline marker set (a network error happened in the last minute)");

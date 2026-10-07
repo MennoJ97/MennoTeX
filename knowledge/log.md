@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: `mtx repair`, doctor check for missing font-map packages, format invalidation on binary install ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: Phase 1 exit criterion met with the 2026.1 release build: corpus passes on all three engines ([status](/project/status.md)).
 * **Creation**: [Decision 0004](/decisions/0004-font-map-index.md) (font-map index); corpus results in [status](/project/status.md).
 * **Update**: Command shims ([on-demand installation](/architecture/on-demand-install.md)); C++17 requirement of the 2026 release recorded in [build notes](/upstream/texlive-build.md).

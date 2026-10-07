@@ -36,5 +36,6 @@ documents `babel-multilingual` and `moderncv-cv`.
 - `ec` pulls in `cm-super` (62 MiB), as MiKTeX does in this situation.
 - The table must be regenerated when font packages change; for now by hand, later
   by CI next to the binary channel.
-- Roots created before this rule may have `ec` without `cm-super`; a repair step is
-  still missing (the `mktexpk` fallback could install the map package for the next run).
+- Roots created before this rule may have `ec` without `cm-super`: `mtx doctor`
+  reports it and `mtx repair` installs the missing map packages (on one such root:
+  cm-super, manfnt-font, mflogo-font), after which the failing documents compile.

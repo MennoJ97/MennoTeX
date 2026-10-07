@@ -27,6 +27,23 @@ fn is_macho(path: &Path) -> bool {
         && matches!(magic, [0xcf, 0xfa, 0xed, 0xfe] | [0xca, 0xfe, 0xba, 0xbe])
 }
 
+/// Delete every `*.fmt` (and its `.log`) under `dir`; returns how many.
+fn remove_formats(dir: &Path) -> Result<usize> {
+    let mut n = 0;
+    let Ok(entries) = fs::read_dir(dir) else { return Ok(0) };
+    for e in entries.flatten() {
+        let p = e.path();
+        if e.file_type()?.is_dir() {
+            n += remove_formats(&p)?;
+        } else if p.extension().is_some_and(|x| x == "fmt") {
+            fs::remove_file(&p)?;
+            let _ = fs::remove_file(p.with_extension("log"));
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
 /// Copy every Mach-O executable in `dir` (e.g. `inst/bin/<triplet>/` of a
 /// texlive-source build) into the installation, and switch on-demand
 /// installation from the mktex hooks to the kpathsea patch.
@@ -58,7 +75,12 @@ pub fn install_binaries(ctx: &mut Ctx, dir: &Path) -> Result<usize> {
     }
     ctx.db.record(BIN_PACKAGE, now_secs(), Reason::Explicit, &files)?;
     ctx.db.set("hook_mode", HookMode::Kpathsea.as_str())?;
+    // A format only works with the exact engine build that dumped it.
+    let removed = remove_formats(&ctx.root.texmf_var().join("web2c"))?;
     drop(lock);
+    if removed > 0 {
+        ctx.log(format!("removed {removed} formats built by the previous engines; they are rebuilt on next use"));
+    }
     install_hooks(&ctx.root, HookMode::Kpathsea)?;
     ctx.log(format!("installed {} MennoTeX-built binaries from {}", files.len(), dir.display()));
     Ok(files.len())
