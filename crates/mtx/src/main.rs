@@ -141,6 +141,16 @@ enum Cmd {
     Repair,
     /// Install what a .tex file statically needs, in one go.
     Prefetch { file: PathBuf },
+    /// Remove packages installed on demand that no document has used for
+    /// DAYS days (by file access time), with dependencies nothing else needs.
+    /// They are installed again when needed.
+    Gc {
+        #[arg(long, default_value_t = 90)]
+        days: u64,
+        /// Only list what would be removed.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -385,6 +395,33 @@ fn run(cli: Cli) -> Result<ExitCode> {
             }
             if worst == Some(mtx_core::doctor::Severity::Problem) {
                 return Ok(ExitCode::from(1));
+            }
+        }
+        Cmd::Gc { days, dry_run } => {
+            let mut ctx = open(&root)?;
+            let tlpdb = ctx.tlpdb()?;
+            let installed = ctx.db.installed()?;
+            let now = mtx_core::db::now_secs();
+            let mut used = std::collections::HashMap::new();
+            for (name, i) in &installed {
+                used.insert(name.clone(), mtx_core::gc::last_used(&ctx, name, i.installed_at)?);
+            }
+            let cutoff = now.saturating_sub(days * 86400);
+            let plan = mtx_core::gc::plan(&tlpdb, &installed, &|n| used.get(n).copied().unwrap_or(now), cutoff)?;
+            if plan.is_empty() {
+                eprintln!("mtx: nothing to remove (no package installed on demand is unused for {days} days)");
+                return Ok(ExitCode::SUCCESS);
+            }
+            let size: u64 = plan.iter().filter_map(|n| tlpdb.get(n)).map(|p| p.container_size).sum();
+            for n in &plan {
+                println!("{n}\tlast used {}", mtx_core::logview::age(now, used[n]));
+            }
+            if dry_run {
+                eprintln!("mtx: would remove {} package(s), about {:.1} MiB packed", plan.len(), size as f64 / 1048576.0);
+            } else {
+                let names: Vec<&str> = plan.iter().map(String::as_str).collect();
+                let removed = install::remove(&mut ctx, &names, false)?;
+                eprintln!("mtx: removed {} package(s), about {:.1} MiB packed", removed.len(), size as f64 / 1048576.0);
             }
         }
         Cmd::Regen => {

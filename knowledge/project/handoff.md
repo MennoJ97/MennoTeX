@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:20:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -117,7 +117,9 @@ archives. See the [development playbook](/playbooks/development.md).
    - Roots made before the font-map rule need `mtx repair`; a `mktexpk` fallback could
      install map packages automatically.
    - Format staleness is handled by deletion (binary install, `fmttriggers`); no stamps.
-   - `mtx gc` (unused auto-installed packages) and docs on demand (`texdoc`) are not done.
+   - `mtx gc` is done (access times as the usage signal). Docs on demand (`texdoc`)
+     are not: tlnet ships docs as separate `<pkg>.doc.tar.xz` containers that the
+     file index does not cover.
 7. **Data refresh:** `crates/mtx-core/data/fontmaps.tsv.xz` and `fontnames.tsv.xz` come
    from `tools/build_fontmap_index.py` / `tools/build_fontname_index.py` (download all
    font packages once, ~850 MiB each, mostly shared). Regenerate when font packages
