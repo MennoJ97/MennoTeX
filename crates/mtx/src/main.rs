@@ -61,10 +61,24 @@ enum Cmd {
     /// installation to the kpathsea patch.
     InstallBinaries {
         /// Directory of programs, or a .tar.xz release archive.
-        source: PathBuf,
+        #[arg(required_unless_present = "github")]
+        source: Option<PathBuf>,
         /// SHA256SUMS file to verify the archive against.
         #[arg(long)]
         sums: Option<PathBuf>,
+        /// Fetch the binaries from GitHub with the `gh` CLI: by default the
+        /// artifact of the newest successful build workflow run.
+        #[arg(long, conflicts_with_all = ["source", "sums"])]
+        github: bool,
+        /// With --github: this workflow run's artifact.
+        #[arg(long, requires = "github")]
+        run: Option<u64>,
+        /// With --github: this release's assets (a tag, or `latest`).
+        #[arg(long, requires = "github", conflicts_with = "run")]
+        release: Option<String>,
+        /// With --github: install even if this build is installed already.
+        #[arg(long, requires = "github")]
+        force: bool,
     },
     /// Install packages (and their dependencies).
     Install {
@@ -196,12 +210,24 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 None => ExitCode::from(1),
             });
         }
-        Cmd::InstallBinaries { source, sums } => {
+        Cmd::InstallBinaries { source, sums, github, run, release, force } => {
+            use mtx_core::github::Source;
             let mut ctx = open(&root)?;
-            let n = if source.is_dir() {
-                binaries::install_binaries(&mut ctx, &source)?
-            } else {
-                binaries::install_binaries_archive(&mut ctx, &source, sums.as_deref())?
+            let n = match source {
+                _ if github => {
+                    let src = match (run, release) {
+                        (Some(id), _) => Source::Run(id),
+                        (_, Some(tag)) => Source::Release(tag),
+                        _ => Source::LatestRun,
+                    };
+                    match binaries::install_binaries_github(&mut ctx, &src, force)? {
+                        Some(n) => n,
+                        None => return Ok(ExitCode::SUCCESS),
+                    }
+                }
+                Some(dir) if dir.is_dir() => binaries::install_binaries(&mut ctx, &dir)?,
+                Some(archive) => binaries::install_binaries_archive(&mut ctx, &archive, sums.as_deref())?,
+                None => unreachable!("clap requires a source without --github"),
             };
             eprintln!("mtx: installed {n} binaries; on-demand installation now uses the kpathsea patch");
         }

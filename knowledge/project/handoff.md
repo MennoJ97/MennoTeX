@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T00:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -69,10 +69,17 @@ archives. See the [development playbook](/playbooks/development.md).
    it), smoke-test TeXShop, VS Code LaTeX Workshop and TeXstudio. GUI apps do not read
    `~/.zprofile`; they look in `/Library/TeX/texbin` (plan §5.2: TeXDist registration
    needs admin once, so ask first).
-2. **Release downloads:** the CI build works (step done 2026-10-08). Next, teach
-   `mtx install-binaries` to fetch a release or a run artifact itself (private repo →
-   needs `gh` auth or a token; consider signing the manifest, plan §5.8). Publishing a
-   Release means rerunning the workflow with `release: true`, which needs the user's OK.
+2. **Release downloads:** done 2026-10-08 for TeX Live's programs:
+   `mtx install-binaries --github [--run ID | --release TAG|latest]` uses `gh` (private
+   repository), checks the archive's release and `SHA256SUMS`, and skips an installed
+   build. Still open:
+   - The artifact holds TeX Live's programs only, not `mtx`. A one-command upgrade
+     (`mtx self-update`, and moving to the next release) needs the workflow to build and
+     package mtx too: a workflow change plus a CI run, which needs the user's OK.
+   - Releases: none published yet (the workflow's `release: true` input; needs the
+     user's OK). Artifacts expire after GitHub's retention period (90 days by default), so
+     publish a Release before relying on `--github` long term.
+   - A signed manifest (plan §5.8) matters once the repository or releases are public.
 3. **Install feedback:** done 2026-10-08 ([decision 0007](/decisions/0007-install-consent.md)):
    `mtx config autoinstall yes|no|ask` (`$MTX_AUTOINSTALL` overrides), `ask` via terminal,
    dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;

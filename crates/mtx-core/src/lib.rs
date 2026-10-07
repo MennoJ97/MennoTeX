@@ -14,6 +14,7 @@ pub mod ensure;
 pub mod extract;
 pub mod fontmaps;
 pub mod fontnames;
+pub mod github;
 pub mod formats;
 pub mod index;
 pub mod install;

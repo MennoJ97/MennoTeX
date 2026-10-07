@@ -79,7 +79,34 @@ pub fn install_binaries_archive(ctx: &mut Ctx, archive: &Path, sums: Option<&Pat
         install_binaries(ctx, &dir)
     })();
     let _ = fs::remove_dir_all(&tmp);
+    if result.is_ok() {
+        ctx.db.set("binaries_build", name.trim_end_matches(".tar.xz"))?;
+    }
     result
+}
+
+/// Fetch binaries from GitHub (see [`crate::github`]) and install them.
+/// Returns `None` when that build is installed already (unless `force`).
+pub fn install_binaries_github(ctx: &mut Ctx, source: &crate::github::Source, force: bool) -> Result<Option<usize>> {
+    let repo = ctx.db.get("binaries_repo")?.unwrap_or_else(|| crate::github::DEFAULT_BINARIES_REPO.to_string());
+    let mut source = source.clone();
+    if let Some((id, name)) = crate::github::run_artifact(&repo, &source)? {
+        source = crate::github::Source::Run(id); // the run checked here, even if a newer one finishes
+        if !force && ctx.db.get("binaries_build")?.as_deref() == Some(name.as_str()) {
+            ctx.log(format!("{name} (run {id}) is installed already; --force reinstalls it"));
+            return Ok(None);
+        }
+        ctx.log(format!("fetching {name} from run {id} of {repo}"));
+    } else if let crate::github::Source::Release(tag) = &source {
+        ctx.log(format!("fetching the binaries of {repo}'s release {tag}"));
+    }
+    let dir = ctx.root.mtx_dir().join(format!("download-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir)?;
+    let result = crate::github::fetch(&repo, &source, &dir)
+        .and_then(|(archive, sums)| install_binaries_archive(ctx, &archive, Some(&sums)));
+    let _ = fs::remove_dir_all(&dir);
+    result.map(Some)
 }
 
 /// Copy every Mach-O executable in `dir` (e.g. `inst/bin/<triplet>/` of a

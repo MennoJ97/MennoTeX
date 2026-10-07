@@ -74,6 +74,9 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
     } else {
         push(&mut out, Severity::Problem, format!("hook mode {} but texmf.cnf lacks `{want}`; run `mtx bootstrap`", mode.as_str()));
     }
+    if let Some(build) = ctx.db.get("binaries_build")? {
+        push(&mut out, Severity::Ok, format!("binaries: {build}"));
+    }
     for hook in ["mktextex", "mktextfm"] {
         if fs::symlink_metadata(bin.join(hook)).is_err() {
             push(&mut out, Severity::Problem, format!("{hook} is missing from {}", bin.display()));

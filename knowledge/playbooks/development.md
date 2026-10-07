@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T00:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -71,6 +71,14 @@ Locally (about 20 minutes on 12 cores):
 git clone --depth 1 --branch tags/texlive-2026.1 https://github.com/TeX-Live/texlive-source.git /tmp/tl2026
 build/build-texlive.sh /tmp/tl2026
 mtx --root /tmp/mtxroot install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darwin*/
+```
+
+Or let mtx fetch the newest successful CI build itself (needs `gh` with access to the
+private repository; checks the archive's release and `SHA256SUMS`, skips a build that is
+installed already):
+
+```bash
+mtx --root /tmp/mtxroot install-binaries --github            # or --run <id>, --release <tag|latest>
 ```
 
 On GitHub: run the **Build TeX Live binaries** workflow by hand (Actions tab,

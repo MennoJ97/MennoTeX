@@ -12,6 +12,7 @@ pub const KEYS: &[(&str, &str, &str)] = &[
     ("ask_dialog", "yes|no", "under `ask`, show a dialog when there is no terminal (default yes)"),
     ("repository", "URL|path", "TeX Live repository (default mirror.ctan.org's tlnet)"),
     ("historic_mirrors", "URL ...", "mirrors of TeX Live's historic archive, tried in order"),
+    ("binaries_repo", "OWNER/REPO", "GitHub repository for `mtx install-binaries --github` (default MennoJ97/MennoTeX)"),
 ];
 
 /// Check and normalize `value` for `key`.
@@ -31,6 +32,10 @@ pub fn normalize(key: &str, value: &str) -> Result<String> {
         "ask_fallback" | "ask_dialog" => yes_no(value),
         "repository" | "historic_mirrors" if !value.trim().is_empty() => Ok(value.trim().to_string()),
         "repository" | "historic_mirrors" => bail!("{key} cannot be empty; use --unset"),
+        "binaries_repo" => match value.trim().split_once('/') {
+            Some((o, r)) if !o.is_empty() && !r.is_empty() && !r.contains('/') => Ok(value.trim().to_string()),
+            _ => bail!("binaries_repo takes OWNER/REPO, not `{value}`"),
+        },
         _ => bail!("unknown setting `{key}`; known: {}", KEYS.iter().map(|k| k.0).collect::<Vec<_>>().join(", ")),
     }
 }

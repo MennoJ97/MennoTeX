@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T00:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -64,7 +64,7 @@ test document still makes 18 such calls.
 | Document corpus, 26 documents (2026-10-08) | **all pass on the first run from a fresh root per engine with the CI-built binaries**: pdfLaTeX 23/23 (3 are XeTeX/LuaTeX-only; 157 s, 247 packages), XeLaTeX 26/26 (212 s, 312 packages), LuaLaTeX 26/26 (210 s, 311 packages); the three corpora ran in parallel with a shared cache. New: exam, KOMA letter, chess (xskak), linguistics (tipa, forest, gb4e), algorithms, song sheets, CJK (ctex + Fandol), tikzposter. `linguistics` and `tikzposter` fail with Phase 0 stock binaries (encoding file, virtual font aer17) and pass with the patch. `fontspec-by-name` no longer needs `% prefetch: lualatex`. Failover hid two bad mirrors during the run ([tlnet](/upstream/tlnet.md)) |
 | Document corpus (17 documents, 2026-10-07, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
 | CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×). **First run 2026-10-07 succeeded** (run 37694133534): 14 min 16 s, artifact `mennotex-bin-2026-6a3001880-arm64-darwin` (39 MB, 153 programs, `SHA256SUMS` verified); its binaries ran the 26-document corpus |
-| Binary channel | `mtx install-binaries` takes a directory or a release archive (`--sums SHA256SUMS`); the workflow can publish a GitHub Release. No signature yet: the repository is private, so release downloads need GitHub auth anyway |
+| Binary channel | `mtx install-binaries` takes a directory, a release archive (`--sums SHA256SUMS`), or `--github` (newest successful workflow run's artifact, `--run ID`, or `--release TAG`, through the `gh` CLI). Checked 2026-10-08: a fresh root fetched and installed run 37694133534's artifact in 72 s; a second call skipped it as installed; `--release latest` fails cleanly (no Release published yet). Authenticity rests on GitHub access to the private repository; `SHA256SUMS` only guards integrity. No signed manifest; the artifact does not contain mtx itself |
 | Real installation on this Mac | **installed 2026-10-08** at `~/Library/MennoTeX/2026` with the CI binaries (user's choice: no PATH edit). With its bin directory first on PATH, `mtx doctor` is clean and pdfLaTeX, XeLaTeX and LuaLaTeX each compiled a corpus document on the first run; in the user's normal PATH, MiKTeX still shadows it. Testing stays in scratch roots |
 
 ## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
