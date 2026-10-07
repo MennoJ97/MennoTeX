@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: [Handoff](/project/handoff.md): release transitions item now reflects [decision 0006](/decisions/0006-release-transitions.md) and lists what is still open.
 * **Update**: [Handoff](/project/handoff.md): next step for an `ask` install setting and logging install failures to `mtx.log`, as requested by the user; gotcha about stale test binaries from another clone sharing `target/`.
 * **Creation**: [Decision 0006](/decisions/0006-release-transitions.md): release transitions pin the frozen historic repository; `mtx bootstrap --from` ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: `.gitignore` excluded the test repository's `texlive.tlpdb.xz` (`*.tlpdb.xz` was meant for downloaded data), so offline tests only passed in the original working copy; now tracked and checked in a clean worktree.

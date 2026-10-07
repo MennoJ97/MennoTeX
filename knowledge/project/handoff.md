@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:45:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T13:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T13:00:00Z }
@@ -81,9 +81,20 @@ archives. See the [development playbook](/playbooks/development.md).
      TeXstudio) parse, so editor users only see "File `foo.sty' not found". Ideas: an
      `mtx log` view of recent failures, `mtx doctor` reporting them, or handing a note
      to the engine to write into its log (kpathsea cannot see that file).
-4. **Release transitions** (plan §4.3): when tlnet moves to `release/2027`, pin to
-   `historic/systems/texlive/2026/tlnet-final` and add `mtx upgrade-release`
-   (side-by-side `~/Library/MennoTeX/2027`). Today `ctx.rs` just refuses other releases.
+4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
+   commit `38c0bac`). When tlnet serves a newer release, `refresh` switches the
+   repository to `historic:2026` (the frozen `tlnet-final`, resolved over the tug.org
+   historic mirrors and pinned), lagging mirrors are avoided, and `mtx doctor` warns.
+   Moving up is the next release's MennoTeX build running `mtx bootstrap --from <old
+   root>` side by side, not `mtx upgrade-release` in the old mtx. Tested with the local
+   test repositories only; the historic mirrors were checked by hand against 2025's
+   `tlnet-final` ([tlnet](/upstream/tlnet.md)). Still open:
+   - Watch the real switch (usually April 2027): confirm the old root moves to
+     `historic:2026` by itself and that a historic mirror has the frozen repository.
+   - Prepare the 2027 build: pin the 2027 `texlive-source` revision in `build/texlive-source.rev`,
+     bump `root::RELEASE`, rebuild with the patches, rerun the corpus.
+   - A one-command upgrade from the old mtx needs release downloads (step 2);
+     until then `mtx doctor` names the command.
 5. **Grow the corpus** toward the plan's 50 documents (e.g. arXiv sources, kept locally;
    theses, CVs, letters, exams, music/chess/linguistics packages, CJK).
 6. **Known gaps** (each has a note in the knowledge bundle):
