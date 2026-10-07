@@ -1,9 +1,13 @@
 # MennoTeX: instructions for Claude (and other agents)
 
 MennoTeX is a TeX Live based distribution for Apple Silicon that installs
-packages on the fly. Read `knowledge/index.md` first: it is the curated map of
-the repo and of the upstream facts the design depends on. `PLAN.md` holds the
-full design and roadmap.
+packages on the fly. **Start every session with `knowledge/project/handoff.md`**:
+current state, how to rebuild a working setup, decisions the user made, and the
+prioritized next steps. `knowledge/index.md` maps the rest of the curated
+knowledge; `PLAN.md` holds the original design and roadmap.
+
+When you stop, update `knowledge/project/handoff.md` so the next session can
+continue: what changed, what is next, what the user decided.
 
 ## Keep the knowledge base current (required)
 

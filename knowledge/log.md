@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-10-08
+* **Creation**: [Handoff](/project/handoff.md) for the next session; `CLAUDE.md` now points every session at it.
+
 ## 2026-10-07
 * **Update**: Format-build race found by the concurrency test and fixed with mtx as `mktexfmt` ([TeX Live scripts](/upstream/texlive-scripts.md), [mtx-core](/architecture/mtx-core.md)).
 * **Update**: Concurrency test passes ([status](/project/status.md), [playbook](/playbooks/development.md)).
