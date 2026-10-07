@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T13:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T13:00:00Z }
@@ -48,7 +48,7 @@ archives. See the [development playbook](/playbooks/development.md).
   ask before triggering it. No other workflows were added (a cheap Linux
   `cargo test` + OKF check on push would also need the user's OK).
 - **Real installation on this Mac** (`~/Library/MennoTeX/2026`, PATH ahead of MiKTeX):
-  the user said **"not yet"**. Keep testing in scratch roots until asked.
+  the user said **"not yet"** (again on 2026-10-08). Keep testing in scratch roots until asked.
 - **Knowledge upkeep:** keep `knowledge/` current in the same commit (see `CLAUDE.md`).
 
 # Next steps, in priority order
@@ -61,12 +61,32 @@ archives. See the [development playbook](/playbooks/development.md).
 2. **Run the manual CI workflow once** (with the user's OK) to prove the GitHub build;
    then teach `mtx install-binaries` to fetch a release (private repo → needs `gh`
    auth or a token; consider signing the manifest, plan §5.8).
-3. **Release transitions** (plan §4.3): when tlnet moves to `release/2027`, pin to
+3. **Install feedback: an `ask` setting and failure logging** (requested by the user
+   on 2026-10-08):
+   - **`MTX_AUTOINSTALL=ask`** (plan §5.9). The resolver already reads
+     `MTX_AUTOINSTALL` (environment or `texmf.cnf`, also per program); today `0`
+     disables installs and anything else installs. Add `ask`, decided in mtx, not in C.
+     `mtx ensure` runs with stdin from `/dev/null`, often under an editor with no
+     terminal, so: prompt on `/dev/tty` if there is one, else an `osascript` dialog
+     (30 s timeout), else a configured fallback (plan: `yes`; MiKTeX's headless "ask"
+     silently means no). One first compile can trigger ~40 installs, so offer
+     "always for this document/session" and ask once per batch in `mtx prefetch`.
+     The resolver's per-run `failed` list already keeps a "no" from being asked twice
+     in one run. A `mtx config set autoinstall ask` command would make it discoverable.
+   - **Log failures to `tlpkg/mtx/mtx.log`.** Successful installs are logged via
+     `ctx.log`, but errors only go to stderr (`mtx: error: …` in `crates/mtx/src/main.rs`,
+     and the hook error path), so the log shows installs but not why one failed
+     (offline, all mirrors bad, signature mismatch).
+   - **Related gap:** stderr never reaches TeX's `.log`, which editors (LaTeX Workshop,
+     TeXstudio) parse, so editor users only see "File `foo.sty' not found". Ideas: an
+     `mtx log` view of recent failures, `mtx doctor` reporting them, or handing a note
+     to the engine to write into its log (kpathsea cannot see that file).
+4. **Release transitions** (plan §4.3): when tlnet moves to `release/2027`, pin to
    `historic/systems/texlive/2026/tlnet-final` and add `mtx upgrade-release`
    (side-by-side `~/Library/MennoTeX/2027`). Today `ctx.rs` just refuses other releases.
-4. **Grow the corpus** toward the plan's 50 documents (e.g. arXiv sources, kept locally;
+5. **Grow the corpus** toward the plan's 50 documents (e.g. arXiv sources, kept locally;
    theses, CVs, letters, exams, music/chess/linguistics packages, CJK).
-5. **Known gaps** (each has a note in the knowledge bundle):
+6. **Known gaps** (each has a note in the knowledge bundle):
    - LuaLaTeX + fontspec font *names* need `mtx prefetch` for the first run (luaotfload
      resolves `name:` before kpathsea; [decision 0005](/decisions/0005-fonts-by-name.md)).
      Option: a luaotfload overlay or a callback hook.
@@ -75,13 +95,12 @@ archives. See the [development playbook](/playbooks/development.md).
    - Roots made before the font-map rule need `mtx repair`; a `mktexpk` fallback could
      install map packages automatically.
    - Format staleness is handled by deletion (binary install, `fmttriggers`); no stamps.
-   - `ask` policy and UI for installs (plan §5.9) are not implemented; installs are automatic.
    - `mtx gc` (unused auto-installed packages) and docs on demand (`texdoc`) are not done.
-6. **Data refresh:** `crates/mtx-core/data/fontmaps.tsv.xz` and `fontnames.tsv.xz` come
+7. **Data refresh:** `crates/mtx-core/data/fontmaps.tsv.xz` and `fontnames.tsv.xz` come
    from `tools/build_fontmap_index.py` / `tools/build_fontname_index.py` (download all
    font packages once, ~850 MiB each, mostly shared). Regenerate when font packages
    change; ideally a manual CI job.
-7. **PLAN.md drift:** the archive cache lives in `<root>/tlpkg/mtx/cache` (not
+8. **PLAN.md drift:** the archive cache lives in `<root>/tlpkg/mtx/cache` (not
    `~/Library/Caches`), binaries are pinned to the 2026.1 release branch, and the
    resolver also handles font names. Update PLAN.md or point it at the knowledge bundle.
 
@@ -95,5 +114,11 @@ archives. See the [development playbook](/playbooks/development.md).
   but a test run can still take longer when it happens.
 - TeX Live's `make all install` must not run as one parallel make; the build script's
   `--incremental` mode does it right (about 3 minutes after a kpathsea change).
+- Test binaries can be stale across clones: a session that builds a temporary clone
+  with this checkout's `target/` can leave a test binary that embeds the clone's
+  `CARGO_MANIFEST_DIR`, and cargo reuses it as fresh. Symptom (seen 2026-10-08):
+  8 `local_repo_tests` fail with `NotFound` under `cargo test` but pass with
+  `-p mtx-core`. Fix: `cargo clean -p mtx-core`; check with
+  `strings target/debug/deps/mtx_core-* | grep testdata`.
 - Release binaries are stripped: check for the patch with
   `strings pdftex | grep MTX_AUTOINSTALL`.
