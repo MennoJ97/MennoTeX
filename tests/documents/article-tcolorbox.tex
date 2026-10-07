@@ -1,0 +1,42 @@
+% Phase 0 exit-criterion document: typical article packages, none of which
+% are in the bootstrap core set except amsmath and lmodern.
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\usepackage[most]{tcolorbox}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\newtcbtheorem{theo}{Theorem}{colback=blue!5,colframe=blue!50!black,fonttitle=\bfseries}{th}
+
+\title{MennoTeX on-demand test}
+\author{mtx}
+\begin{document}
+\maketitle
+
+\section{Units and maths}\label{sec:units}
+The speed of light is \SI{299792458}{\metre\per\second}, roughly
+\qty{3e8}{m/s}. Euler: $e^{i\pi}+1=0$, and
+\begin{equation}
+  \int_0^\infty e^{-x^2}\,\mathrm{d}x = \frac{\sqrt{\pi}}{2}.
+\end{equation}
+
+\begin{theo}{Boxes}{boxes}
+  A \texttt{tcolorbox} theorem with a TikZ-drawn frame, see
+  Section~\ref{sec:units}.
+\end{theo}
+
+\begin{tcolorbox}[enhanced,breakable,title=Breakable box,colback=yellow!10]
+  \begin{tabular}{lS}
+    \toprule
+    Quantity & {Value} \\
+    \midrule
+    Mass & 1.25 \\
+    Length & 3.5e2 \\
+    \bottomrule
+  \end{tabular}
+\end{tcolorbox}
+\end{document}

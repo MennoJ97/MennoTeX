@@ -58,6 +58,14 @@ enum Cmd {
 }
 
 fn main() -> ExitCode {
+    // Multi-call: kpathsea runs `mktextex NAME` / `mktextfm NAME`, which are
+    // symlinks to mtx. Dispatching here avoids a shell wrapper, which
+    // cost more than mtx itself (about 10 ms per call).
+    let argv0 = std::env::args_os().next().unwrap_or_default();
+    let prog = std::path::Path::new(&argv0).file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+    if prog == "mktextex" || prog == "mktextfm" {
+        return hook(&prog);
+    }
     let cli = Cli::parse();
     match run(cli) {
         Ok(code) => code,
@@ -152,6 +160,38 @@ fn run(cli: Cli) -> Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// kpathsea hook mode: `mktextex NAME` or `mktextfm NAME` (the name is the
+/// last argument). Prints the path and exits 0, or exits 1. For TFMs that no
+/// package provides, falls back to TeX Live's METAFONT-based mktextfm.
+fn hook(prog: &str) -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let Some(name) = args.last() else { return ExitCode::from(1) };
+    let (format, fallback) = if prog == "mktextex" { ("tex", None) } else { ("tfm", Some("mktextfm")) };
+    let result = Root::discover(None).and_then(|root| {
+        let kind = ensure::kind(format).expect("known format");
+        Ok((ensure::ensure(&root, kind, name)?, root))
+    });
+    match result {
+        Ok((Some(path), _)) => {
+            println!("{}", path.display());
+            ExitCode::SUCCESS
+        }
+        Ok((None, root)) => match fallback {
+            Some(script) => {
+                use std::os::unix::process::CommandExt;
+                let err = std::process::Command::new(root.texmf_dist().join("scripts/texlive").join(script)).args(&args).exec();
+                eprintln!("mtx: cannot run TeX Live's {script}: {err}");
+                ExitCode::from(1)
+            }
+            None => ExitCode::from(1),
+        },
+        Err(e) => {
+            eprintln!("mtx: {prog} {name}: {e:#}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 fn open(root: &Root) -> Result<Ctx> {

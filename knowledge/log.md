@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Phase 0 exit criterion met for pdfLaTeX/XeLaTeX; LuaLaTeX gap measured ([status](/project/status.md), [decision 0002](/decisions/0002-phase0-stock-hooks.md)).
 * **Update**: First on-demand installs from a real `pdflatex` run; recorded in [status](/project/status.md).
 * **Creation**: Added [TeX Live scripts](/upstream/texlive-scripts.md) (mktexfmt refuses TEXMFVAR == TEXMFSYSVAR).
 * **Update**: Recorded the expired-TLS-certificate mirror and the failover rule in [tlnet](/upstream/tlnet.md).

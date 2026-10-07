@@ -4,7 +4,7 @@ title: On-demand installation
 description: How a missing file becomes an installed package, in Phase 0 (stock hooks) and Phase 1 (kpathsea patch).
 tags: [architecture, kpathsea, mtx, hooks]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:30:00Z }
 sources:
   - id: kpse
     resource: /upstream/kpathsea.md
@@ -17,8 +17,10 @@ sources:
 
 1. A TeX program asks kpathsea for a file; the file is not in any `ls-R`.
 2. **Phase 0:** if the lookup has `must_exist=true`, kpathsea runs `mktextex <name>`
-   (or `mktextfm`). Our hook scripts in `bin/universal-darwin/` exec
-   `mtx ensure --format tex -- <name>`.[^kpse]
+   (or `mktextfm`). In `bin/universal-darwin/` these are symlinks to `mtx`, which
+   dispatches on its program name (no shell wrapper: that cost ~10 ms per call).
+   `mktextfm` falls back to TeX Live's METAFONT-based script when no package
+   ships the TFM.[^kpse]
    **Phase 1 (planned):** a patch in `kpathsea_find_file_generic` calls the
    resolver on every miss, regardless of `must_exist`.
 3. `mtx ensure` (`ensure.rs`) opens [files.idx](/architecture/files-idx.md) by mmap

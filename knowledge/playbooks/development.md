@@ -32,6 +32,17 @@ Keep `PATH` minimal: this Mac has MiKTeX symlinks in `/usr/local/bin` (`tex`,
 `pdflatex`, `kpsewhich`, …) that would otherwise be picked up, and kpathsea finds
 the `mktex*` hooks through `PATH`.
 
+# Test documents
+
+```bash
+tests/run_documents.sh /tmp/mtxroot pdflatex   # or xelatex / lualatex
+```
+
+Compiles every `tests/documents/*.tex` twice and prints, per document: result,
+pages, packages installed on demand and seconds. Logs stay in the printed temp
+directory. Use a fresh root to measure first-run behaviour; set `MTX_CACHE` to
+an existing root's `tlpkg/mtx/cache` to skip re-downloading archives.
+
 # Useful commands
 
 - `mtx which <file> [--format tfm]`: which package provides a file and whether it is installed.

@@ -41,21 +41,6 @@ TEXMFCONFIG = $TEXMFROOT/texmf-user-config
 MKTEXTEX = 1
 ";
 
-pub const MKTEXTEX: &str = r#"#!/bin/sh
-# MennoTeX: kpathsea runs this when a TeX input file is missing (MKTEXTEX=1).
-# mtx installs the package that provides it and prints the file's path.
-exec "$(dirname "$0")/mtx" ensure --format tex -- "$1"
-"#;
-
-pub const MKTEXTFM: &str = r#"#!/bin/sh
-# MennoTeX: kpathsea runs this when a TFM file is missing. First try to
-# install the package that ships it; otherwise fall back to TeX Live's
-# mktextfm, which generates the font with METAFONT.
-d=$(dirname "$0")
-"$d/mtx" ensure --format tfm -- "$1" && exit 0
-exec "$d/../../texmf-dist/scripts/texlive/mktextfm" "$@"
-"#;
-
 fn write_executable(path: &Path, content: &[u8]) -> Result<()> {
     let tmp = path.with_extension("mtx-tmp");
     fs::write(&tmp, content)?;
@@ -70,12 +55,18 @@ pub fn install_hooks(root: &Root) -> Result<()> {
     let bin = root.bin_dir();
     fs::create_dir_all(&bin)?;
     fs::write(root.dir.join("texmf.cnf"), ROOT_TEXMF_CNF)?;
-    write_executable(&bin.join("mktextex"), MKTEXTEX.as_bytes())?;
-    write_executable(&bin.join("mktextfm"), MKTEXTFM.as_bytes())?;
     let exe = std::env::current_exe().context("locating the mtx executable")?;
     let dest = bin.join("mtx");
     if fs::canonicalize(&exe).ok() != fs::canonicalize(&dest).ok() {
         write_executable(&dest, &fs::read(&exe)?)?;
+    }
+    // kpathsea's hooks are mtx itself, dispatched on the program name.
+    for hook in ["mktextex", "mktextfm"] {
+        let link = bin.join(hook);
+        if link.symlink_metadata().is_ok() {
+            fs::remove_file(&link)?;
+        }
+        std::os::unix::fs::symlink("mtx", &link)?;
     }
     Ok(())
 }
