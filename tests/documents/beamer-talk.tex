@@ -1,0 +1,23 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{beamer}
+\usetheme{Madrid}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\title{On-demand \TeX}
+\author{mtx}
+\begin{document}
+\frame{\titlepage}
+\begin{frame}{Pipeline}
+  \begin{tikzpicture}[node distance=1.2cm, every node/.style={draw, rounded corners}]
+    \node (tex) {TeX};
+    \node[right=of tex] (kpse) {kpathsea};
+    \node[right=of kpse] (mtx) {mtx};
+    \draw[-{Stealth}] (tex) -- (kpse);
+    \draw[-{Stealth}] (kpse) -- (mtx);
+  \end{tikzpicture}
+  \begin{itemize}
+    \item<1-> missing file
+    \item<2-> install package
+  \end{itemize}
+\end{frame}
+\end{document}

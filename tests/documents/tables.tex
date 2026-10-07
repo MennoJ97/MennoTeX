@@ -1,0 +1,20 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage{booktabs,tabularx,longtable,multirow,makecell,array}
+\usepackage[table]{xcolor}
+\usepackage{siunitx}
+\begin{document}
+\begin{tabularx}{\linewidth}{lXS[table-format=3.2]}
+\toprule
+\multirow{2}{*}{Key} & \makecell{Long\\description} & {Value} \\
+\midrule
+\rowcolor{gray!15} a & Some text that wraps across the available width of the line & 1.25 \\
+b & Short & 123.40 \\
+\bottomrule
+\end{tabularx}
+\begin{longtable}{ll}
+\toprule Col 1 & Col 2 \\ \midrule \endhead
+x & y \\ z & w \\
+\bottomrule
+\end{longtable}
+\end{document}

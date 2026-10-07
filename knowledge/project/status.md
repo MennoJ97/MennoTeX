@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -60,7 +60,7 @@ test document still makes 18 such calls.
 | `mtx ensure --package/--path --siblings` | done |
 | `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
 | `build/build-texlive.sh` | full native build works (≈20 min, 487 programs/links); now pinned to `tags/texlive-2026.1` ([build notes](/upstream/texlive-build.md)); release build in progress |
-| Corpus of 50 documents, first-run success for all three engines | not started |
+| Document corpus | 17 documents in `tests/documents/` ([playbook](/playbooks/development.md)); pdfLaTeX: all 16 applicable pass on the first run from a fresh root (1:49 for the whole corpus, incl. downloads); XeLaTeX/LuaLaTeX not yet run on the corpus |
 
 ## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
 

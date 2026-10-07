@@ -42,8 +42,15 @@ the `mktex*` hooks through `PATH`.
 tests/run_documents.sh /tmp/mtxroot pdflatex   # or xelatex / lualatex
 ```
 
-Compiles every `tests/documents/*.tex` twice and prints, per document: result,
-pages, packages installed on demand and seconds. Logs stay in the printed temp
+Compiles every `tests/documents/*.tex` and prints, per document: result, pages,
+packages installed on demand and seconds. Header comments control a run:
+`% engines: pdflatex xelatex lualatex` (others are skipped) and
+`% tools: biber|bibtex|makeindex|makeglossaries` (run between TeX runs; a third TeX
+run follows). Bibliographies are embedded with `filecontents*` so each document is
+self-contained. The corpus covers beamer, biblatex/biber, natbib/bibtex,
+fontspec/unicode-math, babel, KOMA-Script, memoir + index, pgfplots/tikz-cd, tables,
+theorems, listings/algorithm2e, mhchem/chemfig, Libertinus + microtype,
+glossaries, standalone TikZ and moderncv. Logs stay in the printed temp
 directory. Use a fresh root to measure first-run behaviour; set `MTX_CACHE` to
 an existing root's `tlpkg/mtx/cache` to skip re-downloading archives.
 

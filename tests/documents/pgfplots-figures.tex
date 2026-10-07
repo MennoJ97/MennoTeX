@@ -1,0 +1,21 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{tikz-cd}
+\usetikzlibrary{calc,positioning}
+\begin{document}
+\begin{tikzpicture}
+  \begin{axis}[xlabel=$x$, ylabel=$y$, legend pos=north west]
+    \addplot[domain=0:2, samples=40] {x^2};
+    \addplot[domain=0:2, samples=40, dashed] {exp(x)-1};
+    \legend{$x^2$, $e^x-1$}
+  \end{axis}
+\end{tikzpicture}
+\[
+\begin{tikzcd}
+A \arrow[r, "f"] \arrow[d] & B \arrow[d] \\
+C \arrow[r] & D
+\end{tikzcd}
+\]
+\end{document}

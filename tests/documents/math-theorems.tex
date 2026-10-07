@@ -1,0 +1,19 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{physics}
+\usepackage{hyperref}
+\usepackage{cleveref}
+% thmtools' \declaretheorem with sibling= clashes with cleveref 0.21.4 under the
+% 2025+ kernel (\c@... already defined); plain amsthm is the common setup.
+\newtheorem{theorem}{Theorem}[section]
+\theoremstyle{definition}
+\newtheorem{defn}[theorem]{Definition}
+\begin{document}
+\section{Results}
+\begin{defn}\label{def:norm} $\norm{\bm{x}} = \sqrt{\ip{\bm x}{\bm x}}$. \end{defn}
+\begin{theorem}\label{thm:main} By \cref{def:norm}, $\dv{x}\, x^2 = 2x$ and
+\begin{equation*} \abs{a+b} \le \abs{a} + \abs{b}. \end{equation*}
+\end{theorem}
+\begin{proof} Obvious. \end{proof}
+\end{document}

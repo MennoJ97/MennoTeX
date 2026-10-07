@@ -1,0 +1,9 @@
+% engines: pdflatex xelatex lualatex
+\documentclass[tikz,border=4pt]{standalone}
+\usetikzlibrary{shapes.geometric,decorations.pathmorphing}
+\begin{document}
+\begin{tikzpicture}
+  \node[draw, star, star points=7, fill=yellow!40] {mtx};
+  \draw[decorate, decoration=snake] (-1,-1) -- (1,-1);
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,12 @@
+% engines: pdflatex xelatex lualatex
+% tools: bibtex
+\begin{filecontents*}[overwrite]{\jobname.bib}
+@book{knuth, author={Donald E. Knuth}, title={The {\TeX}book}, publisher={Addison-Wesley}, year={1986}}
+\end{filecontents*}
+\documentclass{article}
+\usepackage[round]{natbib}
+\begin{document}
+See \citet{knuth}.
+\bibliographystyle{plainnat}
+\bibliography{\jobname}
+\end{document}

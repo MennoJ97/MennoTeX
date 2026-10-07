@@ -1,0 +1,11 @@
+% engines: pdflatex xelatex lualatex
+% Font packages: their Type 1 / OpenType files are found by font lookups
+% (must_exist=false in pdfTeX), which the Phase 0 hooks could not install.
+\documentclass{article}
+\usepackage{iftex}
+\ifPDFTeX\usepackage[T1]{fontenc}\fi
+\usepackage{libertinus}
+\usepackage{microtype}
+\begin{document}
+Libertinus text with \textit{italics}, \textbf{bold} and math $x^2 + \sqrt{y}$.
+\end{document}

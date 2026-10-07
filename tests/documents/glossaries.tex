@@ -1,0 +1,11 @@
+% engines: pdflatex xelatex lualatex
+% tools: makeglossaries
+\documentclass{article}
+\usepackage[acronym]{glossaries}
+\makeglossaries
+\newacronym{tl}{TL}{TeX Live}
+\newglossaryentry{kpse}{name=kpathsea, description={the path searching library}}
+\begin{document}
+\Gls{kpse} is part of \gls{tl}; \gls{tl} again.
+\printglossaries
+\end{document}

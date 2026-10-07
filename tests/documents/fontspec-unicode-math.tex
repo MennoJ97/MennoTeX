@@ -1,0 +1,10 @@
+% engines: xelatex lualatex
+% OpenType fonts by file name, which goes through kpathsea.
+\documentclass{article}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\setmainfont{texgyrepagella}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold, ItalicFont=*-italic]
+\setmathfont{texgyrepagella-math.otf}
+\begin{document}
+Unicode text: Grüße, déjà vu, ŝ. Math: $\int_0^1 x^2\,dx = \frac13$, $α + β = γ$.
+\end{document}

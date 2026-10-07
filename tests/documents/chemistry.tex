@@ -1,0 +1,9 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage[version=4]{mhchem}
+\usepackage{chemfig}
+\usepackage{siunitx}
+\begin{document}
+\ce{2H2 + O2 -> 2H2O}, with \SI{-286}{\kilo\joule\per\mole}.
+\chemfig{*6((=O)-N(-CH_3)-*5(-N=-N(-CH_3)-=)--(=O)-N(-H_3C)-)}
+\end{document}

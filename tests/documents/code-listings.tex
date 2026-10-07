@@ -1,0 +1,17 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[ruled,vlined]{algorithm2e}
+\lstset{basicstyle=\ttfamily\small, keywordstyle=\color{blue}, frame=single}
+\begin{document}
+\begin{lstlisting}[language=Python]
+def ensure(name):
+    return index.lookup(name)
+\end{lstlisting}
+\begin{algorithm}[h]
+  \KwIn{file name $n$}
+  \eIf{$n$ in index}{install package}{fail}
+  \caption{On-demand lookup}
+\end{algorithm}
+\end{document}

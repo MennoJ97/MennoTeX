@@ -1,0 +1,14 @@
+% engines: pdflatex xelatex lualatex
+\documentclass[parskip=half]{scrreprt}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\begin{document}
+\tableofcontents
+\chapter{Introduction}\label{ch:intro}
+See \cref{ch:method} and \cref{fig:box}.
+\chapter{Method}\label{ch:method}
+\begin{figure}[h]\centering\fbox{box}\caption{A box}\label{fig:box}\end{figure}
+\appendix
+\chapter{Extra}
+Back to \cref{ch:intro}.
+\end{document}

@@ -133,7 +133,17 @@ pub fn install(ctx: &mut Ctx, roots: &[&str], reason: Reason) -> Result<Report> 
 }
 
 fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) -> Result<Report> {
-    let closure = tlpdb.closure(roots.iter().copied())?;
+    let mut closure = tlpdb.closure(roots.iter().copied())?;
+    // Fonts need their map entries (e.g. ec's TFMs are mapped by cm-super);
+    // install those packages in the same transaction, so the maps are
+    // regenerated before TeX ships out its first page.
+    let installed_now = ctx.db.installed()?;
+    let maps = crate::fontmaps::map_packages_for(tlpdb, &closure, &|p| installed_now.contains_key(p));
+    if !maps.is_empty() {
+        let mut all: Vec<&str> = roots.to_vec();
+        all.extend(maps.iter().map(String::as_str));
+        closure = tlpdb.closure(all)?;
+    }
     let plan = pending(ctx, tlpdb, &closure)?;
     if plan.is_empty() {
         return Ok(Report::default());

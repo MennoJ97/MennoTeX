@@ -1,0 +1,14 @@
+% engines: pdflatex xelatex lualatex
+% tools: biber
+\begin{filecontents*}[overwrite]{\jobname.bib}
+@book{knuth, author={Donald E. Knuth}, title={The {\TeX}book}, publisher={Addison-Wesley}, year={1986}}
+@article{lamport, author={Leslie Lamport}, title={{\LaTeX}: A Document Preparation System}, journal={Addison-Wesley}, year={1994}}
+\end{filecontents*}
+\documentclass{article}
+\usepackage[style=authoryear,backend=biber]{biblatex}
+\usepackage{csquotes}
+\addbibresource{\jobname.bib}
+\begin{document}
+As \textcite{knuth} and \textcite{lamport} explain.
+\printbibliography
+\end{document}

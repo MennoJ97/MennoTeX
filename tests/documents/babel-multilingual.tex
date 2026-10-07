@@ -1,0 +1,14 @@
+% engines: pdflatex xelatex lualatex
+\documentclass{article}
+\usepackage{iftex}
+\ifPDFTeX\usepackage[T1]{fontenc}\fi
+\usepackage[ngerman,french,english]{babel}
+\usepackage{csquotes}
+\begin{document}
+\selectlanguage{ngerman}
+\enquote{Donaudampfschifffahrtsgesellschaftskapitän} wird getrennt.
+\selectlanguage{french}
+\enquote{Bonjour}, dit-il ; c'est l'été.
+\selectlanguage{english}
+Hyphenation: \showhyphens{internationalization}.
+\end{document}

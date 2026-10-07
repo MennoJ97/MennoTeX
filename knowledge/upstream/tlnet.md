@@ -48,6 +48,13 @@ the subkey binding only. Two of the subkey bindings use SHA-1.
 - Package names change between releases: in 2026 `l3backend` is part of `l3kernel`.
 - `execute` lines: `AddFormat`, `addMap`, `addMixedMap`, `addKanjiMap`, `AddHyphen`.
 
+# Font maps
+
+Which package's map covers a TeX font is not in the tlpdb; it is only in the map
+files. See [decision 0004](/decisions/0004-font-map-index.md) for the extracted table.
+`cleveref` is still 0.21.4 (2018); with the 2025+ LaTeX kernel, thmtools'
+`\declaretheorem[sibling=…]` plus cleveref fails with `\c@<name> already defined`.
+
 # Mirror behaviour (observed 2026-10-06/07)
 
 - `mirror.ctan.org` redirects **each request** to a possibly different mirror.

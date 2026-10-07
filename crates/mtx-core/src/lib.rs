@@ -10,6 +10,7 @@ pub mod db;
 pub mod doctor;
 pub mod ensure;
 pub mod extract;
+pub mod fontmaps;
 pub mod index;
 pub mod install;
 pub mod lsr;
