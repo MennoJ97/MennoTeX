@@ -148,13 +148,35 @@ impl Ctx {
         if !force && have_local && now_secs().saturating_sub(checked_at) < FRESHNESS_TTL_SECS {
             return Ok(Freshness::Fresh);
         }
-        let result = self.refresh_from_mirror(have_local);
-        if let Err(e) = &result {
-            if is_network_error(e) {
+        match self.refresh_from_mirror(have_local) {
+            Err(e) if is_network_error(&e) => {
+                self.failover(&e)?;
+                self.refresh_from_mirror(have_local).inspect_err(|e| {
+                    if is_network_error(e) {
+                        self.mark_offline();
+                    }
+                })
+            }
+            other => other,
+        }
+    }
+
+    /// The pinned mirror failed at the network/TLS level. If the redirector
+    /// still answers, the mirror itself is broken (seen: an expired TLS
+    /// certificate), so avoid it and pin another one. If the redirector
+    /// fails too, we are offline: record that and return the error.
+    pub fn failover(&mut self, cause: &anyhow::Error) -> Result<()> {
+        let configured = self.repository_url()?;
+        if let Err(e) = Repo::resolve(&configured) {
+            if is_network_error(&e) {
                 self.mark_offline();
             }
+            return Err(e.context(format!("after: {cause:#}")));
         }
-        result
+        self.log(format!("mirror failed ({cause:#}); switching mirrors"));
+        self.reject_mirror()?;
+        self.repo()?;
+        Ok(())
     }
 
     fn refresh_from_mirror(&mut self, have_local: bool) -> Result<Freshness> {

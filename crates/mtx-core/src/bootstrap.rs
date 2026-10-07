@@ -29,10 +29,12 @@ pub const ROOT_TEXMF_CNF: &str = "\
 % Personal packages live where MacTeX users expect them.
 TEXMFHOME = ~/Library/texmf
 
-% The whole installation belongs to one user, so generated files
-% (formats, font maps, language.dat) go into the installation itself.
-TEXMFVAR = $TEXMFSYSVAR
-TEXMFCONFIG = $TEXMFSYSCONFIG
+% Keep all generated files inside the installation. TeX Live's scripts
+% require the user and system trees to differ (TLUtils.pm refuses
+% `mktexfmt` otherwise); mktexfmt writes formats to TEXMFSYSVAR anyway
+% when it is writable, which it is for a per-user installation.
+TEXMFVAR = $TEXMFROOT/texmf-user-var
+TEXMFCONFIG = $TEXMFROOT/texmf-user-config
 
 % Phase 0 on-demand installation: when an input file is missing, kpathsea
 % runs `mktextex`, which asks mtx to install the package providing it.

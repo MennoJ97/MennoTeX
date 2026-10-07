@@ -5,7 +5,7 @@ description: Layout, signing chain, archive formats and mirror behaviour of tlne
 resource: https://mirror.ctan.org/systems/texlive/tlnet/
 tags: [tlnet, texlive, repository, security, mirrors]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 sources:
@@ -53,5 +53,6 @@ the subkey binding only. Two of the subkey bindings use SHA-1.
 - `mirror.ctan.org` redirects **each request** to a possibly different mirror.
 - Mirrors lag differently: in one session `cicku.me` served tlpdb r80534 while `lyrahosting.com` served r80505.
 - `nl.mirrors.cicku.me` served a corrupt `archive/amsfonts.tar.xz` (3,626,288 bytes instead of the signed 3,626,284) while other mirrors were correct. mtx now treats size/hash mismatches as integrity failures, retries, then avoids that mirror for 24 h.
+- `mirror.lyrahosting.com` intermittently presented an **expired TLS certificate** (not valid after 2026-08-04) on 2026-10-07; requests sometimes succeeded, so it is probably several hosts behind one name. mtx now fails over: on a network/TLS error it re-resolves the redirector; if that answers, the mirror is avoided for 24 h and another is pinned; if not, mtx goes offline for 60 s.
 
 [^keyext]: TeX Live distribution public key

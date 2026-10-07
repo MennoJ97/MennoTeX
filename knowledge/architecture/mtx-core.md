@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -18,7 +18,7 @@ verified:
 | `index` | Build/read [files.idx](/architecture/files-idx.md) | Layout is shared with C; bump `VERSION` on any change |
 | `verify` | OpenPGP check of `texlive.tlpdb.sha512.asc` | Pins the primary fingerprint; accepts the newest valid subkey binding (see [tlnet](/upstream/tlnet.md)) |
 | `repo` | HTTP/`file://` repository access, verified streaming downloads | Size or SHA-512 mismatch → `ChecksumMismatch` (triggers retry) |
-| `ctx` | Root + DB + pinned mirror + logging + `refresh` | Logs never go to stdout; TTL 1 h; mirror pin 24 h; bad mirrors avoided 24 h |
+| `ctx` | Root + DB + pinned mirror + logging + `refresh` | Logs never go to stdout; TTL 1 h; mirror pin 24 h; bad mirrors avoided 24 h; `failover` blames the mirror only if the redirector answers |
 | `db` | SQLite `installed.sqlite`: packages, files, kv state | Reinstall as `auto` never downgrades an `explicit`/`bootstrap` reason |
 | `extract` | Unpack `.tar.xz` via a staging dir | No absolute paths, no `..`, symlinks must stay inside the root; skips `tlpkg/tlpobj/` |
 | `lsr` | Rebuild/append kpathsea `ls-R` | Repeated directory blocks are legal |

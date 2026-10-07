@@ -13,7 +13,7 @@ use crate::ctx::Ctx;
 use crate::db::Reason;
 use crate::extract;
 use crate::lsr;
-use crate::repo::{ChecksumMismatch, Repo, sha512_file};
+use crate::repo::{ChecksumMismatch, Repo, is_network_error, sha512_file};
 use crate::tlpdb::{Package, Tlpdb};
 
 /// Files mtx provides itself. tlnet's versions are never unpacked over them.
@@ -100,6 +100,10 @@ pub fn install(ctx: &mut Ctx, roots: &[&str], reason: Reason) -> Result<Report> 
     loop {
         let tlpdb = ctx.tlpdb()?;
         match install_once(ctx, &tlpdb, roots, reason) {
+            Err(e) if is_network_error(&e) && attempt < 2 => {
+                attempt += 1;
+                ctx.failover(&e)?;
+            }
             Err(e) if e.chain().any(|c| c.downcast_ref::<ChecksumMismatch>().is_some()) && attempt < 2 => {
                 attempt += 1;
                 ctx.log(format!("{e:#}; refreshing the package database and retrying"));

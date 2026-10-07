@@ -4,7 +4,7 @@ title: On-demand installation
 description: How a missing file becomes an installed package, in Phase 0 (stock hooks) and Phase 1 (kpathsea patch).
 tags: [architecture, kpathsea, mtx, hooks]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
 sources:
   - id: kpse
     resource: /upstream/kpathsea.md
@@ -44,7 +44,10 @@ sources:
 
 `bin/universal-darwin/{mtx,mktextex,mktextfm}` are protected: the installer never
 unpacks tlnet's versions over them (`install::PROTECTED`). The root `texmf.cnf`
-sets `MKTEXTEX = 1`, `TEXMFVAR = $TEXMFSYSVAR`, `TEXMFCONFIG = $TEXMFSYSCONFIG`.
+sets `MKTEXTEX = 1`, `TEXMFHOME = ~/Library/texmf`, `TEXMFVAR = $TEXMFROOT/texmf-user-var` and
+`TEXMFCONFIG = $TEXMFROOT/texmf-user-config`. The user and system trees must differ,
+or TeX Live's `mktexfmt` refuses to run (see [TeX Live scripts](/upstream/texlive-scripts.md)).
+Formats still land in `texmf-var/web2c/<engine>/` because `mktexfmt` prefers a writable `TEXMFSYSVAR`.
 
 # Related
 
