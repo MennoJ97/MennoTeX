@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:45:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -52,15 +52,17 @@ Hook cost: a miss (file in no package, e.g. `hyperref.cfg`) costs 5.9 ms after w
 close to the 3.5 ms floor of spawning any process; a warm pdfLaTeX run of the
 test document still makes 18 such calls.
 
-# Phase 1: kpathsea patch and own arm64 build (in progress)
+# Phase 1: kpathsea patch and own arm64 build (exit criterion met; CI and binary channel open)
 
 | Item | State |
 |---|---|
 | Resolver `mtx-ondemand.c` + patch | **works**: all three engines compile the test article on the first run ([decision 0003](/decisions/0003-kpathsea-patch-shape.md)) |
 | `mtx ensure --package/--path --siblings` | done |
 | `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
-| `build/build-texlive.sh` | full native build works (≈20 min, 487 programs/links); now pinned to `tags/texlive-2026.1` ([build notes](/upstream/texlive-build.md)); release build in progress |
-| Document corpus | 17 documents in `tests/documents/` ([playbook](/playbooks/development.md)); pdfLaTeX: all 16 applicable pass on the first run from a fresh root (1:49 for the whole corpus, incl. downloads); XeLaTeX/LuaLaTeX not yet run on the corpus |
+| `build/build-texlive.sh` | release build of `tags/texlive-2026.1` with the patch: exit 0 in 20 min, 153 arm64 Mach-O programs (stripped), "TeX Live 2026" banners, minimum macOS 13.0, no non-system dylibs; kpathsea's own tests 10/10 ([build notes](/upstream/texlive-build.md)) |
+| Document corpus (17 documents, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
+| CI build on GitHub Actions | not started (macOS minutes on a private repo are billed at 10×) |
+| Binary channel (signed release assets) | not started; binaries are installed from a local build with `mtx install-binaries` |
 
 ## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
 

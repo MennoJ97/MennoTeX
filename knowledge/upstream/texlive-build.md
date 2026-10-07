@@ -57,6 +57,7 @@ with `MACOSX_DEPLOYMENT_TARGET=13.0`, `TL_MAKE_FLAGS=-jN`, and an environment re
   serialize them (concurrent `tangle`/`convert` of `upbibtex.p` fails). For
   incremental rebuilds after a kpathsea change: `make -jN all && make install` in
   `Work/texk` (about 3 minutes: everything statically links kpathsea).
+- The release build installs **stripped** binaries (no local symbols for `nm`); check for the patch with `strings <binary> | grep MTX_AUTOINSTALL`.
 - Full build time on this Mac (12 cores): about 20 minutes. Output: 487 programs and
   links in `inst/bin/aarch64-apple-darwin25.6.0/`, 154 of them Mach-O.
 - `xindy` is off by default (`--enable-xindy`); `asymptote` is not part of the default build.
