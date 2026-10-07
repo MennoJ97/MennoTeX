@@ -15,6 +15,8 @@ pub enum Reason {
     Explicit,
     Auto,
     Dependency,
+    /// Upgrade of an installed package: keep its recorded reason.
+    Upgrade,
 }
 
 impl Reason {
@@ -24,6 +26,7 @@ impl Reason {
             Reason::Explicit => "explicit",
             Reason::Auto => "auto",
             Reason::Dependency => "dependency",
+            Reason::Upgrade => "auto",
         }
     }
 }
@@ -109,6 +112,7 @@ impl Db {
             tx.query_row("SELECT reason FROM packages WHERE name = ?1", [package], |r| r.get(0)).optional()?;
         let reason = match (old_reason.as_deref(), reason) {
             (Some(old @ ("bootstrap" | "explicit")), Reason::Auto | Reason::Dependency) => old.to_string(),
+            (Some(old), Reason::Upgrade) => old.to_string(),
             _ => reason.as_str().to_string(),
         };
         tx.execute(
@@ -167,6 +171,10 @@ mod tests {
         assert_eq!(db.other_owners("c", "amsmath").unwrap(), 1);
         db.forget("other").unwrap();
         assert_eq!(db.other_owners("c", "amsmath").unwrap(), 0);
+
+        db.record("dep", 1, Reason::Dependency, &[]).unwrap();
+        db.record("dep", 2, Reason::Upgrade, &[]).unwrap();
+        assert_eq!(db.installed().unwrap()["dep"].reason, "dependency"); // upgrades keep the reason
 
         db.set("mirror", "https://example/").unwrap();
         assert_eq!(db.get("mirror").unwrap().as_deref(), Some("https://example/"));

@@ -77,6 +77,11 @@ impl Root {
     pub fn lock_path(&self) -> PathBuf {
         self.mtx_dir().join("lock")
     }
+    /// One empty file per package whose installation is in progress (or was
+    /// interrupted).
+    pub fn journal_dir(&self) -> PathBuf {
+        self.mtx_dir().join("journal")
+    }
     pub fn log_path(&self) -> PathBuf {
         self.mtx_dir().join("mtx.log")
     }

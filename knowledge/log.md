@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Install journal and `mtx update` ([mtx-core](/architecture/mtx-core.md), [status](/project/status.md)).
 * **Update**: Offline end-to-end tests against a signed fake repository ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).
 * **Creation**: [Decision 0003](/decisions/0003-kpathsea-patch-shape.md) and [texlive-source build notes](/upstream/texlive-build.md); Phase 1 started in [status](/project/status.md).
 * **Update**: Corrected the LuaTeX gap description in [decision 0002](/decisions/0002-phase0-stock-hooks.md).

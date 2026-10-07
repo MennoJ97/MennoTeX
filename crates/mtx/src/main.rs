@@ -66,6 +66,12 @@ enum Cmd {
     List,
     /// Check the mirror for a newer package database.
     Refresh,
+    /// Upgrade all installed packages that have newer revisions.
+    Update {
+        /// Only list what would be upgraded.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Regenerate fmtutil.cnf, updmap.cfg, language.* and font maps.
     Regen,
 }
@@ -180,6 +186,24 @@ fn run(cli: Cli) -> Result<ExitCode> {
                     eprintln!("mtx: package database updated {} → r{to}", from.map_or("none".into(), |f| format!("r{f}")))
                 }
                 _ => eprintln!("mtx: package database is current"),
+            }
+        }
+        Cmd::Update { dry_run } => {
+            let mut ctx = open(&root)?;
+            ctx.refresh(true)?;
+            let tlpdb = ctx.tlpdb()?;
+            let outdated = install::outdated(&ctx, &tlpdb)?;
+            if outdated.is_empty() {
+                eprintln!("mtx: all installed packages are up to date");
+                return Ok(ExitCode::SUCCESS);
+            }
+            for (name, from, to) in &outdated {
+                eprintln!("mtx: {name}: r{from} → r{to}");
+            }
+            if !dry_run {
+                let names: Vec<&str> = outdated.iter().map(|(n, _, _)| n.as_str()).collect();
+                let r = install::install(&mut ctx, &names, Reason::Upgrade)?;
+                eprintln!("mtx: upgraded {} package(s)", r.installed.len());
             }
         }
         Cmd::Regen => {

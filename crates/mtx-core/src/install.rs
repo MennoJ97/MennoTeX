@@ -28,16 +28,31 @@ pub struct Report {
     pub bytes_downloaded: u64,
 }
 
-/// Packages in `names` that are missing or older than in `tlpdb`.
+/// Packages in `names` that are missing, older than in `tlpdb`, or whose
+/// last installation was interrupted (still journaled).
 fn pending(ctx: &Ctx, tlpdb: &Tlpdb, names: &[String]) -> Result<Vec<String>> {
     let installed = ctx.db.installed()?;
+    let journal = ctx.root.journal_dir();
     Ok(names
         .iter()
         .filter(|n| {
             let want = tlpdb.get(n).map(|p| p.revision).unwrap_or(0);
-            installed.get(n.as_str()).is_none_or(|i| i.revision < want)
+            installed.get(n.as_str()).is_none_or(|i| i.revision < want) || journal.join(n.as_str()).exists()
         })
         .cloned()
+        .collect())
+}
+
+/// Installed packages that have a newer revision in `tlpdb`.
+pub fn outdated(ctx: &Ctx, tlpdb: &Tlpdb) -> Result<Vec<(String, u64, u64)>> {
+    Ok(ctx
+        .db
+        .installed()?
+        .into_values()
+        .filter_map(|i| {
+            let p = tlpdb.get(&i.name)?;
+            (p.revision > i.revision).then(|| (i.name, i.revision, p.revision))
+        })
         .collect())
 }
 
@@ -143,9 +158,15 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     let mut report = Report { bytes_downloaded: bytes, ..Default::default() };
     let mut regen = Regen::default();
     let mut dist_files: Vec<String> = Vec::new();
+    let journal = ctx.root.journal_dir();
+    fs::create_dir_all(&journal)?;
     for name in &plan {
         let p = tlpdb.get(name).unwrap();
-        let why = if root_set.contains(name.as_str()) { reason } else { Reason::Dependency };
+        let why = if root_set.contains(name.as_str()) || reason == Reason::Upgrade { reason } else { Reason::Dependency };
+        // Crash safety: until the database records the package, it counts
+        // as not installed and is reinstalled the next time it is needed.
+        let entry = journal.join(name);
+        fs::write(&entry, b"")?;
         let files = if p.is_meta() {
             Vec::new()
         } else {
@@ -164,6 +185,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
             unpacked.files
         };
         ctx.db.record(name, p.revision, why, &files)?;
+        fs::remove_file(&entry)?;
         report.files += files.len();
         report.installed.push((name.clone(), p.revision));
         regen.merge(Regen::for_package(p));

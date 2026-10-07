@@ -112,3 +112,20 @@ fn corrupt_archive_is_rejected() {
     assert!(err.chain().any(|c| c.downcast_ref::<ChecksumMismatch>().is_some()), "{err:#}");
     assert!(ctx.db.installed().unwrap().is_empty(), "nothing may be installed after a failed download");
 }
+
+#[test]
+fn interrupted_install_is_redone() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    assert!(!root.journal_dir().join("foo").exists());
+
+    // As if mtx was killed while (re)installing bar.
+    fs::write(root.journal_dir().join("bar"), b"").unwrap();
+    fs::remove_file(root.texmf_dist().join("tex/latex/bar/bar.sty")).unwrap();
+    let r = install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    assert_eq!(r.installed.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), vec!["bar"]);
+    assert!(root.texmf_dist().join("tex/latex/bar/bar.sty").exists());
+    assert!(!root.journal_dir().join("bar").exists());
+    assert_eq!(ctx.db.installed().unwrap()["bar"].reason, "dependency");
+}

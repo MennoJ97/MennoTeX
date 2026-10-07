@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T13:20:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -62,6 +62,11 @@ test document still makes 18 such calls.
 | `build/build-texlive.sh` | first build failed on C23 (libgd); fixed with `ac_cv_prog_cc_c23=no`, rebuilding ([build notes](/upstream/texlive-build.md)) |
 | Corpus of 50 documents, first-run success for all three engines | not started |
 
+# Phase 2 items done early
+
+- Install journal and recovery of interrupted installs (tested).
+- `mtx update [--dry-run]`: upgrades outdated packages, keeping each package's reason.
+
 # Phases 2–4
 
-Not started. See `PLAN.md` §7.
+Otherwise not started. See `PLAN.md` §7.
