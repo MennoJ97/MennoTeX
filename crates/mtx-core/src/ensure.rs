@@ -1,0 +1,193 @@
+//! `mtx ensure`: called by kpathsea (through the `mktextex`/`mktextfm`
+//! hooks in Phase 0, through `ondemand.c` in Phase 1) when a file is
+//! missing. Prints the path of the file after installing its package.
+//!
+//! The miss path must stay cheap: LaTeX probes many files that exist
+//! nowhere (optional `.cfg` files, the document's own `.aux`), so a name
+//! that is not in the index returns without opening the database or the
+//! network.
+
+use std::path::PathBuf;
+
+use anyhow::Result;
+
+use crate::ctx::{Ctx, Freshness};
+use crate::db::Reason;
+use crate::index::{Hit, Index, flags};
+use crate::install;
+use crate::repo::is_network_error;
+use crate::root::Root;
+
+/// A kpathsea file format, as far as on-demand installation cares.
+#[derive(Debug, Clone, Copy)]
+pub struct Kind {
+    pub name: &'static str,
+    /// Standard suffixes, then alternatives (kpathsea `suffix`/`alt_suffix`).
+    pub suffixes: &'static [&'static str],
+    /// Root-relative directories the format's search path covers.
+    pub dirs: &'static [&'static str],
+}
+
+pub const KINDS: &[Kind] = &[
+    Kind {
+        name: "tex",
+        suffixes: &[".tex", ".sty", ".cls", ".fd", ".aux", ".bbl", ".def", ".clo", ".ldf"],
+        dirs: &["texmf-dist/tex/"],
+    },
+    Kind { name: "tfm", suffixes: &[".tfm"], dirs: &["texmf-dist/fonts/tfm/"] },
+    Kind { name: "vf", suffixes: &[".vf"], dirs: &["texmf-dist/fonts/vf/"] },
+    Kind { name: "type1 fonts", suffixes: &[".pfb", ".pfa"], dirs: &["texmf-dist/fonts/type1/"] },
+    Kind { name: "opentype fonts", suffixes: &[".otf"], dirs: &["texmf-dist/fonts/opentype/"] },
+    Kind { name: "truetype fonts", suffixes: &[".ttf", ".ttc", ".dfont"], dirs: &["texmf-dist/fonts/truetype/"] },
+    Kind { name: "enc files", suffixes: &[".enc"], dirs: &["texmf-dist/fonts/enc/"] },
+    Kind { name: "map", suffixes: &[".map"], dirs: &["texmf-dist/fonts/map/"] },
+    Kind { name: "lua", suffixes: &[".lua", ".luatex", ".luc"], dirs: &["texmf-dist/tex/", "texmf-dist/scripts/"] },
+    Kind { name: "bib", suffixes: &[".bib"], dirs: &["texmf-dist/bibtex/bib/"] },
+    Kind { name: "bst", suffixes: &[".bst"], dirs: &["texmf-dist/bibtex/bst/"] },
+    Kind { name: "mf", suffixes: &[".mf"], dirs: &["texmf-dist/fonts/source/", "texmf-dist/metafont/"] },
+    Kind { name: "mp", suffixes: &[".mp"], dirs: &["texmf-dist/metapost/"] },
+];
+
+pub fn kind(name: &str) -> Option<&'static Kind> {
+    KINDS.iter().find(|k| k.name == name)
+}
+
+/// Names to look up, in kpathsea's order: if `name` already has one of the
+/// format's suffixes it is used as is, otherwise the standard suffix is
+/// tried first.
+pub fn candidates(kind: &Kind, name: &str) -> Vec<String> {
+    if kind.suffixes.iter().any(|s| name.ends_with(s)) {
+        vec![name.to_string()]
+    } else {
+        vec![format!("{name}{}", kind.suffixes[0]), name.to_string()]
+    }
+}
+
+/// Lower is better. Phase 0 does not know the program name, so it prefers
+/// LaTeX/generic locations and avoids `-dev` packages; Phase 1 matches
+/// against kpathsea's real search path instead.
+fn rank(idx: &Index, hit: &Hit) -> (u32, u32, u32) {
+    let p = idx.package(hit.pkg);
+    let dev = u32::from(p.flags & flags::IS_DEV != 0 || hit.dir.contains("-dev/"));
+    let latexish = u32::from(!(hit.dir.starts_with("texmf-dist/tex/latex/") || hit.dir.starts_with("texmf-dist/tex/generic/")));
+    (dev, latexish, p.container_size)
+}
+
+/// The best index entry for `name` of format `kind`, if any package has it.
+pub fn resolve<'a>(idx: &'a Index, kind: &Kind, name: &str) -> Option<Hit<'a>> {
+    let (subdir, base) = match name.rsplit_once('/') {
+        Some((d, b)) => (Some(d), b),
+        None => (None, name),
+    };
+    for cand in candidates(kind, base) {
+        let mut hits: Vec<Hit> = idx
+            .lookup(&cand)
+            .into_iter()
+            .filter(|h| kind.dirs.iter().any(|d| h.dir.starts_with(d) || format!("{}/", h.dir) == *d))
+            .filter(|h| subdir.is_none_or(|s| h.dir.ends_with(&format!("/{s}"))))
+            .collect();
+        hits.sort_by_key(|h| rank(idx, h));
+        if let Some(h) = hits.first() {
+            return Some(*h);
+        }
+    }
+    None
+}
+
+fn autoinstall_enabled() -> bool {
+    !matches!(std::env::var("MTX_AUTOINSTALL").as_deref(), Ok("0" | "no" | "false"))
+}
+
+/// Make the file `name` of format `kind` available; return its path, or
+/// `None` if no package provides it or it cannot be installed now.
+pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
+    if name.is_empty() || name.starts_with('/') || name.split('/').any(|c| c == "..") {
+        return Ok(None);
+    }
+    let idx = Index::open(&root.index_path())?;
+    let Some(hit) = resolve(&idx, kind, name) else { return Ok(None) };
+    let rel = hit.path();
+    let path = root.dir.join(&rel);
+    if path.exists() {
+        return Ok(Some(path)); // installed, just not in this process's ls-R view
+    }
+    if !autoinstall_enabled() {
+        return Ok(None);
+    }
+    let pkg = idx.package(hit.pkg).name.to_string();
+    drop(idx);
+
+    let mut ctx = Ctx::open(root.clone())?;
+    if ctx.offline()? {
+        ctx.log(format!("{name} is in package {pkg}, but the network was unreachable a moment ago"));
+        return Ok(None);
+    }
+    // A newer database may move the file to another package.
+    let target = match ctx.refresh(false) {
+        Ok(Freshness::Updated { .. }) => {
+            let idx = Index::open(&root.index_path())?;
+            resolve(&idx, kind, name).map(|h| (idx.package(h.pkg).name.to_string(), h.path()))
+        }
+        Ok(_) => Some((pkg, rel)),
+        Err(e) if is_network_error(&e) => {
+            ctx.log(format!("cannot install {pkg} for {name}: {e:#}"));
+            return Ok(None);
+        }
+        Err(e) => return Err(e),
+    };
+    let Some((pkg, rel)) = target else { return Ok(None) };
+    ctx.log(format!("{name} → installing package {pkg}"));
+    if let Err(e) = install::install(&mut ctx, &[&pkg], Reason::Auto) {
+        if is_network_error(&e) {
+            ctx.log(format!("cannot install {pkg}: {e:#}"));
+            return Ok(None);
+        }
+        return Err(e);
+    }
+    let path = root.dir.join(rel);
+    Ok(path.exists().then_some(path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::index;
+    use crate::tlpdb::Tlpdb;
+
+    fn idx() -> (tempfile::TempDir, Index) {
+        let db = Tlpdb::parse(
+            "name amsmath\ncategory Package\nrevision 1\nrelocated 1\ncontainersize 10\nrunfiles size=1\n RELOC/tex/latex/amsmath/amsmath.sty\n\n\
+             name latex-amsmath-dev\ncategory Package\nrevision 1\nrelocated 1\ncontainersize 1\nrunfiles size=1\n RELOC/tex/latex-dev/amsmath/amsmath.sty\n\n\
+             name ctx\ncategory Package\nrevision 1\nrelocated 1\ncontainersize 1\nrunfiles size=1\n RELOC/tex/context/base/foo.tex\n RELOC/fonts/tfm/public/cm/cmr10.tfm\n\n\
+             name lfoo\ncategory Package\nrevision 1\nrelocated 1\ncontainersize 100\nrunfiles size=1\n RELOC/tex/latex/foo/foo.tex\n",
+        )
+        .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("files.idx");
+        index::write_atomic(&p, &index::build(&db)).unwrap();
+        let i = Index::open(&p).unwrap();
+        (dir, i)
+    }
+
+    #[test]
+    fn prefers_stable_latex_locations() {
+        let (_d, i) = idx();
+        let tex = kind("tex").unwrap();
+        let h = resolve(&i, tex, "amsmath.sty").unwrap();
+        assert_eq!(i.package(h.pkg).name, "amsmath");
+        // \input foo → foo.tex; the LaTeX copy wins over ConTeXt despite size.
+        let h = resolve(&i, tex, "foo").unwrap();
+        assert_eq!(i.package(h.pkg).name, "lfoo");
+        assert!(resolve(&i, tex, "missing.cfg").is_none());
+    }
+
+    #[test]
+    fn format_directories_filter_hits() {
+        let (_d, i) = idx();
+        assert!(resolve(&i, kind("tex").unwrap(), "cmr10.tfm").is_none());
+        let h = resolve(&i, kind("tfm").unwrap(), "cmr10").unwrap();
+        assert_eq!(h.path(), "texmf-dist/fonts/tfm/public/cm/cmr10.tfm");
+        assert!(resolve(&i, kind("tfm").unwrap(), "cm/cmr10.tfm").is_some());
+        assert!(resolve(&i, kind("tfm").unwrap(), "lm/cmr10.tfm").is_none());
+    }
+}
