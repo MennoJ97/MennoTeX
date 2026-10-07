@@ -94,16 +94,28 @@ fn write_executable(path: &Path, content: &[u8]) -> Result<()> {
 }
 
 /// Files of the overlay tree, `<root>/texmf-mtx`: (path in the tree, content).
-const OVERLAY: &[(&str, &str)] =
-    &[("tex/luatex/mtx/luaotfload-main.lua", include_str!("../data/luaotfload-main.lua"))];
+fn overlay_files(root: &Root) -> Vec<(&'static str, String)> {
+    vec![
+        ("tex/luatex/mtx/luaotfload-main.lua", include_str!("../data/luaotfload-main.lua").to_string()),
+        // texdoc reads texdoc/texdoc.cnf from every tree, the first value
+        // winning; it looks for the tlpdb only at TEXMFROOT/tlpkg otherwise.
+        (
+            "texdoc/texdoc.cnf",
+            format!(
+                "# Written by mtx: TeX Live's package database is in tlpkg/mtx here.\ntexlive_tlpdb = {}\n",
+                root.tlpdb_path().display()
+            ),
+        ),
+    ]
+}
 
 /// Write mtx's overlay tree, which TEXMFAUXTREES puts ahead of every other
 /// tree. It holds a `luaotfload-main.lua` that makes LuaLaTeX's first run
-/// work with fonts selected by name (see the file). No ls-R: kpathsea only
+/// work with fonts selected by name (see the file), and texdoc's settings. No ls-R: kpathsea only
 /// reads those for TEXMFDBS trees, and this one is searched on disk.
 pub fn install_overlay(root: &Root) -> Result<()> {
     let tree = root.texmf_overlay();
-    for (rel, content) in OVERLAY {
+    for (rel, content) in overlay_files(root) {
         let path = tree.join(rel);
         fs::create_dir_all(path.parent().expect("overlay files are in directories"))?;
         if fs::read(&path).ok().as_deref() != Some(content.as_bytes()) {
@@ -138,7 +150,9 @@ pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
     };
     // mktexfmt is mtx in every mode: it serializes concurrent format builds
     // and installs the result atomically (see formats.rs).
-    for (hook, target) in [("mktextex", "mtx"), ("mktextfm", mktextfm), ("mktexfmt", "mtx")] {
+    // texdoc is mtx too: it installs the documentation asked for, then runs
+    // TeX Live's texdoc (docs.rs).
+    for (hook, target) in [("mktextex", "mtx"), ("mktextfm", mktextfm), ("mktexfmt", "mtx"), ("texdoc", "mtx")] {
         let link = bin.join(hook);
         if link.symlink_metadata().is_ok() {
             fs::remove_file(&link)?;

@@ -270,3 +270,30 @@ mod consent_tests {
         assert!(ctx.db.installed().unwrap().is_empty());
     }
 }
+
+#[test]
+fn documentation_is_installed_on_request_and_removed_with_its_package() {
+    use crate::docs;
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    let manual = root.texmf_dist().join("doc/latex/foo/foo-manual.pdf");
+    assert!(!manual.exists(), "runtime installs never bring documentation");
+
+    let tlpdb = ctx.tlpdb().unwrap();
+    assert_eq!(docs::packages_for(&tlpdb, "foo"), vec!["foo"]);
+    assert_eq!(docs::packages_for(&tlpdb, "foo-manual"), vec!["foo"]); // by doc file name
+    assert!(docs::packages_for(&tlpdb, "bar").is_empty()); // bar has no documentation
+
+    assert_eq!(docs::install(&mut ctx, &["foo"], Reason::Auto).unwrap(), vec!["foo"]);
+    assert!(manual.exists());
+    assert_eq!(ctx.db.installed().unwrap()["foo.doc"].reason, "auto");
+    let lsr = fs::read_to_string(root.texmf_dist().join("ls-R")).unwrap();
+    assert!(lsr.contains("foo-manual.pdf"), "{lsr}");
+    assert!(docs::install(&mut ctx, &["foo"], Reason::Auto).unwrap().is_empty());
+    assert!(install::outdated(&ctx, &tlpdb).unwrap().is_empty());
+    assert!(docs::install(&mut ctx, &["bar"], Reason::Auto).unwrap().is_empty());
+
+    assert_eq!(install::remove(&mut ctx, &["foo"], false).unwrap(), vec!["foo", "foo.doc"]);
+    assert!(!manual.exists());
+}

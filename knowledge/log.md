@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Documentation on demand: `texdoc` is an mtx multi-call that installs `<pkg>.doc` containers; texdoc's own ls-R reader and tlpdb lookup recorded in [TeX Live scripts](/upstream/texlive-scripts.md) ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: `mtx gc` removes on-demand packages unused for N days, by file access time ([mtx-core](/architecture/mtx-core.md), [status](/project/status.md)).
 * **Update**: `mtx install-binaries --github` fetches CI builds through `gh` ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md), [status](/project/status.md)).
 * **Creation**: [Decision 0007](/decisions/0007-install-consent.md): `autoinstall yes|no|ask`, `mtx config`, `mtx log`, failures in `mtx.log` ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).

@@ -29,6 +29,9 @@ make_pkg() {
   (cd "$d" && COPYFILE_DISABLE=1 tar --uid 0 --gid 0 -cf - $(cd "$d" && find . -type f | sed 's|^\./||' | sort) ) | xz -9e > "$out/archive/$name.tar.xz"
 }
 make_pkg foo 1 texmf-dist/tex/latex/foo/foo.sty texmf-dist/tex/latex/foo/foo.lua
+# foo's documentation, as a separate container like tlnet's <pkg>.doc.tar.xz
+d="$work/doc-foo"; mkdir -p "$d/doc/latex/foo"; echo "foo manual" > "$d/doc/latex/foo/foo-manual.pdf"
+(cd "$d" && COPYFILE_DISABLE=1 tar --uid 0 --gid 0 -cf - doc/latex/foo/foo-manual.pdf) | xz -9e > "$out/archive/foo.doc.tar.xz"
 make_pkg bar 1 texmf-dist/tex/latex/bar/bar.sty
 make_pkg fonts-x 1 texmf-dist/fonts/tfm/public/x/x10.tfm
 
@@ -40,6 +43,13 @@ entry() { # name reloc depends... ; prints a tlpdb record
   for d in "$@"; do echo "depend $d"; done
   echo "containersize $(stat -f %z "$a")"
   echo "containerchecksum $(shasum -a 512 "$a" | cut -d' ' -f1)"
+  doc="$out/archive/$name.doc.tar.xz"
+  if [ -f "$doc" ]; then
+    echo "doccontainersize $(stat -f %z "$doc")"
+    echo "doccontainerchecksum $(shasum -a 512 "$doc" | cut -d' ' -f1)"
+    echo "docfiles size=1"
+    xz -dc "$doc" | tar -tf - | sed 's|^| RELOC/|'
+  fi
   echo "runfiles size=1"
   xz -dc "$a" | tar -tf - | grep -v '^tlpkg/' | sed 's|^| RELOC/|'
   echo

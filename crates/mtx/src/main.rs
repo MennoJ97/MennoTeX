@@ -141,6 +141,9 @@ enum Cmd {
     Repair,
     /// Install what a .tex file statically needs, in one go.
     Prefetch { file: PathBuf },
+    /// Install the documentation of packages (`texdoc NAME` does this by
+    /// itself for what it is asked about).
+    Docs { packages: Vec<String> },
     /// Remove packages installed on demand that no document has used for
     /// DAYS days (by file access time), with dependencies nothing else needs.
     /// They are installed again when needed.
@@ -164,6 +167,9 @@ fn main() -> ExitCode {
     }
     if prog == "mktexfmt" {
         return mktexfmt();
+    }
+    if prog == "texdoc" {
+        return texdoc();
     }
     let cli = Cli::parse();
     let explicit_root = cli.root.clone();
@@ -356,9 +362,20 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 eprintln!("mtx: {name}: r{from} → r{to}");
             }
             if !dry_run {
-                let names: Vec<&str> = outdated.iter().map(|(n, _, _)| n.as_str()).collect();
-                let r = install::install(&mut ctx, &names, Reason::Upgrade)?;
-                eprintln!("mtx: upgraded {} package(s)", r.installed.len());
+                let (docs, pkgs): (Vec<&str>, Vec<&str>) =
+                    outdated.iter().map(|(n, _, _)| n.as_str()).partition(|n| mtx_core::docs::base(n).is_some());
+                let r = install::install(&mut ctx, &pkgs, Reason::Upgrade)?;
+                let bases: Vec<&str> = docs.iter().filter_map(|d| mtx_core::docs::base(d)).collect();
+                let d = mtx_core::docs::install(&mut ctx, &bases, Reason::Upgrade)?;
+                eprintln!("mtx: upgraded {} package(s) and the documentation of {}", r.installed.len(), d.len());
+            }
+        }
+        Cmd::Docs { packages } => {
+            let mut ctx = open(&root)?;
+            ctx.refresh(false)?;
+            let names: Vec<&str> = packages.iter().map(String::as_str).collect();
+            if mtx_core::docs::install(&mut ctx, &names, Reason::Explicit)?.is_empty() {
+                eprintln!("mtx: documentation already installed and up to date");
             }
         }
         Cmd::Repair => {
@@ -502,6 +519,64 @@ fn hook(prog: &str) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+/// `texdoc ARGS`: install the documentation the arguments name, then run
+/// TeX Live's texdoc (installing the texdoc package first if needed).
+fn texdoc() -> ExitCode {
+    use std::os::unix::process::CommandExt;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let root = match Root::discover(None) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("mtx: texdoc: {e:#}");
+            return ExitCode::from(2);
+        }
+    };
+    // Names are the arguments that are not options (`-c NAME=VALUE` and
+    // `-d` take a value in the next argument).
+    let mut names = Vec::new();
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if a == "-c" || a == "-d" {
+            it.next();
+        } else if !a.starts_with('-') {
+            names.push(a.clone());
+        }
+    }
+    let script = root.texmf_dist().join("scripts/texdoc/texdoc.tlu");
+    let prepared = (|| -> Result<()> {
+        let mut ctx = open(&root)?;
+        if mtx_core::consent::policy(&ctx)? == mtx_core::consent::Policy::No {
+            return Ok(());
+        }
+        if let Err(e) = ctx.refresh(false) {
+            ctx.log(format!("error: texdoc: {e:#}"));
+        }
+        let tlpdb = ctx.tlpdb()?;
+        if !script.exists() {
+            install::install(&mut ctx, &["texdoc"], Reason::Auto)?;
+        }
+        for name in &names {
+            let pkgs = mtx_core::docs::packages_for(&tlpdb, name);
+            if pkgs.len() > 5 {
+                ctx.log(format!("texdoc {name}: {} packages have documentation by that name; not installing them all", pkgs.len()));
+                continue;
+            }
+            let pkgs: Vec<&str> = pkgs.iter().map(String::as_str).collect();
+            if let Err(e) = mtx_core::docs::install(&mut ctx, &pkgs, Reason::Auto) {
+                ctx.log(format!("error: documentation for {name}: {e:#}"));
+            }
+        }
+        Ok(())
+    })();
+    if let Err(e) = prepared {
+        eprintln!("mtx: texdoc: {e:#}");
+    }
+    let path = format!("{}:{}", root.bin_dir().display(), std::env::var("PATH").unwrap_or_default());
+    let err = std::process::Command::new(root.bin_dir().join("texlua")).arg(&script).args(&args).env("PATH", path).exec();
+    eprintln!("mtx: cannot run texdoc ({}): {err}", script.display());
+    ExitCode::from(2)
 }
 
 fn open(root: &Root) -> Result<Ctx> {

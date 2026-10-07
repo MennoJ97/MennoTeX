@@ -1,10 +1,10 @@
 ---
 type: Reference
-title: "TeX Live scripts: mktexfmt, fmtutil, updmap"
-description: Behaviour of the TeX Live Perl scripts mtx relies on, including the TEXMFVAR constraint.
+title: "TeX Live scripts: mktexfmt, fmtutil, updmap, texdoc"
+description: Behaviour of the TeX Live scripts mtx relies on, including the TEXMFVAR constraint and how texdoc finds its database and documents.
 tags: [texlive, fmtutil, mktexfmt, updmap, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T10:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:50:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:30:00Z }
 sources:
@@ -15,6 +15,10 @@ sources:
   - id: fmtutil
     resource: texlive-scripts archive, texmf-dist/scripts/texlive/fmtutil.pl
     title: fmtutil.pl
+    author: team:tex-live
+  - id: texdoc
+    resource: texdoc archive (v4.1.2), texmf-dist/scripts/texdoc/texdoclib-search.tlu and texdoclib-config.tlu
+    title: texdoc 4.1.2 sources
     author: team:tex-live
 ---
 
@@ -48,3 +52,21 @@ sources:
 
 [^fmtutil]: fmtutil.pl
 [^tlutils]: TLUtils.pm determine_config_files / user-vs-sys check
+
+# texdoc (checked 2026-10-08, texdoc 4.1.2)
+
+- Package database: texdoc reads `TEXMFROOT/tlpkg/texlive.tlpdb`, or the
+  `texlive_tlpdb` setting; with neither it fails with "No texlive.tlpdb nor shipped
+  tlpdb data found".[^texdoc] mtx keeps the tlpdb in `tlpkg/mtx/`, so its overlay
+  tree carries `texdoc/texdoc.cnf` with `texlive_tlpdb = …`.
+- Settings come from `<tree>/texdoc/texdoc.cnf` (also `texdoc-<platform>.cnf`,
+  `texdoc-dist.cnf`) in every `$TEXMF` tree, in order; the first value set wins.
+- texdoc reads `texmf-dist/ls-R` **itself** (`init_lsr_db`) and stops at the first
+  directory after the `./doc/...` blocks ("we're exiting the ./doc dir, so it's
+  over"). It assumes mktexlsr's sorted order: a `./doc/...` block appended at the end
+  of ls-R (as kpathsea allows) is never seen. mtx therefore rebuilds ls-R after
+  installing documentation instead of appending.
+- Without the tlpdb at `TEXMFROOT/tlpkg` it runs "non-vanilla" and resolves files
+  through kpathsea (`TeX system documentation`), which works with mtx's ls-R.
+
+[^texdoc]: texdoc 4.1.2 sources

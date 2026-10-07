@@ -22,6 +22,7 @@ pub const PROTECTED: &[&str] = &[
     "bin/universal-darwin/mktextex",
     "bin/universal-darwin/mktextfm",
     "bin/universal-darwin/mktexfmt",
+    "bin/universal-darwin/texdoc",
 ];
 
 #[derive(Debug, Default)]
@@ -54,7 +55,8 @@ pub fn outdated(ctx: &Ctx, tlpdb: &Tlpdb) -> Result<Vec<(String, u64, u64)>> {
         .installed()?
         .into_values()
         .filter_map(|i| {
-            let p = tlpdb.get(&i.name)?;
+            // Documentation (`<pkg>.doc`) follows its package's revision.
+            let p = tlpdb.get(crate::docs::base(&i.name).unwrap_or(&i.name))?;
             (p.revision > i.revision).then(|| (i.name, i.revision, p.revision))
         })
         .collect())
@@ -295,7 +297,10 @@ fn invalidate_formats(ctx: &Ctx, installed: &[&Package], regen: Regen, changed: 
 pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>> {
     let tlpdb = ctx.tlpdb()?;
     let installed = ctx.db.installed()?;
-    let targets: BTreeSet<&str> = names.iter().copied().filter(|n| installed.contains_key(*n)).collect();
+    // A package's documentation goes with it.
+    let docs: Vec<String> = names.iter().map(|n| crate::docs::entry(n)).collect();
+    let targets: BTreeSet<&str> =
+        names.iter().copied().chain(docs.iter().map(String::as_str)).filter(|n| installed.contains_key(*n)).collect();
     if !force {
         for (other, _) in &installed {
             if targets.contains(other.as_str()) {

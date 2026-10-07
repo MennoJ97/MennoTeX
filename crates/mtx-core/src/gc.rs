@@ -54,7 +54,14 @@ pub fn plan(tlpdb: &Tlpdb, installed: &BTreeMap<String, Installed>, used: &dyn F
         let all: Vec<&str> = keep.iter().map(String::as_str).chain(maps.iter().map(String::as_str)).collect();
         keep = tlpdb.closure(all)?.into_iter().collect();
     }
-    Ok(installed.keys().filter(|n| tlpdb.get(n).is_some() && !keep.contains(*n)).cloned().collect())
+    let mut out: Vec<String> = installed.keys().filter(|n| tlpdb.get(n).is_some() && !keep.contains(*n)).cloned().collect();
+    // Documentation: kept if asked for by `mtx docs`, or read since the cutoff.
+    out.extend(installed.iter().filter_map(|(n, i)| {
+        let base = crate::docs::base(n)?;
+        (tlpdb.get(base).is_some() && i.reason != "explicit" && used(n) < cutoff).then(|| n.clone())
+    }));
+    out.sort();
+    Ok(out)
 }
 
 #[cfg(test)]
