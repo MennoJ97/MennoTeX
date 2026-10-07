@@ -135,7 +135,10 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     // Another process may have installed some of these while we downloaded.
     let plan = pending(ctx, tlpdb, &plan)?;
     let root_set: BTreeSet<&str> = roots.iter().copied().collect();
-    let protected = |rel: &str| PROTECTED.contains(&rel);
+    // Our own builds of programs (see binaries.rs) are never replaced by
+    // tlnet's unpatched ones.
+    let ours: BTreeSet<String> = ctx.db.files_of(crate::binaries::BIN_PACKAGE)?.into_iter().collect();
+    let protected = |rel: &str| PROTECTED.contains(&rel) || ours.contains(rel);
 
     let mut report = Report { bytes_downloaded: bytes, ..Default::default() };
     let mut regen = Regen::default();
@@ -204,6 +207,9 @@ pub fn apply_regen(ctx: &Ctx, tlpdb: &Tlpdb, regen: Regen, changed: &[String]) -
         let out = Command::new(ctx.root.bin_dir().join("updmap-sys"))
             .args(["--nohash", "--quiet"])
             .env("PATH", ctx.root.tool_path())
+            // We hold the install lock: a patched kpsewhich run by updmap
+            // must not try to install anything (it would wait for us).
+            .env("MTX_AUTOINSTALL", "0")
             .output()
             .context("running updmap-sys")?;
         if !out.status.success() {

@@ -2,6 +2,7 @@
 //! parsing, the file index used for on-demand installation, repository
 //! access, and the installer.
 
+pub mod binaries;
 pub mod bootstrap;
 pub mod configfiles;
 pub mod ctx;

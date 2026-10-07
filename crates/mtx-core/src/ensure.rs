@@ -148,6 +148,59 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
     Ok(path.exists().then_some(path))
 }
 
+/// Phase 1 entry point, used by the kpathsea patch (`mtx-ondemand.c`):
+/// kpathsea has already chosen the package and the file with its real
+/// search path. Install the package and return the file, followed (with
+/// `siblings`) by every other `texmf-dist` file this call installed, so the
+/// running program can add them all to its in-memory ls-R view.
+pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<Option<Vec<PathBuf>>> {
+    if rel.starts_with('/') || rel.split('/').any(|c| c == "..") || !rel.starts_with("texmf-dist/") {
+        return Ok(None);
+    }
+    let target = root.dir.join(rel);
+    if target.exists() {
+        return Ok(Some(vec![target]));
+    }
+    if !autoinstall_enabled() {
+        return Ok(None);
+    }
+    let mut ctx = Ctx::open(root.clone())?;
+    if ctx.offline()? {
+        ctx.log(format!("{rel} is in package {pkg}, but the network was unreachable a moment ago"));
+        return Ok(None);
+    }
+    if let Err(e) = ctx.refresh(false) {
+        if is_network_error(&e) {
+            ctx.log(format!("cannot install {pkg}: {e:#}"));
+            return Ok(None);
+        }
+        return Err(e);
+    }
+    ctx.log(format!("{} → installing package {pkg}", rel.rsplit('/').next().unwrap_or(rel)));
+    let report = match install::install(&mut ctx, &[pkg], Reason::Auto) {
+        Ok(r) => r,
+        Err(e) if is_network_error(&e) => {
+            ctx.log(format!("cannot install {pkg}: {e:#}"));
+            return Ok(None);
+        }
+        Err(e) => return Err(e),
+    };
+    if !target.exists() {
+        return Ok(None);
+    }
+    let mut out = vec![target];
+    if siblings {
+        for (name, _) in &report.installed {
+            for f in ctx.db.files_of(name)? {
+                if f.starts_with("texmf-dist/") && f != rel {
+                    out.push(root.dir.join(f));
+                }
+            }
+        }
+    }
+    Ok(Some(out))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

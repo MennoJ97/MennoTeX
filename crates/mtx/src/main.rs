@@ -10,7 +10,7 @@ use mtx_core::ctx::{Ctx, Freshness};
 use mtx_core::db::Reason;
 use mtx_core::index::Index;
 use mtx_core::root::Root;
-use mtx_core::{bootstrap, ensure, install};
+use mtx_core::{binaries, bootstrap, ensure, install};
 
 #[derive(Parser)]
 #[command(name = "mtx", version, about = "MennoTeX package manager: TeX Live packages, installed on demand")]
@@ -34,11 +34,24 @@ enum Cmd {
     /// Install the package providing a missing file and print its path
     /// (the kpathsea hook protocol: path on stdout, exit 1 if not found).
     Ensure {
-        /// kpathsea format name, e.g. `tex`, `tfm`, `type1 fonts`.
+        /// kpathsea format name, e.g. `tex`, `tfm`, `type1 fonts`
+        /// (Phase 0 hooks: mtx chooses the file itself).
+        #[arg(long, required_unless_present = "package")]
+        format: Option<String>,
+        /// Package kpathsea chose (Phase 1 patch); requires --path.
+        #[arg(long, requires = "path")]
+        package: Option<String>,
+        /// Root-relative path of the file kpathsea chose.
         #[arg(long)]
-        format: String,
+        path: Option<String>,
+        /// Also print every other file this call installed.
+        #[arg(long)]
+        siblings: bool,
         name: String,
     },
+    /// Install MennoTeX-built (kpathsea-patched) binaries from a directory
+    /// and switch on-demand installation to the kpathsea patch.
+    InstallBinaries { dir: PathBuf },
     /// Install packages (and their dependencies).
     Install { packages: Vec<String> },
     /// Show which package provides a file.
@@ -90,15 +103,31 @@ fn run(cli: Cli) -> Result<ExitCode> {
             );
             eprintln!("mtx: add {} to your PATH", root.bin_dir().display());
         }
-        Cmd::Ensure { format, name } => {
-            let Some(kind) = ensure::kind(&format) else { return Ok(ExitCode::from(1)) };
-            return Ok(match ensure::ensure(&root, kind, &name)? {
-                Some(path) => {
-                    println!("{}", path.display());
+        Cmd::Ensure { format, package, path, siblings, name } => {
+            let found = match (package, path, format) {
+                (Some(pkg), Some(rel), _) => ensure::ensure_path(&root, &pkg, &rel, siblings)?,
+                (_, _, Some(format)) => {
+                    let Some(kind) = ensure::kind(&format) else { return Ok(ExitCode::from(1)) };
+                    ensure::ensure(&root, kind, &name)?.map(|p| vec![p])
+                }
+                _ => None,
+            };
+            return Ok(match found {
+                Some(paths) => {
+                    let mut out = std::io::stdout().lock();
+                    for p in paths {
+                        use std::io::Write;
+                        writeln!(out, "{}", p.display())?;
+                    }
                     ExitCode::SUCCESS
                 }
                 None => ExitCode::from(1),
             });
+        }
+        Cmd::InstallBinaries { dir } => {
+            let mut ctx = open(&root)?;
+            let n = binaries::install_binaries(&mut ctx, &dir)?;
+            eprintln!("mtx: installed {n} binaries; on-demand installation now uses the kpathsea patch");
         }
         Cmd::Install { packages } => {
             let mut ctx = open(&root)?;

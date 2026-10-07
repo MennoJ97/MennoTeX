@@ -21,9 +21,49 @@ use crate::root::Root;
 /// installs, so the default fonts must be present up front.
 pub const CORE: &[&str] = &["scheme-infraonly", "latex-bin", "amsfonts", "hyphen-base"];
 
+/// How missing files reach mtx.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HookMode {
+    /// Phase 0: unmodified binaries; kpathsea runs `mktextex`/`mktextfm`
+    /// (symlinks to mtx) for lookups with `must_exist`.
+    Mktex,
+    /// Phase 1: MennoTeX-built binaries whose kpathsea consults the index
+    /// on every miss (`kpathsea-ondemand/mtx-ondemand.c`).
+    Kpathsea,
+}
+
+impl HookMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HookMode::Mktex => "mktex",
+            HookMode::Kpathsea => "kpathsea",
+        }
+    }
+    pub fn current(ctx: &Ctx) -> Result<HookMode> {
+        Ok(match ctx.db.get("hook_mode")?.as_deref() {
+            Some("kpathsea") => HookMode::Kpathsea,
+            _ => HookMode::Mktex,
+        })
+    }
+}
+
 /// kpathsea overrides for the installation (read before texmf-dist's texmf.cnf).
-pub const ROOT_TEXMF_CNF: &str = "\
-% texmf.cnf for MennoTeX, written by `mtx bootstrap`; rewritten on every bootstrap.
+pub fn root_texmf_cnf(mode: HookMode) -> String {
+    let hook = match mode {
+        HookMode::Mktex => "\
+% Phase 0 on-demand installation: when an input file is missing, kpathsea
+% runs `mktextex`, which asks mtx to install the package providing it.
+MKTEXTEX = 1
+",
+        HookMode::Kpathsea => "\
+% On-demand installation happens inside kpathsea (MennoTeX patch), for every
+% missing file; the mktextex hook would only repeat that work.
+MKTEXTEX = 0
+",
+    };
+    format!(
+        "\
+% texmf.cnf for MennoTeX, written by mtx; rewritten on every bootstrap.
 % Values here override texmf-dist/web2c/texmf.cnf.
 
 % Personal packages live where MacTeX users expect them.
@@ -36,10 +76,9 @@ TEXMFHOME = ~/Library/texmf
 TEXMFVAR = $TEXMFROOT/texmf-user-var
 TEXMFCONFIG = $TEXMFROOT/texmf-user-config
 
-% Phase 0 on-demand installation: when an input file is missing, kpathsea
-% runs `mktextex`, which asks mtx to install the package providing it.
-MKTEXTEX = 1
-";
+{hook}"
+    )
+}
 
 fn write_executable(path: &Path, content: &[u8]) -> Result<()> {
     let tmp = path.with_extension("mtx-tmp");
@@ -49,24 +88,30 @@ fn write_executable(path: &Path, content: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Install the hook scripts, the root texmf.cnf, and a copy of the running
-/// mtx into the installation.
-pub fn install_hooks(root: &Root) -> Result<()> {
+/// Install the root texmf.cnf, a copy of the running mtx, and the kpathsea
+/// hook links for `mode`.
+pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
     let bin = root.bin_dir();
     fs::create_dir_all(&bin)?;
-    fs::write(root.dir.join("texmf.cnf"), ROOT_TEXMF_CNF)?;
+    fs::write(root.dir.join("texmf.cnf"), root_texmf_cnf(mode))?;
     let exe = std::env::current_exe().context("locating the mtx executable")?;
     let dest = bin.join("mtx");
     if fs::canonicalize(&exe).ok() != fs::canonicalize(&dest).ok() {
         write_executable(&dest, &fs::read(&exe)?)?;
     }
-    // kpathsea's hooks are mtx itself, dispatched on the program name.
-    for hook in ["mktextex", "mktextfm"] {
+    // Phase 0 hooks are mtx itself, dispatched on the program name. With
+    // the kpathsea patch, mktextfm goes back to TeX Live's METAFONT script
+    // (kpathsea has already tried the index by then).
+    let mktextfm = match mode {
+        HookMode::Mktex => "mtx",
+        HookMode::Kpathsea => "../../texmf-dist/scripts/texlive/mktextfm",
+    };
+    for (hook, target) in [("mktextex", "mtx"), ("mktextfm", mktextfm)] {
         let link = bin.join(hook);
         if link.symlink_metadata().is_ok() {
             fs::remove_file(&link)?;
         }
-        std::os::unix::fs::symlink("mtx", &link)?;
+        std::os::unix::fs::symlink(target, &link)?;
     }
     Ok(())
 }
@@ -82,7 +127,7 @@ pub fn bootstrap(root: &Root, repository: Option<&str>) -> Result<install::Repor
     ctx.refresh(true)?;
     let tlpdb = ctx.tlpdb()?;
     // Hooks and texmf.cnf first: updmap and fmtutil read texmf.cnf.
-    install_hooks(root)?;
+    install_hooks(root, HookMode::current(&ctx)?)?;
 
     let hyphen: Vec<&str> =
         tlpdb.content_packages().filter(|p| p.executes_of("AddHyphen").next().is_some()).map(|p| p.name.as_str()).collect();
