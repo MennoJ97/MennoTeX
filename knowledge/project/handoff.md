@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:50:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -22,12 +22,15 @@ verified:
   `update`/`remove`, an install journal, a font-map index (`ec` → `cm-super`),
   fonts by name on all engines (XeTeX patch, font-name index, and a `luaotfload-main.lua`
   overlay for LuaLaTeX's first run), concurrency-safe format builds, release
-  transitions ([decision 0006](/decisions/0006-release-transitions.md)), `bootstrap --from`.
-- **Real installation exists** at `~/Library/MennoTeX/2026` (CI binaries, kpathsea hook
-  mode, overlay); `mtx doctor` is clean with its bin directory first on PATH. PATH was
+  transitions ([decision 0006](/decisions/0006-release-transitions.md)), `bootstrap --from`,
+  `autoinstall yes|no|ask` with `mtx config`/`mtx log` ([decision 0007](/decisions/0007-install-consent.md)),
+  `install-binaries --github`, `mtx gc`, and documentation on demand (`texdoc`, `mtx docs`).
+- **Real installation exists** at `~/Library/MennoTeX/2026` (CI binaries recorded as
+  `mennotex-bin-2026-6a3001880-arm64-darwin`, kpathsea hook mode, overlay, texdoc; kept
+  current with `mtx repair` from the newest build of mtx); `mtx doctor` is clean with its bin directory first on PATH. PATH was
   **not** changed: in a normal shell MiKTeX's `/usr/local/bin` links still win.
 - **Repository:** private `MennoJ97/MennoTeX`, branch `main`, all work committed and
-  pushed. 43 `cargo test` tests; the OKF bundle checks clean.
+  pushed. 55 `cargo test` tests; the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
@@ -106,7 +109,9 @@ archives. See the [development playbook](/playbooks/development.md).
 5. **Grow the corpus** from 26 toward the plan's 50 documents (e.g. arXiv sources, kept
    locally; theses, posters with real fonts, Japanese with LuaTeX-ja, music with
    musixtex (needs `musixflx` between runs), Arabic/Hebrew with bidi).
-6. **Known gaps** (each has a note in the knowledge bundle):
+6. **Known gaps** (each has a note in the knowledge bundle). The next substantial one is
+   the pdfTeX map reload below: a C patch, so it needs a local build (~20 min) to develop
+   and a CI run (user's OK) to reach the real installation.
    - LuaLaTeX fonts by name: **fixed** by the overlay `texmf-mtx/…/luaotfload-main.lua`
      ([decision 0005](/decisions/0005-fonts-by-name.md)). It assumes luaotfload's
      `resolvers.name` and `config.luaotfload.db.update_live` keep their shape; if a
