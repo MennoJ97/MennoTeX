@@ -2,6 +2,13 @@
 //! parsing, the file index used for on-demand installation, repository
 //! access, and the installer.
 
+pub mod configfiles;
+pub mod ctx;
+pub mod db;
+pub mod extract;
 pub mod index;
+pub mod lsr;
+pub mod repo;
+pub mod root;
 pub mod verify;
 pub mod tlpdb;
