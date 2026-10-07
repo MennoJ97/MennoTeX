@@ -54,6 +54,15 @@ glossaries, standalone TikZ and moderncv. Logs stay in the printed temp
 directory. Use a fresh root to measure first-run behaviour; set `MTX_CACHE` to
 an existing root's `tlpkg/mtx/cache` to skip re-downloading archives.
 
+# Concurrency test
+
+```bash
+tests/run_concurrent.sh /tmp/fresh-root pdflatex 8
+```
+
+Starts 8 compiles at once against one fresh installation; passes when all succeed and
+`mtx doctor` reports no problem.
+
 # Building the TeX Live binaries
 
 Locally (about 20 minutes on 12 cores):

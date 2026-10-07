@@ -88,6 +88,7 @@ test document still makes 18 such calls.
 # Phase 2 items done early
 
 - Install journal and recovery of interrupted installs (tested).
+- Concurrency (`tests/run_concurrent.sh`): 8 simultaneous pdfLaTeX runs on a fresh root, racing for the same packages and for `pdflatex.fmt`: all succeed (18 s), all 8 waited for the install lock at some point, `mtx doctor` clean (179 packages, 7,817 files), no journal leftovers.
 - `mtx update [--dry-run]`: upgrades outdated packages, keeping each package's reason.
 - `mtx prefetch doc.tex` (Phase 3 item): on the test article, 39 packages in one batch (2.3 s, cached archives); the following pdfLaTeX run needed 6 on-demand installs instead of 43 (`tcolorbox` libraries load `listings`, `tikzfill`, `pdfcol` indirectly; `ec` comes from font loading).
 - `mtx doctor` (Phase 3 item): detects the MiKTeX symlinks in `/usr/local/bin` that shadow MennoTeX on this Mac.

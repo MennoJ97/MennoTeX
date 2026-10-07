@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-07
+* **Update**: Concurrency test passes ([status](/project/status.md), [playbook](/playbooks/development.md)).
 * **Creation**: [Decision 0005](/decisions/0005-fonts-by-name.md) and [fonts by name](/upstream/fonts-by-name.md); corpus at 18 documents ([status](/project/status.md)).
 * **Update**: Manual-only binary build workflow and archive installs ([playbook](/playbooks/development.md), [status](/project/status.md)).
 * **Update**: `mtx repair`, doctor check for missing font-map packages, format invalidation on binary install ([mtx-core](/architecture/mtx-core.md)).
