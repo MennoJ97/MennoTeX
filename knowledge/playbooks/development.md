@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -46,7 +46,9 @@ Compiles every `tests/documents/*.tex` and prints, per document: result, pages,
 packages installed on demand and seconds. Header comments control a run:
 `% engines: pdflatex xelatex lualatex` (others are skipped) and
 `% tools: biber|bibtex|makeindex|makeglossaries` (run between TeX runs; a third TeX
-run follows), `% prefetch: <engines>` (run `mtx prefetch` first for those engines). Bibliographies are embedded with `filecontents*` so each document is
+run follows), `% prefetch: <engines>` (run `mtx prefetch` first for those engines),
+`% requires: <programs>` (skipped unless on PATH; `pstricks-xelatex` needs `gs`).
+TeX runs use `-recorder`, so each document's `.fls` lists the files it read. Bibliographies are embedded with `filecontents*` so each document is
 self-contained. The corpus covers beamer, biblatex/biber, natbib/bibtex,
 fontspec/unicode-math, babel, KOMA-Script, memoir + index, pgfplots/tikz-cd, tables,
 theorems, listings/algorithm2e, mhchem/chemfig, Libertinus + microtype,
@@ -68,6 +70,25 @@ tests/run_concurrent.sh /tmp/fresh-root pdflatex 8
 
 Starts 8 compiles at once against one fresh installation; passes when all succeed and
 `mtx doctor` reports no problem.
+
+# Comparison with a full TeX Live (Phase 2 exit)
+
+Install a full TeX Live 2026 into a scratch directory (not on PATH, `TEXMFHOME`,
+`TEXMFVAR`, `TEXMFCONFIG` in the profile pointing into it; `scheme-full` without docs
+and sources is 5.0 GiB, about 45 minutes with `install-tl -profile`), then build the
+corpus with both and compare:
+
+```bash
+DOCS_OUT=/tmp/out-mtx tests/run_documents.sh /tmp/fresh-root xelatex
+DOCS_OUT=/tmp/out-tl  tests/run_documents.sh /tmp/texlive/2026 xelatex
+tests/compare_texlive.py /tmp/out-mtx /tmp/out-tl xelatex
+```
+
+`run_documents.sh` treats a root without `mtx` as a plain TeX Live. The comparison
+checks pages, `pdftotext` text, embedded fonts (`pdffonts`), font warnings in the log and
+the `texmf-dist` files read (`.fls`); it needs poppler and pypdf. Expected differences
+on macOS: XeLaTeX documents that select TeX-tree fonts by name fail or fall back in a
+stock TeX Live ([package quirks](/upstream/package-quirks.md)).
 
 # Crash-recovery test
 

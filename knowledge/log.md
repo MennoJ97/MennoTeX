@@ -1,6 +1,10 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Phase 2 exit met: the corpus matches a full TeX Live 2026 (`tests/compare_texlive.py`; [status](/project/status.md), [playbook](/playbooks/development.md)).
+* **Creation**: [Decision 0010](/decisions/0010-shadowing-packages.md): installs add packages whose same-named `tex/` files a LaTeX format finds first (`xetex-pstricks`); [mtx-core](/architecture/mtx-core.md).
+* **Update**: `texfonts.map` is read by a path search that bypasses the hook, so `fontname` joined the bootstrap core ([kpathsea](/upstream/kpathsea.md)).
+* **Update**: Corrected [package quirks](/upstream/package-quirks.md): PSTricks on XeLaTeX needs Ghostscript in any TeX Live; stock XeTeX on macOS misses TeX-tree fonts by name.
 * **Creation**: [Decision 0009](/decisions/0009-crash-recovery.md): installs stay journaled until ls-R, configuration and font maps are done; lookups (also in the kpathsea patch) and later installs finish interrupted ones; `tests/run_crash.sh` passes all five crash cases ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).
 * **Update**: Corpus grown from 26 to 51 documents; all pass on fresh roots and the second run installs nothing, meeting Phase 1's exit ([status](/project/status.md), [playbook](/playbooks/development.md), [handoff](/project/handoff.md)).
 * **Update**: `mktexfmt` builds METAFONT's `mf.base` (installing `metafont`) so mktexpk works; fmtutil only acts as mktexfmt under that name ([TeX Live scripts](/upstream/texlive-scripts.md), [mtx-core](/architecture/mtx-core.md)).

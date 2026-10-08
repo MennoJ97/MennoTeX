@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -13,6 +13,9 @@ verified:
 
 # Where things stand (2026-10-08)
 
+- **Phase 2's exit criteria are met (2026-10-08):** the corpus matches a full TeX Live
+  2026 (pdfLaTeX, LuaLaTeX; XeLaTeX except TeX-tree fonts by name) and crashes
+  mid-install recover ([status](/project/status.md)).
 - **Phases 0 and 1 work; Phase 1's exit criterion is met.** A 30 MB bootstrap plus our
   patched TeX Live 2026.1 arm64 build compiles the **51-document corpus** on the first
   run from a fresh root, and the second run installs nothing: pdfLaTeX 40/40 (11 are
@@ -140,11 +143,15 @@ archives. See the [development playbook](/playbooks/development.md).
      bump `root::RELEASE`, rebuild with the patches, rerun the corpus.
    - A one-command upgrade from the old mtx needs release downloads (step 2);
      until then `mtx doctor` names the command.
-5. **Corpus:** grown to 51 documents (2026-10-08). Two fixes came out of it (`mf.base`
-   for METAFONT-only fonts; LuaLaTeX's second new font per run); the real installation
-   gets them with the next `mtx repair` from a new build (the user runs it). Next for the
-   corpus: the Phase 2 check that it compiles identically to a full TeX Live 2026
-   (page counts, `pdftotext`), and real arXiv sources kept locally.
+5. **Corpus and Phase 2 exit:** 51 documents; compared with a full TeX Live 2026
+   (2026-10-08): pdfLaTeX and LuaLaTeX identical, XeLaTeX identical except TeX-tree
+   fonts by name (a MennoTeX feature); crash recovery tested ([status](/project/status.md)).
+   Fixes from this work reach the real installation with `mtx repair` run by the user
+   from a new build of mtx: `mf.base`, the luaotfload rescan, `fontname`, the shadow
+   rule (`xetex-pstricks`), crash recovery. The C part of crash recovery
+   (`mtx_interrupted` in `mtx-ondemand.c`) needs a CI binary build (user's OK).
+   Next: real arXiv sources kept locally; a Linux comparison for XeLaTeX fonts by name
+   (fontconfig) would close the remaining gap.
 6. **Known gaps** (each has a note in the knowledge bundle). The next substantial one is
    the pdfTeX map reload below: a C patch, so it needs a local build (~20 min) to develop
    and a CI run (user's OK) to reach the real installation.
