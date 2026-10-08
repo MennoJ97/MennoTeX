@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Creation**: [Decision 0013](/decisions/0013-no-probe-deny-list.md): probe-only installs measured with `tests/probe_installs.py` (6 of 418, all loaded for real elsewhere); no deny list. Facts about LaTeX's existence checks and kernel substitutions in [package quirks](/upstream/package-quirks.md).
 * **Update**: First signed release `mennotex-2026-f06b1506f` published by the user; the real installation self-updated to it and PATH now goes through `…/MennoTeX/current` ([handoff](/project/handoff.md)).
 * **Update**: The `ask` dialog lost every click (AppleScript's `result` was read after an `if` had replaced it, error -2753); found through the new diagnostics in a VS Code build, fixed with a variable and a unit test ([decision 0007](/decisions/0007-install-consent.md), [handoff](/project/handoff.md)).
 * **Update**: `mtx self-update` decides whether to replace mtx by comparing with the installed program, not the running one ([decision 0011](/decisions/0011-releases-and-self-update.md)).
