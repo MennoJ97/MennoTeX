@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: `mtx self-update` decides whether to replace mtx by comparing with the installed program, not the running one ([decision 0011](/decisions/0011-releases-and-self-update.md)).
 * **Update**: `.gitignore`'s `*.tlpdb` also hid `kpathsea-ondemand/tests/fixture.tlpdb`, so the first release run failed in `cargo test` (the second such case after `texlive.tlpdb.xz`); now excepted, and checked with `cargo test` in a clean copy of the commit.
 * **Creation**: [Decision 0012](/decisions/0012-map-reread.md): pdfTeX and LuaTeX re-read `pdftex.map` after an install (patch 0003, install counter in kpathsea); corpus `late-font-map` ([status](/project/status.md), [handoff](/project/handoff.md)).
 * **Update**: C unit tests of the kpathsea patch (`tests/run_c_tests.sh`, fixture written by the Rust index code); CI caches the TeX Live build tree for incremental builds and Rust's dependencies, runs the C tests, scopes `GH_TOKEN` to `gh` steps and pins the third-party action ([playbook](/playbooks/development.md)).

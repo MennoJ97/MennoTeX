@@ -355,29 +355,34 @@ pub fn self_update(ctx: &Ctx, from: &From, check: bool, force: bool) -> Result<U
         if v.release != RELEASE {
             bail!("{} is for TeX Live {}; this installation is TeX Live {RELEASE} (use `mtx upgrade-release`)", v.tag(), v.release);
         }
+        // Newer or older is judged against the running mtx; what to replace
+        // against the root's installed one, which is not the running one when
+        // a local build updates an installation (the first self-update).
         let same = v.commit == COMMIT;
-        let newer = !same && v.commit_time > commit_time();
+        let older = !same && v.commit_time <= commit_time();
+        let installed = ctx.root.bin_dir().join("mtx");
+        let program_differs = fs::read(&installed).ok() != Some(fs::read(&rel.mtx)?);
         let programs_differ = ctx.db.get("binaries_build")?.as_deref() != Some(v.binaries.as_str());
-        if check {
-            return Ok(if newer || (same && programs_differ) { Updated::Available(v.tag()) } else if same { Updated::Current } else { Updated::Older(v.tag()) });
-        }
-        if !same && !newer && !force {
+        if older && !force {
             return Ok(Updated::Older(v.tag()));
         }
-        let installed = ctx.root.bin_dir().join("mtx");
-        if !same {
+        if !program_differs && !programs_differ {
+            return Ok(Updated::Current);
+        }
+        if check {
+            return Ok(Updated::Available(v.tag()));
+        }
+        if program_differs {
             replace_program(&rel.mtx, &installed)?;
-            ctx.log(format!("mtx {COMMIT} replaced by {} ({})", v.commit, v.tag()));
+            ctx.log(format!("installed mtx replaced by {} ({})", v.commit, v.tag()));
         }
         // From here on the new mtx does the work.
         let root = ctx.root.dir.as_os_str();
         if programs_differ {
             run(&installed, &["--root".as_ref(), root, "install-binaries".as_ref(), rel.binaries.as_os_str(), "--sums".as_ref(), rel.sums.as_os_str()])?;
         }
-        if !same || programs_differ {
-            run(&installed, &["--root".as_ref(), root, "repair".as_ref()])?;
-        }
-        Ok(if same { Updated::Current } else { Updated::To(v.tag()) })
+        run(&installed, &["--root".as_ref(), root, "repair".as_ref()])?;
+        Ok(Updated::To(v.tag()))
     })();
     let _ = fs::remove_dir_all(&dir);
     result

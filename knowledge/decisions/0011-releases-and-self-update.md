@@ -4,7 +4,7 @@ title: Signed releases and self-update
 description: Releases (mtx plus TeX Live's programs) are drafted by CI, signed with minisign on the maintainer's Mac and published; mtx self-update and upgrade-release install only releases whose SHA256SUMS signature and checksums verify, and a current symlink makes release upgrades a PATH-free switch.
 tags: [decision, release, signing, minisign, self-update, upgrade]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:40:00Z }
 sources:
   - id: minisign
     resource: https://jedisct1.github.io/minisign/
@@ -44,9 +44,11 @@ with the signed manifest, and chose to keep the signing key on their Mac.
   `SHA256SUMS` with a matching SHA-256, and `VERSION` must name that tag and a present
   programs archive.
 - **`mtx self-update`** takes the newest published release for this TeX Live
-  release (or `--release TAG`, or `--from DIR`), compares commit times (an older
-  release needs `--force`; `--check` only reports), swaps `bin/universal-darwin/mtx`
-  atomically, then lets the **new** mtx install the programs (if `binaries_build`
+  release (or `--release TAG`, or `--from DIR`), compares commit times with the
+  **running** mtx (an older release needs `--force`; `--check` only reports), compares
+  the release's program with the **installed** `bin/universal-darwin/mtx` (they differ
+  when a local build updates an installation, as for the first self-update; found
+  2026-10-08 before the first release was signed), swaps it atomically if it differs, then lets the **new** mtx install the programs (if `binaries_build`
   differs) and run `mtx repair`. Old versions therefore only need to download,
   verify and swap.
 - **`mtx upgrade-release`** takes the newest release for a newer TeX Live, runs its
