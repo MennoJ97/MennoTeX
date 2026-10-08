@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -167,16 +167,18 @@ archives. See the [development playbook](/playbooks/development.md).
    (`mtx_interrupted` in `mtx-ondemand.c`) needs a CI binary build (user's OK).
    Next: real arXiv sources kept locally; a Linux comparison for XeLaTeX fonts by name
    (fontconfig) would close the remaining gap.
-6. **Known gaps** (each has a note in the knowledge bundle). The next substantial one is
-   the pdfTeX map reload below: a C patch, so it needs a local build (~20 min) to develop
-   and a CI run (user's OK) to reach the real installation.
+6. **Known gaps** (each has a note in the knowledge bundle). Two C changes of
+   2026-10-08 are tested with a local build but reach the real installation only with the
+   next CI release (user's OK): the map re-read ([decision 0012](/decisions/0012-map-reread.md))
+   and kpathsea's install counter; the CI run will be the first with the build-tree cache.
    - LuaLaTeX fonts by name: **fixed** by the overlay `texmf-mtx/…/luaotfload-main.lua`
      ([decision 0005](/decisions/0005-fonts-by-name.md)). It assumes luaotfload's
      `resolvers.name` and `config.luaotfload.db.update_live` keep their shape; if a
      luaotfload update breaks `fontspec-by-name` under LuaLaTeX, look there first.
      Anonymous requests (`\font\x="Name"`) are not wrapped.
-   - Font packages first needed after pdfTeX's first `\shipout` are missing from that run's
-     map (plan §5.7); a pdfTeX/LuaTeX map-reload patch would fix it.
+   - Font packages first needed after page 1: **fixed** 2026-10-08 by patch 0003
+     (pdfTeX and LuaTeX re-read `pdftex.map` after an install; corpus `late-font-map`).
+     Before, the run failed fatally (not the warning PLAN.md §5.7 expected).
    - METAFONT-only fonts (`bbm`) work since 2026-10-08: `mktexfmt mf.base` installs
      `metafont` and `modes`, and mktexpk makes the bitmap.
    - Roots made before the font-map rule need `mtx repair`; a `mktexpk` fallback could

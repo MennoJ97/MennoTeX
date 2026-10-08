@@ -1,5 +1,6 @@
 # Decisions
 
+* [0012: Re-reading the font map after an install](0012-map-reread.md) - pdfTeX and LuaTeX read pdftex.map once; a MennoTeX patch re-reads the default map on a lookup miss when kpathsea's install counter moved, so a font package installed after page 1 works in the same run.
 * [0011: Signed releases and self-update](0011-releases-and-self-update.md) - Releases (mtx plus TeX Live's programs) are drafted by CI, signed with minisign on the maintainer's Mac and published; mtx self-update and upgrade-release install only releases whose SHA256SUMS signature and checksums verify, and a current symlink makes release upgrades a PATH-free switch.
 * [0010: Installing packages that shadow installed files](0010-shadowing-packages.md) - Installing a package also installs packages with a same-named tex/ file in a directory a LaTeX format searches first (pstricks → xetex-pstricks), because kpathsea never misses such a file and so never asks mtx.
 * [0009: Crash recovery of installs](0009-crash-recovery.md) - A package stays journaled until its whole install (ls-R, configuration, font maps, shims) is done; the next lookup of its files, the next install of anything, or mtx repair finishes it; tests/run_crash.sh kills mtx at each step.

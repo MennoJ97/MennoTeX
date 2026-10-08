@@ -395,6 +395,7 @@ These fix the MiKTeX weaknesses listed in §2.1:
 - A font package installed while the preamble loads is therefore picked up.
 - A font package first installed **after** the first `\shipout` is missing from that run's map. pdfTeX then warns and falls back.
 - v1 accepts that the next run is correct (latexmk reruns anyway). v2 adds a ~30-line pdfTeX/LuaTeX patch that reads newly added map files (the internal equivalent of `\pdfmapfile{+x.map}`) when `ondemand.c` reports that maps changed.
+- *As built* (2026-10-08, [decision 0012](knowledge/decisions/0012-map-reread.md)): the failure was fatal, not a fallback. pdfTeX and LuaTeX re-read the default map on a lookup miss when kpathsea's install counter has moved.
 
 ### 5.8 Binaries
 

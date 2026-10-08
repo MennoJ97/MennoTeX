@@ -1,0 +1,16 @@
+% engines: pdflatex xelatex lualatex
+% A Type 1 font first needed after page 1 has been shipped out: pdfTeX (and
+% LuaTeX for Type 1 fonts) read pdftex.map at the first page, before
+% tex-gyre is installed for page 2. Without MennoTeX's map re-read the run
+% failed with "Font ec-qplr at 600 not found" (no map entry, so a bitmap
+% was tried). XeLaTeX's xdvipdfmx reads the maps at the end anyway.
+\documentclass{article}
+\usepackage{iftex}
+\ifPDFTeX\usepackage[T1]{fontenc}\fi
+\ifLuaTeX\usepackage[T1]{fontenc}\fi
+\begin{document}
+Page one, in the default font.
+\newpage
+{\fontfamily{qpl}\selectfont Page two, in TeX Gyre Pagella, whose package is
+installed only when this page is typeset.}
+\end{document}

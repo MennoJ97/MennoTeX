@@ -316,6 +316,22 @@ mod tests {
         .unwrap()
     }
 
+    /// `kpathsea-ondemand/tests/fixture.idx` is what the C tests
+    /// (`tests/run_c_tests.sh`) read: this writer's index of `fixture.tlpdb`.
+    /// A format change shows up here first; regenerate the fixture with
+    /// `MTX_REGEN_C_FIXTURE=1 cargo test`, then run the C tests.
+    #[test]
+    fn c_test_fixture_is_current() {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../kpathsea-ondemand/tests");
+        let db = Tlpdb::parse(&std::fs::read_to_string(dir.join("fixture.tlpdb")).unwrap()).unwrap();
+        let bytes = build(&db);
+        let path = dir.join("fixture.idx");
+        if std::env::var_os("MTX_REGEN_C_FIXTURE").is_some() {
+            std::fs::write(&path, &bytes).unwrap();
+        }
+        assert!(std::fs::read(&path).unwrap() == bytes, "stale {}: MTX_REGEN_C_FIXTURE=1 cargo test", path.display());
+    }
+
     #[test]
     fn round_trip_lookup() {
         let dir = tempfile::tempdir().unwrap();

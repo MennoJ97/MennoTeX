@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T13:20:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-08T13:45:00Z }
@@ -108,6 +108,14 @@ test document still makes 18 such calls.
 | Corpus identical to a full TeX Live 2026 | Fresh MennoTeX roots (local build of the pinned revision with the patches) against `scheme-full` installed with `install-tl`, compared by `tests/compare_texlive.py` (pages, text, fonts, font warnings, files read): **pdfLaTeX 40/40 and LuaLaTeX 46/46 identical; XeLaTeX 35 identical**, the other 7 differ only because stock XeTeX on macOS cannot find TeX-tree fonts by name (6 fail in TeX Live, metropolis falls back to Latin Modern); `pstricks-xelatex` needs Ghostscript in both and is skipped without it. The comparison found three MennoTeX gaps, all fixed: `texfonts.map` never installed ([kpathsea](/upstream/kpathsea.md)), `pstricks.con` shadowed by an uninstalled package ([decision 0010](/decisions/0010-shadowing-packages.md)), and through that a wrong claim that PSTricks needs no Ghostscript ([package quirks](/upstream/package-quirks.md)). Corpus on fresh roots afterwards: pdfLaTeX 40/40 (99 s, 332 packages), XeLaTeX 42/42 + 1 skipped (124 s, 374), LuaLaTeX 46/46 (199 s, 380) |
 | A forced crash mid-transaction recovers cleanly | `tests/run_crash.sh`: 5/5 cases ([decision 0009](/decisions/0009-crash-recovery.md)) |
 | First run vs second run | identical output on all engines (40/40, 43/43, 46/46) |
+
+# Phase 1 and 4 items done 2026-10-08
+
+- C unit tests of the kpathsea patch (Phase 1, PLAN.md §8 "index round-trip"):
+  `tests/run_c_tests.sh`, 37 checks, also run in CI after every build.
+- In-run map reload (Phase 4, PLAN.md §5.7): [decision 0012](/decisions/0012-map-reread.md);
+  corpus now 52 documents (`late-font-map`), on fresh roots with a local build:
+  pdfLaTeX 41/41 (82 s), XeLaTeX 43/43 + 1 skipped (95 s), LuaLaTeX 47/47 (133 s).
 
 # Phases 2–4
 

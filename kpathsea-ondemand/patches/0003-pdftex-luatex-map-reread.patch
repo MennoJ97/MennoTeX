@@ -1,0 +1,186 @@
+diff --git a/texk/web2c/luatexdir/font/mapfile.c b/texk/web2c/luatexdir/font/mapfile.c
+index 7b661640..4944e79e 100644
+--- a/texk/web2c/luatexdir/font/mapfile.c
++++ b/texk/web2c/luatexdir/font/mapfile.c
+@@ -24,6 +24,7 @@ with LuaTeX; if not, see <http://www.gnu.org/licenses/>.
+ #include <math.h>
+ #include <kpathsea/c-auto.h>
+ #include <kpathsea/c-memstr.h>
++#include <kpathsea/tex-make.h>
+ #include <string.h>
+ 
+ #define FM_BUF_SIZE 1024
+@@ -56,6 +57,20 @@ typedef struct mitem {
+ 
+ mapitem *mitem = NULL;
+ 
++/* MennoTeX: mtx installs packages while TeX runs (the kpathsea on-demand
++   patch), and an install that brings fonts regenerates pdftex.map (for Type 1 fonts). The
++   default map file is read once, at the first font lookup, so a font
++   package installed later (a font first used on page 2) had no map entry:
++   the font was treated as a bitmap font and the run failed. On a lookup
++   miss, when mtx has installed something since the map was read
++   (kpathsea_ondemand_generation), the default map file is read again:
++   known entries stay, without duplicate warnings, and new ones are added.
++   Not when the document replaced the default map (\pdfmapfile without +). */
++static char *mtx_default_map;           /* the default map file's name */
++static boolean mtx_default_read;        /* it has been read */
++static unsigned mtx_map_generation;     /* installs reflected in tfm_tree */
++static boolean mtx_rereading;           /* re-reading: no duplicate warnings */
++
+ #define read_field(r, q, buf) do { \
+     q = buf;                       \
+     while (*r != ' ' && *r != '<' && *r != '"' && *r != '\0') \
+@@ -157,7 +172,8 @@ int avl_do_entry(fm_entry * fm, int mode)
+     if (p != NULL) {
+         switch (mode) {
+             case FM_DUPIGNORE:
+-                formatted_warning("map file", "entry for '%s' already exists, duplicates ignored", fm->tfm_name);
++                if (!mtx_rereading)
++                    formatted_warning("map file", "entry for '%s' already exists, duplicates ignored", fm->tfm_name);
+                 delete_new = 1;
+                 break;
+             case FM_REPLACE:
+@@ -509,6 +525,10 @@ static void fm_read_info(void)
+     mitem->lineno = 1;
+     switch (mitem->type) {
+     case MAPFILE:
++        if (mitem->line == mtx_default_map) {   /* MennoTeX */
++            mtx_default_read = 1;
++            mtx_map_generation = kpathsea_ondemand_generation();
++        }
+         xfree(fm_buffer);
+         fm_curbyte = 0;
+         fm_size = 0;
+@@ -567,6 +587,22 @@ recorder_record_input(cur_file_name);
+     return;
+ }
+ 
++
++/* MennoTeX: see mtx_default_map above. True if the map was read again. */
++static int mtx_reread_default_map(void)
++{
++    if (!mtx_default_read || mitem->line != NULL
++        || kpathsea_ondemand_generation() == mtx_map_generation)
++        return 0;
++    mitem->mode = FM_DUPIGNORE;
++    mitem->type = MAPFILE;
++    mitem->line = mtx_default_map;
++    mtx_rereading = 1;
++    fm_read_info();
++    mtx_rereading = 0;
++    return 1;
++}
++
+ fm_entry *getfontmap(char *tfm_name)
+ {
+     fm_entry *fm;
+@@ -582,6 +618,8 @@ fm_entry *getfontmap(char *tfm_name)
+     /*tex Look up the name. */
+     tmp.tfm_name = tfm_name;
+     fm = (fm_entry *) avl_find(tfm_tree, &tmp);
++    if (fm == NULL && mtx_reread_default_map())        /* MennoTeX */
++        fm = (fm_entry *) avl_find(tfm_tree, &tmp);
+     if (fm == NULL)
+         return NULL;
+     set_inuse(fm);
+@@ -678,6 +716,7 @@ void pdf_init_map_file(const char *map_name)
+     mitem->mode = FM_DUPIGNORE;
+     mitem->type = MAPFILE;
+     mitem->line = xstrdup(map_name);
++    mtx_default_map = mitem->line;      /* MennoTeX */
+ }
+ 
+ /*tex
+diff --git a/texk/web2c/pdftexdir/mapfile.c b/texk/web2c/pdftexdir/mapfile.c
+index 514bc032..a859503d 100644
+--- a/texk/web2c/pdftexdir/mapfile.c
++++ b/texk/web2c/pdftexdir/mapfile.c
+@@ -21,6 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
+ #include "ptexlib.h"
+ #include <kpathsea/c-auto.h>
+ #include <kpathsea/c-memstr.h>
++#include <kpathsea/tex-make.h>
+ #include <math.h>
+ #include <string.h>
+ 
+@@ -45,6 +46,20 @@ typedef struct mitem {
+ } mapitem;
+ mapitem *mitem = NULL;
+ 
++/* MennoTeX: mtx installs packages while TeX runs (the kpathsea on-demand
++   patch), and an install that brings fonts regenerates pdftex.map. The
++   default map file is read once, at the first font lookup, so a font
++   package installed later (a font first used on page 2) had no map entry:
++   the font was treated as a bitmap font and the run failed. On a lookup
++   miss, when mtx has installed something since the map was read
++   (kpathsea_ondemand_generation), the default map file is read again:
++   known entries stay, without duplicate warnings, and new ones are added.
++   Not when the document replaced the default map (\pdfmapfile without +). */
++static char *mtx_default_map;           /* the default map file's name */
++static boolean mtx_default_read;        /* it has been read */
++static unsigned mtx_map_generation;     /* installs reflected in tfm_tree */
++static boolean mtx_rereading;           /* re-reading: no duplicate warnings */
++
+ static const char nontfm[] = "<nontfm>";
+ 
+ #define read_field(r, q, buf, buf_size) do {  \
+@@ -182,7 +197,7 @@ int avl_do_entry(fm_entry * fm, int mode)
+     fm_entry *p;
+     void *a;
+     void **aa;
+-    boolean suppress_warn = (getpdfsuppresswarningdupmap() > 0);
++    boolean suppress_warn = (getpdfsuppresswarningdupmap() > 0) || mtx_rereading;
+ 
+     /* handle tfm_name link */
+ 
+@@ -597,6 +612,10 @@ void fm_read_info(void)
+     mitem->lineno = 1;
+     switch (mitem->type) {
+     case MAPFILE:
++        if (mitem->line == mtx_default_map) {   /* MennoTeX */
++            mtx_default_read = true;
++            mtx_map_generation = kpathsea_ondemand_generation();
++        }
+         set_cur_file_name(mitem->line);
+         if (!fm_open()) {
+             pdftex_warn("cannot open font map file");
+@@ -626,6 +645,21 @@ void fm_read_info(void)
+ 
+ /**********************************************************************/
+ 
++/* MennoTeX: see mtx_default_map above. True if the map was read again. */
++static boolean mtx_reread_default_map(void)
++{
++    if (!mtx_default_read || mitem->line != NULL
++        || kpathsea_ondemand_generation() == mtx_map_generation)
++        return false;
++    mitem->mode = FM_DUPIGNORE;
++    mitem->type = MAPFILE;
++    mitem->line = mtx_default_map;
++    mtx_rereading = true;
++    fm_read_info();
++    mtx_rereading = false;
++    return true;
++}
++
+ static fmentryptr fmlookup(internalfontnumber f)
+ {
+     char *tfm;
+@@ -639,6 +673,8 @@ static fmentryptr fmlookup(internalfontnumber f)
+     /* Look up for full <tfmname>[+-]<expand> */
+     tmp.tfm_name = tfm;
+     fm = (fm_entry *) avl_find(tfm_tree, &tmp);
++    if (fm == NULL && mtx_reread_default_map())        /* MennoTeX */
++        fm = (fm_entry *) avl_find(tfm_tree, &tmp);
+     if (fm != NULL) {
+         fm->in_use = true;
+         return (fmentryptr) fm;
+@@ -870,6 +906,7 @@ void pdfinitmapfile(const_string map_name)
+     mitem->mode = FM_DUPIGNORE;
+     mitem->type = MAPFILE;
+     mitem->line = xstrdup(map_name);
++    mtx_default_map = mitem->line;      /* MennoTeX */
+ }
+ 
+ /**********************************************************************/

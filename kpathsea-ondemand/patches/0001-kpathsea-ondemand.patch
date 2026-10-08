@@ -1,7 +1,8 @@
-diff -ru a/texk/kpathsea/db.c b/texk/kpathsea/db.c
---- a/texk/kpathsea/db.c	2026-10-07 09:42:50
-+++ b/texk/kpathsea/db.c	2026-10-07 09:42:50
-@@ -291,6 +291,14 @@
+diff --git a/texk/kpathsea/db.c b/texk/kpathsea/db.c
+index fb4658c1..94858d40 100644
+--- a/texk/kpathsea/db.c
++++ b/texk/kpathsea/db.c
+@@ -291,6 +291,14 @@ match (const_string filename,  const_string path_elt)
    return matched;
  }
  
@@ -16,10 +17,11 @@ diff -ru a/texk/kpathsea/db.c b/texk/kpathsea/db.c
  
  /* If DB_DIR is a prefix of PATH_ELT, return true; otherwise false.
     That is, the question is whether to try the db for a file looked up
-diff -ru a/texk/kpathsea/db.h b/texk/kpathsea/db.h
---- a/texk/kpathsea/db.h	2026-10-07 09:42:50
-+++ b/texk/kpathsea/db.h	2026-10-07 09:42:50
-@@ -48,6 +48,10 @@
+diff --git a/texk/kpathsea/db.h b/texk/kpathsea/db.h
+index b77b1f04..05a362b6 100644
+--- a/texk/kpathsea/db.h
++++ b/texk/kpathsea/db.h
+@@ -48,6 +48,10 @@ extern str_list_type *kpathsea_db_search_list (kpathsea kpse,
     Called by mktex() in tex-make.c.  */
  extern void kpathsea_db_insert (kpathsea kpse, const_string fname);
  
@@ -30,10 +32,11 @@ diff -ru a/texk/kpathsea/db.h b/texk/kpathsea/db.h
  #endif /* MAKE_KPSE_DLL */
  
  #endif /* not KPATHSEA_DB_H */
-diff -ru a/texk/kpathsea/tex-file.c b/texk/kpathsea/tex-file.c
---- a/texk/kpathsea/tex-file.c	2026-10-07 09:42:50
-+++ b/texk/kpathsea/tex-file.c	2026-10-07 09:42:50
-@@ -1128,6 +1128,20 @@
+diff --git a/texk/kpathsea/tex-file.c b/texk/kpathsea/tex-file.c
+index 17664d64..aa55c0d6 100644
+--- a/texk/kpathsea/tex-file.c
++++ b/texk/kpathsea/tex-file.c
+@@ -1128,6 +1128,20 @@ kpathsea_find_file_generic (kpathsea kpse, const_string const_name,
      free (target[count]);
    free (target);
  
@@ -54,10 +57,11 @@ diff -ru a/texk/kpathsea/tex-file.c b/texk/kpathsea/tex-file.c
    /* If nothing was found, call mktex* to create a missing file.  Since
       this returns a single string, morph it into a list.  */
    if (! *ret && must_exist) {
-diff -ru a/texk/kpathsea/tex-make.c b/texk/kpathsea/tex-make.c
---- a/texk/kpathsea/tex-make.c	2026-10-07 09:42:50
-+++ b/texk/kpathsea/tex-make.c	2026-10-07 09:42:50
-@@ -584,3 +584,7 @@
+diff --git a/texk/kpathsea/tex-make.c b/texk/kpathsea/tex-make.c
+index 7a964b48..897ba49f 100644
+--- a/texk/kpathsea/tex-make.c
++++ b/texk/kpathsea/tex-make.c
+@@ -584,3 +584,7 @@ Local variables:
  standalone-compile-command: "gcc -g -I. -I.. -I$wk/.. -DTEST -DMAKE_KPSE_DLL tex-make.c $wk/.libs/libkpathsea.a && ./a.out" 
  End:
  */
@@ -65,10 +69,11 @@ diff -ru a/texk/kpathsea/tex-make.c b/texk/kpathsea/tex-make.c
 +/* MennoTeX on-demand installation; kept in its own file so the TeX Live
 +   build system needs no changes. */
 +#include "mtx-ondemand.c"
-diff -ru a/texk/kpathsea/tex-make.h b/texk/kpathsea/tex-make.h
---- a/texk/kpathsea/tex-make.h	2026-10-07 09:42:50
-+++ b/texk/kpathsea/tex-make.h	2026-10-07 09:42:50
-@@ -32,6 +32,12 @@
+diff --git a/texk/kpathsea/tex-make.h b/texk/kpathsea/tex-make.h
+index 00902f7f..27ad1685 100644
+--- a/texk/kpathsea/tex-make.h
++++ b/texk/kpathsea/tex-make.h
+@@ -32,6 +32,16 @@ extern "C" {
     the file is passed through environment variables.  See the mktexpk
     stuff in `tex-make.c' for an example. */
  
@@ -77,6 +82,10 @@ diff -ru a/texk/kpathsea/tex-make.h b/texk/kpathsea/tex-make.h
 +extern KPSEDLL string kpathsea_ondemand_find (kpathsea kpse,
 +                                              kpse_file_format_type format,
 +                                              const_string name);
++
++/* MennoTeX: how many times mtx made files available in this process; the
++   engines re-read their font map when it changed (see mtx-ondemand.c). */
++extern KPSEDLL unsigned kpathsea_ondemand_generation (void);
 +
  extern KPSEDLL string kpathsea_make_tex (kpathsea kpse,
                                   kpse_file_format_type format,

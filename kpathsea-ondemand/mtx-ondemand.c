@@ -313,6 +313,19 @@ mtx_flush_dir_cache (kpathsea kpse)
   kpse->cache_length = 0;
 }
 
+/* Successful mtx runs in this process. An install can change the font
+   maps (updmap runs inside it), and pdfTeX reads pdftex.map only once: its
+   map lookup re-reads the map on a miss when this count has changed since
+   (MennoTeX pdfTeX patch), so a font package installed after the first
+   page still gets its map entries. */
+static unsigned mtx_generation;
+
+unsigned
+kpathsea_ondemand_generation (void)
+{
+  return mtx_generation;
+}
+
 /* Run mtx with ARGV (ARGV[0] is replaced by $SELFAUTOLOC/mtx). Every line
    it prints is a file it made available; insert them all into the db.
    Return the first, if readable. */
@@ -365,6 +378,7 @@ mtx_run (kpathsea kpse, char **argv)
     if (out && WIFEXITED (status) && WEXITSTATUS (status) == 0) {
       string line = out, nl;
       out[out_len] = 0;
+      mtx_generation++;
       for (; *line; line = nl + 1) {
         nl = strchr (line, '\n');
         if (!nl)
