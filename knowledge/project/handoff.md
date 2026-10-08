@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T18:20:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -13,17 +13,19 @@ verified:
 
 # Where things stand (2026-10-08)
 
-- **Released and installed as `mennotex-2026-50cd1119c` (2026-10-08, signed by the user;
-  the real installation runs mtx `50cd1119c`, `texmf.cnf` has `texmf-ctan`). Asked for by
-  the user after the release before it:** the upgrade rule of PLAN.md §4.3 ([decision 0018](/decisions/0018-upgrades-around-compiles.md):
+- **Current release, installed (2026-10-08): `mennotex-2026-50cd1119c`** (run 37800275954,
+  3 min, programs `9c5675bd` reused; signed by the user; the real installation runs mtx
+  `50cd1119c` and its `texmf.cnf` has `texmf-ctan`). It added, at the user's request:
+  the upgrade rule of PLAN.md §4.3 ([decision 0018](/decisions/0018-upgrades-around-compiles.md):
   dependencies and the kernel upgraded outside compiles, deferred during them, caught up
   by prefetch); the on-the-fly overhead measured (median 87 ms per package with cached
   archives, 457 ms cold; [status](/project/status.md)); the settings `freshness_ttl`,
-  `prefetch_depth` and `docs`; and `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md)). Also `mtx list --auto|--explicit` and `ls-R` compaction in `mtx update`.
-  All in mtx, no C changes, so a release run can reuse the programs (`9c5675bd`, about
-  2½ minutes). The new `texmf.cnf` line (`texmf-ctan` in `TEXMFAUXTREES`) reaches an
-  installation through the `repair` that `self-update` runs. 100 `cargo test` tests. Run 37800275954 (3 min, programs reused).
-- **Released and installed (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
+  `prefetch_depth` and `docs`; `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md));
+  `mtx list --auto|--explicit`; and `ls-R` compaction in `mtx update`. 100 `cargo test`
+  tests, 57 C checks. Nothing is waiting for a release.
+- **GitHub releases:** only `mennotex-2026-50cd1119c` (Latest) and `mennotex-2026-675989434`
+  (rollback) remain; older ones were deleted with their tags kept (the user, 2026-10-08).
+- **Previous release (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
   programs `mennotex-bin-2026-6a3001880.9c5675bd`, reused from `cf6183267`'s run
   37791928013) carries PLAN.md items 1–5 the user asked for: probe installs measured, no
   deny list ([decision 0013](/decisions/0013-no-probe-deny-list.md)); `Package mtx Warning`
@@ -67,18 +69,26 @@ verified:
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
-The previous session's build trees and test roots lived in a session scratch
-directory and are gone. Instead of building locally you can install the CI artifact
-(see the [development playbook](/playbooks/development.md); run 37694133534 keeps it for
-GitHub's artifact retention period). To get going again:
+All session scratch data was deleted at the user's request on 2026-10-08 (test roots,
+archive caches, the texlive-source checkout and build trees). The quickest working
+setup uses the published programs instead of a local build:
 
 ```bash
 cargo build --release && cargo test
+r=$(mktemp -d)
+./target/release/mtx --root $r bootstrap
+$r/bin/universal-darwin/mtx install-binaries --github --release latest   # ~25 s
+cp target/release/mtx $r/bin/universal-darwin/mtx                        # test this checkout's mtx
+tests/run_documents.sh $r pdflatex          # also xelatex, lualatex
+python3 tests/measure_overhead.py $r        # on-demand install timings
+```
+
+Changing the C patches needs a texlive-source build (about 20 minutes):
+
+```bash
 git clone --depth 1 --branch tags/texlive-2026.1 https://github.com/TeX-Live/texlive-source.git /tmp/tl2026
-build/build-texlive.sh /tmp/tl2026            # ~20 min; applies kpathsea-ondemand/patches/*
-./target/release/mtx --root /tmp/r bootstrap
-/tmp/r/bin/universal-darwin/mtx install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darwin*/
-tests/run_documents.sh /tmp/r pdflatex          # also xelatex, lualatex
+build/build-texlive.sh /tmp/tl2026            # applies kpathsea-ondemand/patches/*
+tests/run_c_tests.sh /tmp/tl2026
 tests/run_concurrent.sh /tmp/r2 pdflatex 8      # needs its own fresh root
 ```
 
@@ -117,10 +127,16 @@ archives. See the [development playbook](/playbooks/development.md).
    a build at 09:55 is the one behind commit `f334f3b`). Still to smoke-test: TeXShop
    and TeXstudio, which look in `/Library/TeX/texbin` rather than the shell's PATH
    (plan §5.2: TeXDist registration needs admin once, so ask first).
-2. **Next release:** nothing waiting. A release needs a CI run with `release: true`
-   (ask first), then the user signs and runs `mtx self-update`. Open from the plan:
-   the weekly launchd `mtx update` (PLAN.md §4.3, optional) and the 300-document corpus
-   (PLAN.md §8), which the user has not chosen yet.
+2. **Open items from PLAN.md, none started (the user has not chosen them yet):**
+   - the 300-document corpus of package documentation (PLAN.md §8): a long run, not code;
+   - TeXShop/TeXstudio via `/Library/TeX/texbin` (TeXDist registration, admin once; ask);
+   - CI additions (cargo test + OKF check on push, a weekly build against texlive-source
+     trunk, a font-data refresh job): each needs the user's OK;
+   - the optional weekly launchd `mtx update` (PLAN.md §4.3);
+   - a `.pkg` installer and notarization (needs an Apple Developer account).
+   A release needs a CI run with `release: true` (ask first); the user signs with
+   `tools/sign_release.sh TAG` from the repository folder and runs `mtx self-update`;
+   then delete the release before the previous one, keeping its tag.
 3. **Self-update and signed releases (2026-10-08, [decision 0011](/decisions/0011-releases-and-self-update.md)):**
    done. First signed release `mennotex-2026-f06b1506f` (CI run 37781813612, 2 min:
    programs reused from the run before; signed by the user with
