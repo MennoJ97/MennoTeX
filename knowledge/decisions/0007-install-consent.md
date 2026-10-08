@@ -4,7 +4,7 @@ title: Asking before automatic installs
 description: An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.
 tags: [decision, policy, ask, logging, ux]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T11:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T00:30:00Z }
 ---
@@ -42,6 +42,14 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
 - **Logging:** failures are logged as `error: …`, refusals as `declined: …`; `main`
   and the Phase 0 hooks append their errors to `mtx.log` too. `mtx log [--problems]`
   shows recent entries; `mtx doctor` warns about problems in the last 24 hours.
+- **Every `ask` outcome is logged with its source** (added 2026-10-08 after a build fell
+  back to yes 18 times with no reason recorded): `asked about … by terminal|dialog:
+  yes|all|no|none (from …)`, or `could not ask about … (<why>; from …); ask_fallback is
+  yes`. `<why>` says what failed at each step (`no terminal`, `ask_dialog is no`, SSH,
+  or osascript's exit status, stderr and run time); `from` is the chain of processes
+  above mtx from `ps` (`pdflatex < latexmk.pl < zsh < Visual Studio Code`), so a build
+  from VS Code can be told from one run by a terminal or an agent. `mtx doctor` warns
+  when prompts could not be shown in the last 24 hours and quotes the last reason.
 
 # Consequences
 

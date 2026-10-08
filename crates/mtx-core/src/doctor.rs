@@ -177,9 +177,19 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
     // Installs that failed or were declined recently: editors show only
     // TeX's log, which never contains mtx's messages.
     let now = now_secs();
-    let problems = crate::logview::tail(root).into_iter().filter(|e| e.is_problem() && now.saturating_sub(e.at) < 86400).count();
+    let recent: Vec<_> = crate::logview::tail(root).into_iter().filter(|e| now.saturating_sub(e.at) < 86400).collect();
+    let problems = recent.iter().filter(|e| e.is_problem()).count();
     if problems > 0 {
         push(&mut out, Severity::Warning, format!("{problems} failed or declined install(s) in the last 24 hours; see `mtx log --problems`"));
+    }
+    // Under `ask`, prompts that could not be shown (the fallback decided).
+    let unasked: Vec<_> = recent.iter().filter_map(|e| crate::consent::unasked_reason(&e.msg)).collect();
+    if let Some(why) = unasked.last() {
+        push(
+            &mut out,
+            Severity::Warning,
+            format!("{} install prompt(s) in the last 24 hours could not be shown; the last: {why}", unasked.len()),
+        );
     }
     if let Ok(p) = crate::consent::policy(ctx) {
         if p != crate::consent::Policy::Yes {

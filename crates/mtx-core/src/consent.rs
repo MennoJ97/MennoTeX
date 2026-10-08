@@ -82,6 +82,17 @@ pub enum Answer {
     None,
 }
 
+impl Answer {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Answer::Yes => "yes",
+            Answer::All => "all",
+            Answer::No => "no",
+            Answer::None => "none",
+        }
+    }
+}
+
 /// What is about to be installed, for the prompt.
 pub struct Request<'a> {
     /// The file or program that needs it (`tcolorbox.sty`, `latexmk`).
@@ -102,22 +113,9 @@ impl Request<'_> {
     }
 }
 
-fn run_key() -> String {
-    let parent = std::os::unix::process::parent_id();
-    let processes = Command::new("/bin/ps")
-        .args(["-A", "-o", "pid=,ppid=,command="])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
-    format!("ask_run:{}", latexmk_ancestor(&processes, parent).unwrap_or(parent))
-}
-
-/// The nearest process, starting at `pid` and going up, that is latexmk
-/// (`latexmk …`, or `perl …/latexmk.pl …` as MennoTeX's `latexmk` runs it),
-/// given `ps -o pid=,ppid=,command=` output.
-fn latexmk_ancestor(ps: &str, mut pid: u32) -> Option<u32> {
-    let procs: HashMap<u32, (u32, &str)> = ps
-        .lines()
+/// Running processes from `ps -o pid=,ppid=,command=`: pid → (ppid, command).
+fn parse_ps(ps: &str) -> HashMap<u32, (u32, &str)> {
+    ps.lines()
         .filter_map(|l| {
             let mut w = l.split_whitespace();
             let pid = w.next()?.parse().ok()?;
@@ -125,7 +123,26 @@ fn latexmk_ancestor(ps: &str, mut pid: u32) -> Option<u32> {
             let cmd_start = l.find(w.next()?)?;
             Some((pid, (ppid, &l[cmd_start..])))
         })
-        .collect();
+        .collect()
+}
+
+/// Where a prompt comes from: the key its run's answers are stored under,
+/// and the chain of processes above mtx, for the log.
+fn run_context() -> (String, String) {
+    let parent = std::os::unix::process::parent_id();
+    let ps = Command::new("/bin/ps")
+        .args(["-A", "-o", "pid=,ppid=,command="])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
+    let procs = parse_ps(&ps);
+    let key = format!("ask_run:{}", latexmk_ancestor(&procs, parent).unwrap_or(parent));
+    (key, ancestry(&procs, parent))
+}
+
+/// The nearest process, starting at `pid` and going up, that is latexmk
+/// (`latexmk …`, or `perl …/latexmk.pl …` as MennoTeX's `latexmk` runs it).
+fn latexmk_ancestor(procs: &HashMap<u32, (u32, &str)>, mut pid: u32) -> Option<u32> {
     for _ in 0..32 {
         let (ppid, cmd) = procs.get(&pid)?;
         let is_latexmk =
@@ -141,14 +158,75 @@ fn latexmk_ancestor(ps: &str, mut pid: u32) -> Option<u32> {
     None
 }
 
+/// Short names of `pid` and its ancestors below launchd, nearest first
+/// (`pdflatex < latexmk.pl < zsh < Visual Studio Code`), so the log shows
+/// what a build was started from.
+fn ancestry(procs: &HashMap<u32, (u32, &str)>, start: u32) -> String {
+    let mut pid = start;
+    let mut names = Vec::new();
+    let mut seen = 0;
+    while let Some((ppid, cmd)) = procs.get(&pid) {
+        seen += 1;
+        if pid <= 1 || seen > 16 || names.len() == 8 {
+            break;
+        }
+        let name = process_name(cmd);
+        if names.last() != Some(&name) {
+            names.push(name); // an app's helpers repeat its name
+        }
+        pid = *ppid;
+    }
+    if names.is_empty() {
+        format!("process {}", start)
+    } else {
+        names.join(" < ")
+    }
+}
+
+/// A process's name for [`ancestry`]: an app bundle's name, a script's name
+/// for interpreters and `sh -c`, else the program's file name.
+fn process_name(cmd: &str) -> String {
+    if let Some(i) = cmd.find(".app/") {
+        return cmd[..i].rsplit('/').next().unwrap_or("?").to_string();
+    }
+    let base = |w: &str| w.rsplit('/').next().unwrap_or(w).to_string();
+    let mut words = cmd.split_whitespace();
+    let program = base(words.next().unwrap_or("?"));
+    let program = program.trim_start_matches('-'); // login shells: `-zsh`
+    if matches!(program, "perl" | "sh" | "bash" | "zsh" | "env" | "python3" | "texlua") {
+        if let Some(script) = words.find(|w| !w.starts_with('-')) {
+            return base(script);
+        }
+    }
+    program.to_string()
+}
+
 /// How long an "all"/"none" answer for a parent process is trusted: process
 /// ids are reused, and a compile does not take this long.
 const RUN_ANSWER_SECS: u64 = 3600;
 
+/// The log line for an install the fallback allowed: `UNASKED`, the
+/// request, ` (<why>; from <processes>)`, `UNASKED_END`.
+const UNASKED: &str = "could not ask about ";
+const UNASKED_END: &str = "; ask_fallback is yes";
+
+/// For a log message about a prompt that could not be shown, why not and
+/// where the request came from (`mtx doctor` reports the last one).
+pub fn unasked_reason(msg: &str) -> Option<&str> {
+    let rest = msg.strip_prefix(UNASKED)?.strip_suffix(UNASKED_END)?.strip_suffix(')')?;
+    // The request ends with its size, `(… MiB)`.
+    rest.split_once(" MiB) (").map(|(_, why)| why)
+}
+
+/// How a prompt went: the answer and how it was given (`terminal`,
+/// `dialog`), or why nobody could be asked.
+pub type Asked = std::result::Result<(Answer, &'static str), String>;
+
 /// Decide whether the install in `req` may go ahead, asking through
-/// `prompt` under the `ask` policy. `prompt` returns `None` when it could
-/// not ask (no terminal, no dialog, timeout); the fallback applies then.
-pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> Option<Answer>) -> Result<bool> {
+/// `prompt` under the `ask` policy. When `prompt` could not ask (no
+/// terminal, no dialog, timeout) the fallback applies. Every outcome is
+/// logged with the processes above mtx, to tell where a build came from.
+pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> Asked) -> Result<bool> {
     let decline = |why: &str| -> Result<bool> {
         ctx.log(format!("declined: {} ({why})", req.describe()));
         Ok(false)
@@ -158,7 +236,7 @@ pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> Op
         Policy::No => return decline("autoinstall is off"),
         Policy::Ask => {}
     }
-    let key = run_key();
+    let (key, from) = run_context();
     if let Some(v) = ctx.db.get(&key)? {
         if let Some((answer, at)) = v.split_once(' ') {
             if now_secs().saturating_sub(at.parse().unwrap_or(0)) < RUN_ANSWER_SECS {
@@ -167,12 +245,15 @@ pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> Op
         }
     }
     let answer = match prompt(ctx, &req.describe()) {
-        Some(a) => a,
-        None => {
+        Ok((answer, via)) => {
+            ctx.log(format!("asked about {} by {via}: {} (from {from})", req.describe(), answer.as_str()));
+            answer
+        }
+        Err(why) => {
             if ctx.db.get("ask_fallback")?.is_some_and(|v| Policy::parse(&v) == Policy::No) {
-                return decline("no terminal or dialog to ask; ask_fallback is no");
+                return decline(&format!("could not ask: {why}; from {from}; ask_fallback is no"));
             }
-            ctx.log(format!("no terminal or dialog to ask about {}; ask_fallback is yes", req.describe()));
+            ctx.log(format!("{UNASKED}{} ({why}; from {from}){UNASKED_END}", req.describe()));
             Answer::Yes
         }
     };
@@ -195,38 +276,46 @@ pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> Op
 }
 
 /// Ask the user: terminal first, then a dialog (unless `ask_dialog` is
-/// off or this is an SSH session), else `None`.
-pub fn ask_user(ctx: &Ctx, question: &str) -> Option<Answer> {
-    if let Some(a) = ask_tty(question) {
-        return Some(a);
-    }
+/// off or this is an SSH session). The error says why neither worked.
+pub fn ask_user(ctx: &Ctx, question: &str) -> Asked {
+    let tty = match ask_tty(question) {
+        Ok(a) => return Ok((a, "terminal")),
+        Err(why) => why,
+    };
     let dialog_off = ctx.db.get("ask_dialog").ok().flatten().is_some_and(|v| Policy::parse(&v) == Policy::No);
-    if dialog_off || std::env::var_os("SSH_CONNECTION").is_some() {
-        return None;
+    if dialog_off {
+        return Err(format!("{tty}; ask_dialog is no"));
     }
-    ask_dialog(question)
+    if std::env::var_os("SSH_CONNECTION").is_some() {
+        return Err(format!("{tty}; no dialog in an SSH session"));
+    }
+    match ask_dialog(question) {
+        Ok(a) => Ok((a, "dialog")),
+        Err(why) => Err(format!("{tty}; dialog: {why}")),
+    }
 }
 
-fn ask_tty(question: &str) -> Option<Answer> {
-    let tty = OpenOptions::new().read(true).write(true).open("/dev/tty").ok()?;
-    let mut out = tty.try_clone().ok()?;
+fn ask_tty(question: &str) -> std::result::Result<Answer, String> {
+    let tty = OpenOptions::new().read(true).write(true).open("/dev/tty").map_err(|_| "no terminal".to_string())?;
+    let io_err = |e: std::io::Error| format!("terminal: {e}");
+    let mut out = tty.try_clone().map_err(io_err)?;
     let mut input = BufReader::new(tty);
     for _ in 0..3 {
-        write!(out, "mtx: {question}. Install? [Y]es, [a]ll for this run, [n]o, n[o]ne for this run: ").ok()?;
-        out.flush().ok()?;
+        write!(out, "mtx: {question}. Install? [Y]es, [a]ll for this run, [n]o, n[o]ne for this run: ").map_err(io_err)?;
+        out.flush().map_err(io_err)?;
         let mut line = String::new();
-        if input.read_line(&mut line).ok()? == 0 {
-            return None;
+        if input.read_line(&mut line).map_err(io_err)? == 0 {
+            return Err("terminal closed".into());
         }
         match line.trim().to_ascii_lowercase().as_str() {
-            "" | "y" | "yes" => return Some(Answer::Yes),
-            "a" | "all" => return Some(Answer::All),
-            "n" | "no" => return Some(Answer::No),
-            "o" | "none" => return Some(Answer::None),
+            "" | "y" | "yes" => return Ok(Answer::Yes),
+            "a" | "all" => return Ok(Answer::All),
+            "n" | "no" => return Ok(Answer::No),
+            "o" | "none" => return Ok(Answer::None),
             _ => {}
         }
     }
-    None
+    Err("no valid answer on the terminal".into())
 }
 
 /// The AppleScript for the dialog; the question is passed as an argument,
@@ -240,24 +329,43 @@ const DIALOG: &[&str] = &[
     "end run",
 ];
 
-fn ask_dialog(question: &str) -> Option<Answer> {
+fn ask_dialog(question: &str) -> std::result::Result<Answer, String> {
     let mut cmd = Command::new("/usr/bin/osascript");
     for line in DIALOG {
         cmd.args(["-e", line]);
     }
-    let out = cmd.arg(format!("{question}.\n\n\"Install All\" also installs what the rest of this run needs.")).output().ok()?;
-    parse_dialog(out.status.success(), &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr))
+    let started = std::time::Instant::now();
+    let out = cmd
+        .arg(format!("{question}.\n\n\"Install All\" also installs what the rest of this run needs."))
+        .output()
+        .map_err(|e| format!("cannot run osascript: {e}"))?;
+    let secs = started.elapsed().as_secs_f64();
+    parse_dialog(out.status.code(), &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr))
+        .map_err(|why| format!("{why} after {secs:.1} s"))
 }
 
-/// `osascript` exits with error -128 when the cancel button is pressed.
-fn parse_dialog(ok: bool, stdout: &str, stderr: &str) -> Option<Answer> {
-    if !ok {
-        return stderr.contains("(-128)").then_some(Answer::No);
+/// Read `osascript`'s result: its exit code (`None` if killed by a
+/// signal), stdout and stderr. It exits with error -128 when the cancel
+/// button is pressed; any other failure is reported with its message.
+fn parse_dialog(code: Option<i32>, stdout: &str, stderr: &str) -> std::result::Result<Answer, String> {
+    if code != Some(0) {
+        if stderr.contains("(-128)") {
+            return Ok(Answer::No);
+        }
+        let mut msg = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+        if msg.len() > 300 {
+            let cut = (0..=300).rev().find(|&i| msg.is_char_boundary(i)).unwrap_or(0);
+            msg.truncate(cut);
+            msg.push('…');
+        }
+        let status = code.map_or("killed by a signal".to_string(), |c| format!("exit {c}"));
+        return Err(if msg.is_empty() { format!("osascript {status}") } else { format!("osascript {status}: {msg}") });
     }
     match stdout.trim() {
-        "Install" => Some(Answer::Yes),
-        "Install All" => Some(Answer::All),
-        _ => None,
+        "Install" => Ok(Answer::Yes),
+        "Install All" => Ok(Answer::All),
+        "timeout" => Err("no answer within 30 s".into()),
+        other => Err(format!("osascript returned {other:?}")),
     }
 }
 
@@ -276,29 +384,59 @@ mod tests {
         }
     }
 
+    const PS: &str = "    1     0 /sbin/launchd\n\
+                      500     1 /Applications/Visual Studio Code.app/Contents/MacOS/Code\n\
+                      510   500 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) --type=utility\n\
+                      520   510 -zsh -l\n\
+                      600   520 /usr/bin/perl /r/texmf-dist/scripts/latexmk/latexmk.pl -pdf main\n\
+                      610   600 /r/bin/universal-darwin/mtx prefetch --auto main.tex\n\
+                      620   600 sh -c pdflatex -recorder main.tex\n\
+                      621   620 pdflatex -recorder main.tex\n\
+                      700     1 pdflatex plain.tex\n";
+
     #[test]
     fn answers_cover_the_whole_latexmk_build() {
-        let ps = "    1     0 /sbin/launchd\n\
-                  500     1 /Applications/Visual Studio Code.app/Contents/MacOS/Code\n\
-                  600   500 /usr/bin/perl /r/texmf-dist/scripts/latexmk/latexmk.pl -pdf main\n\
-                  610   600 /r/bin/universal-darwin/mtx prefetch --auto main.tex\n\
-                  620   600 sh -c pdflatex -recorder main.tex\n\
-                  621   620 pdflatex -recorder main.tex\n\
-                  700     1 pdflatex plain.tex\n";
+        let procs = parse_ps(PS);
         // Prefetch and every TeX pass of the build share latexmk's id.
-        assert_eq!(latexmk_ancestor(ps, 600), Some(600));
-        assert_eq!(latexmk_ancestor(ps, 621), Some(600));
+        assert_eq!(latexmk_ancestor(&procs, 600), Some(600));
+        assert_eq!(latexmk_ancestor(&procs, 621), Some(600));
         // TeX run on its own: no latexmk above it.
-        assert_eq!(latexmk_ancestor(ps, 700), None);
-        assert_eq!(latexmk_ancestor(ps, 999), None);
+        assert_eq!(latexmk_ancestor(&procs, 700), None);
+        assert_eq!(latexmk_ancestor(&procs, 999), None);
+    }
+
+    #[test]
+    fn ancestry_names_where_a_build_came_from() {
+        let procs = parse_ps(PS);
+        assert_eq!(
+            ancestry(&procs, 621),
+            "pdflatex < latexmk.pl < zsh < Visual Studio Code"
+        );
+        assert_eq!(ancestry(&procs, 700), "pdflatex");
+        assert_eq!(ancestry(&procs, 999), "process 999");
+    }
+
+    #[test]
+    fn unasked_reasons_are_read_back_from_the_log() {
+        let msg = "could not ask about x.sty needs package x (0.1 MiB) (no terminal; dialog: osascript exit 1: \
+                   No user interaction allowed. (-1713) after 2.1 s; from pdflatex < latexmk.pl); ask_fallback is yes";
+        assert_eq!(
+            unasked_reason(msg),
+            Some("no terminal; dialog: osascript exit 1: No user interaction allowed. (-1713) after 2.1 s; from pdflatex < latexmk.pl")
+        );
+        assert_eq!(unasked_reason("installing 1 package(s), 0.0 MiB: x"), None);
     }
 
     #[test]
     fn dialog_results() {
-        assert_eq!(parse_dialog(true, "Install\n", ""), Some(Answer::Yes));
-        assert_eq!(parse_dialog(true, "Install All\n", ""), Some(Answer::All));
-        assert_eq!(parse_dialog(true, "timeout\n", ""), None);
-        assert_eq!(parse_dialog(false, "", "execution error: User canceled. (-128)"), Some(Answer::No));
-        assert_eq!(parse_dialog(false, "", "execution error: No user interaction allowed. (-1713)"), None);
+        assert_eq!(parse_dialog(Some(0), "Install\n", ""), Ok(Answer::Yes));
+        assert_eq!(parse_dialog(Some(0), "Install All\n", ""), Ok(Answer::All));
+        assert_eq!(parse_dialog(Some(0), "timeout\n", ""), Err("no answer within 30 s".into()));
+        assert_eq!(parse_dialog(Some(1), "", "execution error: User canceled. (-128)"), Ok(Answer::No));
+        assert_eq!(
+            parse_dialog(Some(1), "", "0:12: execution error:\n No user interaction allowed. (-1713)\n"),
+            Err("osascript exit 1: 0:12: execution error: No user interaction allowed. (-1713)".into())
+        );
+        assert_eq!(parse_dialog(None, "", ""), Err("osascript killed by a signal".into()));
     }
 }

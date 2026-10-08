@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Every `ask` outcome is logged with why a prompt could not be shown (osascript exit status, stderr, run time) and the process chain the request came from; `mtx doctor` warns about unshown prompts ([decision 0007](/decisions/0007-install-consent.md), [mtx-core](/architecture/mtx-core.md), [handoff](/project/handoff.md)).
 * **Update**: Real installation is on the user's PATH and used from VS Code ([handoff](/project/handoff.md), [status](/project/status.md)); recorded a build where the `ask` dialog failed fast and fell back to yes.
 * **Update**: "Install All" now covers a whole latexmk build, not just one process ([decision 0007](/decisions/0007-install-consent.md)); reported by the user from the VS Code dialog.
 * **Update**: README states the use of AI (Claude through Claude Code) in writing MennoTeX ([decision 0008](/decisions/0008-licensing.md)).

@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T08:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T11:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -36,7 +36,7 @@ verified:
   on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
 - **Repository:** private `MennoJ97/MennoTeX`, branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
-  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 57 `cargo test` tests; the OKF bundle checks clean.
+  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 60 `cargo test` tests; the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
@@ -108,13 +108,15 @@ archives. See the [development playbook](/playbooks/development.md).
    Still open:
    - **The dialog did not show for one real build.** On the real root (autoinstall
      `ask`), a build of the user's lecture notes on 2026-10-08 10:23–10:25 logged 18
-     times "no terminal or dialog to ask …; ask_fallback is yes", each 2–3 s after the
+     times "no terminal or dialog to ask …; ask_fallback is yes", 3–11 s after the
      lookup: `osascript` failed fast (a 30 s give-up or a click would look different).
-     Whether that build ran from VS Code or from a session without GUI access is not
-     recorded; the user did see dialogs in VS Code earlier (commit `405ec3f`). Next:
-     log osascript's exit status and stderr on failure (today `ask_dialog` drops them),
-     and log the latexmk/parent process so the source of a build is known. Ask the
-     user before popping dialogs.
+     The cause is still unknown. **Diagnostics are in** (2026-10-08): every `ask`
+     outcome is now logged with osascript's exit status, stderr and run time, and the
+     process chain above mtx (`from pdflatex < latexmk.pl < … < Visual Studio Code`);
+     `mtx doctor` warns when prompts could not be shown and quotes the last reason.
+     Next: once the real installation runs this mtx (`mtx repair` from the newest build,
+     with the user's OK), read the next `could not ask` line in its `mtx.log`.
+     Ask the user before popping dialogs.
    - Getting the reason into TeX's own `.log` (what editors show) is not possible from
      kpathsea; a C change could print a `! mtx: …` line to the terminal/log via the engine.
 4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),

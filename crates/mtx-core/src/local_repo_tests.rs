@@ -227,11 +227,16 @@ mod consent_tests {
 
     #[test]
     fn ask_without_any_ui_uses_the_fallback() {
-        let (_d, _root, mut ctx) = setup(&testdata_repo());
+        let (_d, root, mut ctx) = setup(&testdata_repo());
         ctx.refresh(true).unwrap();
         ctx.db.set("autoinstall", "ask").unwrap();
-        ctx.prompter = |_, _| None;
+        ctx.prompter = |_, _| Err("no terminal; dialog: osascript exit 1".into());
         auto_install(&mut ctx, "bar").unwrap(); // fallback defaults to yes
+        // The log says why nobody was asked and where the request came from.
+        let log = fs::read_to_string(root.log_path()).unwrap();
+        let line = log.lines().find(|l| l.contains("could not ask about")).expect(&log);
+        assert!(line.contains("(no terminal; dialog: osascript exit 1; from "), "{line}");
+        assert!(line.ends_with("ask_fallback is yes"), "{line}");
         ctx.db.set("ask_fallback", "no").unwrap();
         let err = auto_install(&mut ctx, "fonts-x").unwrap_err();
         assert!(err.downcast_ref::<Declined>().is_some(), "{err:#}");
@@ -248,7 +253,7 @@ mod consent_tests {
         ctx.prompter = |_, q| {
             assert!(q.starts_with("foo.sty needs package foo and 1 more"), "{q}");
             ASKED.fetch_add(1, Ordering::SeqCst);
-            Some(Answer::All)
+            Ok((Answer::All, "test"))
         };
         auto_install(&mut ctx, "foo").unwrap();
         auto_install(&mut ctx, "fonts-x").unwrap(); // not asked again
@@ -263,7 +268,7 @@ mod consent_tests {
         let (_d, _root, mut ctx) = setup(&testdata_repo());
         ctx.refresh(true).unwrap();
         ctx.db.set("autoinstall", "ask").unwrap();
-        ctx.prompter = |_, _| Some(Answer::None);
+        ctx.prompter = |_, _| Ok((Answer::None, "test"));
         assert!(auto_install(&mut ctx, "foo").is_err());
         ctx.prompter = |_, _| panic!("asked again after `none`");
         assert!(auto_install(&mut ctx, "fonts-x").is_err());
