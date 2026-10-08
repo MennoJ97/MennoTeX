@@ -96,7 +96,7 @@ jobs:
           git -C "$TL_SRC" archive --prefix="$src/texlive-source/" -o "$PWD/dist/tl.tar" "$(cat build/texlive-source.rev)"
           git archive --prefix="$src/" -o dist/mtx.tar HEAD \
             kpathsea-ondemand build LICENSING.md LICENSE-MIT LICENSE-APACHE README.md .github/workflows/build-binaries.yml
-          tar --options xz:threads=0 -cJf "dist/$src.tar.xz" @dist/tl.tar @dist/mtx.tar
+          tar -cJf "dist/$src.tar.xz" @dist/tl.tar @dist/mtx.tar
           rm dist/tl.tar dist/mtx.tar
           (cd dist && shasum -a 256 "$src.tar.xz" >> SHA256SUMS && cat SHA256SUMS)
           gh release create "$ARCHIVE" "dist/$ARCHIVE.tar.xz" "dist/$src.tar.xz" dist/SHA256SUMS \

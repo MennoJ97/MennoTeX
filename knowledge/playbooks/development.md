@@ -105,8 +105,14 @@ magic `cf fa ed fe` is enough), then run the two steps' commands by hand with
 `TL_SRC`, `BIN_DIR` and `ARCHIVE` set and `GITHUB_ENV=/dev/null`, from a checkout of
 this repository. Check with `tar -tJf`, then install the result into a scratch root
 with `mtx --root <scratch> install-binaries <archive> --sums SHA256SUMS`.
-`git archive` of a blob-less partial clone fetches blobs lazily and is far slower than
-a plain shallow clone; use the latter.
+Measured 2026-10-08 on this Mac: the binary archive (3 real programs) was 8 MB, the
+source archive 100 MB, built in 2 min 22 s, single-threaded: Apple's `bsdtar` ignores
+`--options xz:threads=0`. `git archive` of a blob-less partial clone fetches blobs
+lazily and is far slower than a plain shallow clone. A shallow `git fetch` of
+texlive-source (~150 MB) can be dropped by GitHub mid-transfer (`curl 92 HTTP/2 stream
+… CANCEL`) and cannot resume; the codeload tarball of the revision can
+(`curl -C -`), but its tree is not identical (export-ignore'd files, CRLF in `.bat`
+files), so commit it locally only to test the shell, not as the release's source.
 
 # Useful commands
 
