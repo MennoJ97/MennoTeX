@@ -13,15 +13,16 @@ verified:
 
 # Where things stand (2026-10-08)
 
-- **Ready for the next release, not in one yet (2026-10-08, the user asked for these
-  four after the release):** the upgrade rule of PLAN.md §4.3 ([decision 0018](/decisions/0018-upgrades-around-compiles.md):
+- **Released and installed as `mennotex-2026-50cd1119c` (2026-10-08, signed by the user;
+  the real installation runs mtx `50cd1119c`, `texmf.cnf` has `texmf-ctan`). Asked for by
+  the user after the release before it:** the upgrade rule of PLAN.md §4.3 ([decision 0018](/decisions/0018-upgrades-around-compiles.md):
   dependencies and the kernel upgraded outside compiles, deferred during them, caught up
   by prefetch); the on-the-fly overhead measured (median 87 ms per package with cached
   archives, 457 ms cold; [status](/project/status.md)); the settings `freshness_ttl`,
   `prefetch_depth` and `docs`; and `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md)). Also `mtx list --auto|--explicit` and `ls-R` compaction in `mtx update`.
   All in mtx, no C changes, so a release run can reuse the programs (`9c5675bd`, about
   2½ minutes). The new `texmf.cnf` line (`texmf-ctan` in `TEXMFAUXTREES`) reaches an
-  installation through the `repair` that `self-update` runs. 100 `cargo test` tests. **Drafted 2026-10-08:** `mennotex-2026-50cd1119c` (run 37800275954, 3 min, programs reused); next the user signs it with `tools/sign_release.sh mennotex-2026-50cd1119c` and runs `mtx self-update`.
+  installation through the `repair` that `self-update` runs. 100 `cargo test` tests. Run 37800275954 (3 min, programs reused).
 - **Released and installed (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
   programs `mennotex-bin-2026-6a3001880.9c5675bd`, reused from `cf6183267`'s run
   37791928013) carries PLAN.md items 1–5 the user asked for: probe installs measured, no
@@ -113,8 +114,8 @@ archives. See the [development playbook](/playbooks/development.md).
    a build at 09:55 is the one behind commit `f334f3b`). Still to smoke-test: TeXShop
    and TeXstudio, which look in `/Library/TeX/texbin` rather than the shell's PATH
    (plan §5.2: TeXDist registration needs admin once, so ask first).
-2. **Next release:** carries the four items above; needs a CI run with `release: true`
-   (ask first), then the user signs and runs `mtx self-update`. Open from that list:
+2. **Next release:** nothing waiting. A release needs a CI run with `release: true`
+   (ask first), then the user signs and runs `mtx self-update`. Open from the plan:
    the weekly launchd `mtx update` (PLAN.md §4.3, optional) and the 300-document corpus
    (PLAN.md §8), which the user has not chosen yet.
 3. **Self-update and signed releases (2026-10-08, [decision 0011](/decisions/0011-releases-and-self-update.md)):**

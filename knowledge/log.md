@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Release `mennotex-2026-50cd1119c` signed and published by the user; the real installation updated with plain `mtx self-update` (the first update that found the newest release by itself) ([handoff](/project/handoff.md)).
 * **Update**: Release `mennotex-2026-50cd1119c` drafted by CI (run 37800275954) with the upgrade rule, settings, CTAN overlay, `mtx list` filters and ls-R compaction ([handoff](/project/handoff.md)).
 * **Update**: `mtx list --auto|--explicit` (PLAN.md §5.10); `mtx update` rewrites `texmf-dist/ls-R` (PLAN.md §5.6: installs only append, so it gathers repeated blocks and entries for files upgrades dropped) ([mtx-core](/architecture/mtx-core.md)).
 * **Creation**: [Decision 0019](/decisions/0019-ctan-overlay.md): `mtx install --from-ctan` puts CTAN's TDS archive in `texmf-ctan` over TeX Live's package; format stamps include the overlay; `mtx update` drops it once tlnet catches up. CTAN often has no TDS archive (`nicematrix`), and kernel packages have no catalogue version in TeX Live ([package quirks](/upstream/package-quirks.md)).
