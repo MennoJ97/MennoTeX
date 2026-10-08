@@ -4,7 +4,7 @@ title: Signed releases and self-update
 description: Releases (mtx plus TeX Live's programs) are drafted by CI, signed with minisign on the maintainer's Mac and published; mtx self-update and upgrade-release install only releases whose SHA256SUMS signature and checksums verify, and a current symlink makes release upgrades a PATH-free switch.
 tags: [decision, release, signing, minisign, self-update, upgrade]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:00:00Z }
 sources:
   - id: minisign
     resource: https://jedisct1.github.io/minisign/
@@ -82,3 +82,10 @@ with the signed manifest, and chose to keep the signing key on their Mac.
   fake "2027" release (new root next to the old one with the same packages, `current`
   moved, a second run refused). Not yet tested: a real signed release from CI, and a
   real TeX Live 2027.
+- **Keeping releases (the user, 2026-10-08):** the newest release and the one before it
+  (a rollback with `mtx self-update --release TAG`) stay on GitHub; superseded ones are
+  deleted with `gh release delete TAG` and their git tags kept, so every published build
+  can still be found and rebuilt. Each release carries its own source archive, so deleting
+  one removes its programs and their source together, and CI reuses programs only from
+  releases still there. Deleted 2026-10-08: `mennotex-2026-cf6183267`,
+  `mennotex-2026-f06b1506f` and the first `mennotex-bin-2026-6a3001880-arm64-darwin`.

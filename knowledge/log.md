@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Superseded GitHub releases deleted at the user's request (tags kept); the newest and the previous release stay ([decision 0011](/decisions/0011-releases-and-self-update.md)).
 * **Update**: Release `mennotex-2026-50cd1119c` signed and published by the user; the real installation updated with plain `mtx self-update` (the first update that found the newest release by itself) ([handoff](/project/handoff.md)).
 * **Update**: Release `mennotex-2026-50cd1119c` drafted by CI (run 37800275954) with the upgrade rule, settings, CTAN overlay, `mtx list` filters and ls-R compaction ([handoff](/project/handoff.md)).
 * **Update**: `mtx list --auto|--explicit` (PLAN.md §5.10); `mtx update` rewrites `texmf-dist/ls-R` (PLAN.md §5.6: installs only append, so it gathers repeated blocks and entries for files upgrades dropped) ([mtx-core](/architecture/mtx-core.md)).

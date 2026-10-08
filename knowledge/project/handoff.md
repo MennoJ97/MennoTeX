@@ -93,6 +93,9 @@ archives. See the [development playbook](/playbooks/development.md).
   runs on 2026-10-07 (artifact only), 2026-10-08 (`release: true`, the first Release)
   and 2026-10-08 (run 37765924689, artifact only, with the `mtx_interrupted` C change);
   ask before any further run.
+- **Old releases (2026-10-08):** keep the newest and the one before it; delete older
+  ones on GitHub but keep their tags ([decision 0011](/decisions/0011-releases-and-self-update.md)).
+  Only `mennotex-2026-50cd1119c` and `mennotex-2026-675989434` are left.
 - **Release signing (decision 0011):** the minisign secret key stays on the user's
   Mac; CI only drafts releases, `tools/sign_release.sh` signs and publishes. No other workflows were added (a cheap Linux
   `cargo test` + OKF check on push would also need the user's OK).
