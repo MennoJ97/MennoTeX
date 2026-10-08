@@ -4,7 +4,7 @@ title: Asking before automatic installs
 description: An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.
 tags: [decision, policy, ask, logging, ux]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T00:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T00:30:00Z }
 ---
@@ -34,8 +34,11 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
   run, [n]o, n[o]ne for this run`), else (not over SSH, and unless `ask_dialog no`) an
   `osascript` dialog with Don't Install / Install All / Install, giving up after 30 s,
   else `ask_fallback` (default yes).
-- **One answer per compile:** "all" and "none" are stored as `ask_run:<parent pid>` for
-  an hour. kpathsea forks `mtx ensure` from the TeX engine, so the parent is the compile.
+- **One answer per build:** "all" and "none" are stored as `ask_run:<id>` for an hour,
+  where the id is the nearest latexmk ancestor (found with `ps`), else mtx's parent (the
+  TeX engine, which kpathsea forks mtx from). The first version used the parent only;
+  the user saw "Install All" followed by more dialogs, because one latexmk build runs
+  mtx from the prefetch and from every pdfLaTeX pass, each a different parent.
 - **Logging:** failures are logged as `error: …`, refusals as `declined: …`; `main`
   and the Phase 0 hooks append their errors to `mtx.log` too. `mtx log [--problems]`
   shows recent entries; `mtx doctor` warns about problems in the last 24 hours.
@@ -45,7 +48,8 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
 - Tested: unit and offline tests for policy parsing, the fallback, "all"/"none" covering
   later installs, refusals leaving nothing installed, and the dialog's result parsing.
   End to end with the CI binaries: under `expect`, one terminal answer `a` covered three
-  installs of one pdfLaTeX run; without a terminal and with `ask_fallback no`, the run
+  installs of one pdfLaTeX run, and (after the fix above) a `latexmk` build's prefetch and
+  later pdfLaTeX passes with one prompt; the dialog was used by the user in VS Code; without a terminal and with `ask_fallback no`, the run
   failed with "File `epigraph.sty' not found", and `mtx log --problems` and `mtx doctor`
   explained why. The dialog's AppleScript compiles (`osacompile`), but a dialog has not
   been clicked through yet.

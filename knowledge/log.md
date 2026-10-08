@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: "Install All" now covers a whole latexmk build, not just one process ([decision 0007](/decisions/0007-install-consent.md)); reported by the user from the VS Code dialog.
 * **Update**: README states the use of AI (Claude through Claude Code) in writing MennoTeX ([decision 0008](/decisions/0008-licensing.md)).
 * **Update**: A network blip failed a VS Code build: connect timeout 5 → 10 s, builds start with a fresh network check, failure report covers prefetch errors and skipped installs, and latexmk reruns after prefetch installs ([TeX Live scripts](/upstream/texlive-scripts.md), [tlnet](/upstream/tlnet.md)).
 * **Update**: Release archives carry license texts (`licenses/` tree of every texlive-source license file, GPL-2/LGPL-2.1 texts, `LICENSING.md`) and `kpathsea-ondemand/`; a Release also gets the corresponding source archive ([decision 0008](/decisions/0008-licensing.md), [licenses](/upstream/licenses.md), [playbook](/playbooks/development.md), [handoff](/project/handoff.md)).

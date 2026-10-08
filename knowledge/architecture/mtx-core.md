@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T22:30:00Z }
 ---
@@ -19,7 +19,7 @@ verified:
 | `verify` | OpenPGP check of `texlive.tlpdb.sha512.asc` | Pins the primary fingerprint; accepts the newest valid subkey binding (see [tlnet](/upstream/tlnet.md)) |
 | `repo` | HTTP/`file://` repository access, verified streaming downloads; historic mirror list | Size or SHA-512 mismatch → `ChecksumMismatch` (triggers retry); `probe` checks the checksum file's content, not just HTTP 200 |
 | `ctx` | Root + DB + pinned mirror + logging + `refresh`; release transitions ([decision 0006](/decisions/0006-release-transitions.md)) | Logs never go to stdout; connect timeout 10 s; TTL 1 h; mirror pin 24 h; bad mirrors avoided 24 h; `failover` blames the mirror only if the redirector answers; the release is checked only after the signature; a newer release switches `repository` to `historic:<RELEASE>`, an older one rejects the mirror |
-| `consent` | `autoinstall` policy for automatic installs: `$MTX_AUTOINSTALL` / setting; `ask` via `/dev/tty`, `osascript` dialog, or `ask_fallback`; answers for a whole run keyed by parent pid ([decision 0007](/decisions/0007-install-consent.md)) | Only installs with `Ctx::ask_for` set are gated; the gate runs before downloading; `Ctx::prompter` is replaced in tests |
+| `consent` | `autoinstall` policy for automatic installs: `$MTX_AUTOINSTALL` / setting; `ask` via `/dev/tty`, `osascript` dialog, or `ask_fallback`; answers for a whole run keyed by the nearest latexmk ancestor, else the parent pid ([decision 0007](/decisions/0007-install-consent.md)) | Only installs with `Ctx::ask_for` set are gated; the gate runs before downloading; `Ctx::prompter` is replaced in tests |
 | `config` | `mtx config`: `autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors` | Values are validated and normalized; changing a repository unpins the mirror |
 | `logview` | Read the end of `mtx.log` for `mtx log` and `mtx doctor` | `error:` and `declined:` lines are problems |
 | `db` | SQLite `installed.sqlite`: packages, files, kv state | Reinstall as `auto` never downgrades an `explicit`/`bootstrap` reason; `Reason::Upgrade` keeps the recorded reason |

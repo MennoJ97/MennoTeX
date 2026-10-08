@@ -10,8 +10,11 @@
 //! `ask_fallback` setting (default `yes`: MiKTeX's headless "ask" silently
 //! means no, which confuses people). One first compile can need dozens of
 //! packages, so an answer can cover the rest of the run: it is remembered
+//! for the latexmk build the request comes from (one build runs several TeX
+//! passes, biber and mtx's prefetch, each a different parent of mtx), else
 //! for the parent process, which for kpathsea's calls is the TeX engine.
 
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
@@ -100,7 +103,42 @@ impl Request<'_> {
 }
 
 fn run_key() -> String {
-    format!("ask_run:{}", std::os::unix::process::parent_id())
+    let parent = std::os::unix::process::parent_id();
+    let processes = Command::new("/bin/ps")
+        .args(["-A", "-o", "pid=,ppid=,command="])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
+    format!("ask_run:{}", latexmk_ancestor(&processes, parent).unwrap_or(parent))
+}
+
+/// The nearest process, starting at `pid` and going up, that is latexmk
+/// (`latexmk …`, or `perl …/latexmk.pl …` as MennoTeX's `latexmk` runs it),
+/// given `ps -o pid=,ppid=,command=` output.
+fn latexmk_ancestor(ps: &str, mut pid: u32) -> Option<u32> {
+    let procs: HashMap<u32, (u32, &str)> = ps
+        .lines()
+        .filter_map(|l| {
+            let mut w = l.split_whitespace();
+            let pid = w.next()?.parse().ok()?;
+            let ppid = w.next()?.parse().ok()?;
+            let cmd_start = l.find(w.next()?)?;
+            Some((pid, (ppid, &l[cmd_start..])))
+        })
+        .collect();
+    for _ in 0..32 {
+        let (ppid, cmd) = procs.get(&pid)?;
+        let is_latexmk =
+            cmd.split_whitespace().take(2).any(|w| matches!(w.rsplit('/').next(), Some("latexmk" | "latexmk.pl")));
+        if is_latexmk {
+            return Some(pid);
+        }
+        if *ppid <= 1 {
+            return None;
+        }
+        pid = *ppid;
+    }
+    None
 }
 
 /// How long an "all"/"none" answer for a parent process is trusted: process
@@ -236,6 +274,23 @@ mod tests {
         for yes in ["1", "yes", "true", "always", ""] {
             assert_eq!(Policy::parse(yes), Policy::Yes, "{yes}");
         }
+    }
+
+    #[test]
+    fn answers_cover_the_whole_latexmk_build() {
+        let ps = "    1     0 /sbin/launchd\n\
+                  500     1 /Applications/Visual Studio Code.app/Contents/MacOS/Code\n\
+                  600   500 /usr/bin/perl /r/texmf-dist/scripts/latexmk/latexmk.pl -pdf main\n\
+                  610   600 /r/bin/universal-darwin/mtx prefetch --auto main.tex\n\
+                  620   600 sh -c pdflatex -recorder main.tex\n\
+                  621   620 pdflatex -recorder main.tex\n\
+                  700     1 pdflatex plain.tex\n";
+        // Prefetch and every TeX pass of the build share latexmk's id.
+        assert_eq!(latexmk_ancestor(ps, 600), Some(600));
+        assert_eq!(latexmk_ancestor(ps, 621), Some(600));
+        // TeX run on its own: no latexmk above it.
+        assert_eq!(latexmk_ancestor(ps, 700), None);
+        assert_eq!(latexmk_ancestor(ps, 999), None);
     }
 
     #[test]
