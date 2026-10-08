@@ -140,6 +140,24 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
         }
     }
 
+    // latexmk: an rc file (~/.latexmkrc) may point it at another TeX
+    // installation's programs, mixing versions (biber must match biblatex).
+    if root.texmf_dist().join("scripts/latexmk/latexmk.pl").exists() {
+        let commands = std::process::Command::new(bin.join("latexmk"))
+            .arg("-commands")
+            .env("PATH", format!("{}:{path_env}", bin.display()))
+            .output();
+        if let Ok(commands) = commands {
+            for (prog, path) in foreign_latexmk_programs(&String::from_utf8_lossy(&commands.stdout), &root.dir) {
+                push(
+                    &mut out,
+                    Severity::Warning,
+                    format!("latexmk runs {prog} from {path} (set in a latexmk rc file such as ~/.latexmkrc), not MennoTeX's"),
+                );
+            }
+        }
+    }
+
     // Release: tlnet may have moved on to the next TeX Live (ctx.rs pins
     // the frozen repository then).
     if let Some(newer) = ctx.db.get_u64("newer_release")? {
@@ -181,6 +199,27 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
     Ok(out)
 }
 
+/// Programs in `latexmk -commands` output that run from an absolute path
+/// outside the installation and the system directories: (program, path).
+pub fn foreign_latexmk_programs(commands: &str, root: &Path) -> Vec<(String, String)> {
+    const SYSTEM: &[&str] = &["/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/"];
+    let mut out = Vec::new();
+    for line in commands.lines() {
+        let Some(rest) = line.trim().strip_prefix("To run ") else { continue };
+        let Some((prog, cmd)) = rest.split_once(", I use \"") else { continue };
+        let cmd = cmd.strip_suffix('"').unwrap_or(cmd);
+        // Quoted paths may contain spaces ("/Library/Application Support/…").
+        let mut paths: Vec<&str> = cmd.split('"').skip(1).step_by(2).collect();
+        paths.extend(cmd.split('"').step_by(2).flat_map(str::split_whitespace));
+        if let Some(p) = paths.into_iter().find(|p| {
+            p.starts_with('/') && !Path::new(p).starts_with(root) && !SYSTEM.iter().any(|s| p.starts_with(s))
+        }) {
+            out.push((prog.to_string(), p.to_string()));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,5 +233,21 @@ mod tests {
         let path = format!("{}:{}", b.path().display(), a.path().display());
         assert_eq!(which("tex", &path).unwrap(), b.path().join("tex"));
         assert!(which("nope", &path).is_none());
+    }
+
+    #[test]
+    fn latexmk_programs_from_other_installations() {
+        let commands = "Commands used by latexmk:\n   To run pdflatex, I use \"pdflatex %O %S\"\n\
+            \x20  To run biber, I use \"arch -arm64 \"/Library/Application Support/MiKTeX/biber\" %O %S\"\n\
+            \x20  To run makeindex, I use \"/usr/bin/env makeindex %O %S\"\n\
+            \x20  To run xelatex, I use \"/r/bin/universal-darwin/xelatex %O %S\"\n\
+            \x20  To run bibtex, I use \"/usr/local/texlive/2025/bin/universal-darwin/bibtex %O %S\"\n";
+        assert_eq!(
+            foreign_latexmk_programs(commands, Path::new("/r")),
+            vec![
+                ("biber".to_string(), "/Library/Application Support/MiKTeX/biber".to_string()),
+                ("bibtex".to_string(), "/usr/local/texlive/2025/bin/universal-darwin/bibtex".to_string()),
+            ]
+        );
     }
 }

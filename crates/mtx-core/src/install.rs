@@ -23,6 +23,7 @@ pub const PROTECTED: &[&str] = &[
     "bin/universal-darwin/mktextfm",
     "bin/universal-darwin/mktexfmt",
     "bin/universal-darwin/texdoc",
+    "bin/universal-darwin/latexmk",
 ];
 
 #[derive(Debug, Default)]

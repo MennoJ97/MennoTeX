@@ -1,10 +1,10 @@
 ---
 type: Reference
-title: "TeX Live scripts: mktexfmt, fmtutil, updmap, texdoc"
-description: Behaviour of the TeX Live scripts mtx relies on, including the TEXMFVAR constraint and how texdoc finds its database and documents.
+title: "TeX Live scripts: mktexfmt, fmtutil, updmap, texdoc, latexmk"
+description: Behaviour of the TeX Live scripts mtx relies on, including the TEXMFVAR constraint, how texdoc finds its database and documents, and latexmk's rc files and hooks.
 tags: [texlive, fmtutil, mktexfmt, updmap, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:50:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:30:00Z }
 sources:
@@ -16,6 +16,10 @@ sources:
     resource: texlive-scripts archive, texmf-dist/scripts/texlive/fmtutil.pl
     title: fmtutil.pl
     author: team:tex-live
+  - id: latexmk
+    resource: latexmk archive (4.88, 9 March 2026), texmf-dist/scripts/latexmk/latexmk.pl
+    title: latexmk 4.88 source
+    author: john-collins
   - id: texdoc
     resource: texdoc archive (v4.1.2), texmf-dist/scripts/texdoc/texdoclib-search.tlu and texdoclib-config.tlu
     title: texdoc 4.1.2 sources
@@ -70,3 +74,24 @@ sources:
   through kpathsea (`TeX system documentation`), which works with mtx's ls-R.
 
 [^texdoc]: texdoc 4.1.2 sources
+
+# latexmk (checked 2026-10-08, latexmk 4.88)
+
+- System rc: `$LATEXMKRCSYS` if set (then *only* that file), else the first existing of
+  `/etc/LatexMk`, `/opt/local/share/latexmk/LatexMk`, `/usr/local/share/latexmk/LatexMk`,
+  `/usr/local/lib/latexmk/LatexMk` (and `latexmkrc` variants); user rc files come after.[^latexmk]
+  So without admin rights, a distribution can only add a system rc through
+  `$LATEXMKRCSYS`. MennoTeX's rc reads the first of `@UNIX_rc_system_files` itself, so
+  nothing is lost.
+- Hooks: `add_hook('compile_begin', sub { my %info = @_; … })` runs once per document build
+  (not per pass) with `tex_file`, `root_name`, `aux_dir`, …; `$failure_cmd` runs when a
+  build fails, in normal and `-pvc` mode (`compile_failure` hooks only in `-pvc`).
+- `time()` inside rc code returns fractions (latexmk loads Time::HiRes).
+- `latexmk -commands` prints the effective command per program after all rc files,
+  which shows overrides such as `$biber` pointing into another installation.
+- On this Mac, `~/.latexmkrc` (2026-10-06) pinned `$biber` to MiKTeX's binary
+  (`arch -arm64 …/MiKTeX/…/biber`) because MiKTeX's x86 launcher fails on arm64. With
+  MennoTeX first on PATH, that mixed MiKTeX's biber with MennoTeX's biblatex; the user
+  had it made conditional on `mtx` being next to the first `kpsewhich`.
+
+[^latexmk]: latexmk 4.88 source

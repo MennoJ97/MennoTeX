@@ -12,6 +12,7 @@ pub const KEYS: &[(&str, &str, &str)] = &[
     ("ask_dialog", "yes|no", "under `ask`, show a dialog when there is no terminal (default yes)"),
     ("repository", "URL|path", "TeX Live repository (default mirror.ctan.org's tlnet)"),
     ("historic_mirrors", "URL ...", "mirrors of TeX Live's historic archive, tried in order"),
+    ("auto_prefetch", "yes|no", "before each latexmk build, install what the document visibly needs in one batch (default yes)"),
     ("binaries_repo", "OWNER/REPO", "GitHub repository for `mtx install-binaries --github` (default MennoJ97/MennoTeX)"),
 ];
 
@@ -29,7 +30,7 @@ pub fn normalize(key: &str, value: &str) -> Result<String> {
             "ask" => Ok(Policy::Ask.as_str().into()),
             v => yes_no(v),
         },
-        "ask_fallback" | "ask_dialog" => yes_no(value),
+        "ask_fallback" | "ask_dialog" | "auto_prefetch" => yes_no(value),
         "repository" | "historic_mirrors" if !value.trim().is_empty() => Ok(value.trim().to_string()),
         "repository" | "historic_mirrors" => bail!("{key} cannot be empty; use --unset"),
         "binaries_repo" => match value.trim().split_once('/') {

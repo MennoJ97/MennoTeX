@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:50:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -94,6 +94,7 @@ test document still makes 18 such calls.
 - `mtx update [--dry-run]`: upgrades outdated packages, keeping each package's reason.
 - `mtx prefetch doc.tex` (Phase 3 item): on the test article, 39 packages in one batch (2.3 s, cached archives); the following pdfLaTeX run needed 6 on-demand installs instead of 43 (`tcolorbox` libraries load `listings`, `tikzfill`, `pdfcol` indirectly; `ec` comes from font loading).
 - `mtx doctor` (Phase 3 item): detects the MiKTeX symlinks in `/usr/local/bin` that shadow MennoTeX on this Mac.
+- latexmk integration (2026-10-08): `latexmk` runs with MennoTeX's system rc. On a scratch root, `latexmk -pdf` on the tcolorbox article prefetched 29 packages in one batch and needed no installs during the TeX runs; the biblatex document installed and used MennoTeX's biber (67.8 MiB, biber 2.22) once the user's `~/.latexmkrc` stopped forcing MiKTeX's; a build failing on a declined install ended with the reasons from `mtx log`.
 - Documentation on demand (Phase 3 item, PLAN.md §5.9 `on-texdoc`): `texdoc tcolorbox` installs tcolorbox's 4.6 MiB doc container and lists it in one call; `texdoc pgfmanual` finds pgf by doc-file name; `mtx docs PKG` installs explicitly. Checked 2026-10-08 on a scratch root with `texdoc -l -M` (no viewer).
 - `mtx gc` (Phase 2 item): removes on-demand packages unused for N days, judged by file access times (macOS updates atime on read; checked 2026-10-08). End to end: two aged packages removed, a recently used one kept, `mtx doctor` clean afterwards, and the next compile reinstalled the removed package on demand.
 - Install consent (PLAN.md §5.9, [decision 0007](/decisions/0007-install-consent.md)): `autoinstall yes|no|ask` with terminal prompt, dialog and fallback, `mtx config`, `mtx log`, failures logged. Checked end to end with the CI binaries (terminal via `expect`; no-terminal fallback); dialog only syntax-checked.

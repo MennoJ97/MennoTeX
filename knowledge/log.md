@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: latexmk integration (MennoTeX system rc via `$LATEXMKRCSYS`, prefetch hook, failure report, doctor check); latexmk's rc order and hooks recorded in [TeX Live scripts](/upstream/texlive-scripts.md).
 * **Creation**: `README.md`, `LICENSE-MIT`, `LICENSE-APACHE`, `LICENSING.md`; [decision 0008](/decisions/0008-licensing.md) and [licenses](/upstream/licenses.md): upstream license terms checked at the pinned texlive-source revision; release archives still lack license texts and source ([handoff](/project/handoff.md)).
 * **Update**: Documentation on demand: `texdoc` is an mtx multi-call that installs `<pkg>.doc` containers; texdoc's own ls-R reader and tlpdb lookup recorded in [TeX Live scripts](/upstream/texlive-scripts.md) ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: `mtx gc` removes on-demand packages unused for N days, by file access time ([mtx-core](/architecture/mtx-core.md), [status](/project/status.md)).

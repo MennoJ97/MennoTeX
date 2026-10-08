@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -99,6 +99,7 @@ mtx --root /tmp/mtxroot install-binaries /tmp/ci/mennotex-bin-*/*.tar.xz --sums 
 
 - `mtx log [--problems] [-n N]`: recent installs, and why an install failed or was declined. TeX's log never shows this.
 - `mtx config [KEY [VALUE]]`, `mtx config --unset KEY`: settings such as `autoinstall yes|no|ask`. Test `ask` without a terminal with `ask_dialog no` set, so no dialog appears on the user's screen; drive the terminal prompt with `expect`.
+- `latexmk` is mtx too: it runs TeX Live's latexmk with `LATEXMKRCSYS=<root>/texmf-mtx/latexmk/LatexMk` (prefetch before each build, failed/declined installs printed when a build fails). `latexmk -commands` shows which program each step really runs; `mtx doctor` warns about ones from another TeX installation. `mtx config auto_prefetch no` turns the prefetch off.
 - `mtx gc [--days N] [--dry-run]`: drop packages installed on demand that have not been read for N days (default 90). To test it, age a package by hand: `touch -a -t 202501010000` its files and set its `installed_at` in `installed.sqlite`.
 - `mtx which <file> [--format tfm]`: which package provides a file and whether it is installed.
 - `mtx info <pkg>`, `mtx list`, `mtx refresh`, `mtx regen`.

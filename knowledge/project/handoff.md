@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T10:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -24,7 +24,9 @@ verified:
   overlay for LuaLaTeX's first run), concurrency-safe format builds, release
   transitions ([decision 0006](/decisions/0006-release-transitions.md)), `bootstrap --from`,
   `autoinstall yes|no|ask` with `mtx config`/`mtx log` ([decision 0007](/decisions/0007-install-consent.md)),
-  `install-binaries --github`, `mtx gc`, and documentation on demand (`texdoc`, `mtx docs`).
+  `install-binaries --github`, `mtx gc`, documentation on demand (`texdoc`, `mtx docs`), and
+  a latexmk integration (system rc with prefetch and a failure report; doctor check for
+  rc files pointing at another TeX).
 - **Real installation exists** at `~/Library/MennoTeX/2026` (CI binaries recorded as
   `mennotex-bin-2026-6a3001880-arm64-darwin`, kpathsea hook mode, overlay, texdoc; kept
   current with `mtx repair` from the newest build of mtx); `mtx doctor` is clean with its bin directory first on PATH. PATH was
@@ -64,6 +66,9 @@ archives. See the [development playbook](/playbooks/development.md).
   **"finish the install"**. So `~/Library/MennoTeX/2026` is installed, and the user
   switches PATH themselves: do not edit `~/.zprofile` or other shell files unless asked.
   Keep running tests in scratch roots; the real root is for the user's own use.
+- **`~/.latexmkrc`:** at the user's request (2026-10-08) its MiKTeX biber override only
+  applies when the first `kpsewhich` on PATH has no `mtx` next to it (i.e. MiKTeX).
+  Do not touch other user dotfiles without asking.
 - **Knowledge upkeep:** keep `knowledge/` current in the same commit (see `CLAUDE.md`).
 
 # Next steps, in priority order

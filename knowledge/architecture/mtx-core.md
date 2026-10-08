@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T01:50:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T22:30:00Z }
 ---
@@ -31,10 +31,10 @@ verified:
 | `configfiles` | `fmtutil.cnf`, `updmap.cfg`, `language.*` | Output matches tlmgr byte for byte apart from the generated-by line (see [tlmgr config generation](/upstream/tlmgr-config.md)) |
 | `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update`; `remove` (refuses while another installed package depends on the target, keeps shared files, removes emptied directories, rebuilds ls-R) | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until recorded, and journaled packages count as not installed, so an interrupted install is redone on next use |
 | `ensure` | Hook entry point | Miss path touches only the index |
-| `bootstrap` | Core set + hyphenation + hooks (`mktextex`, `mktextfm`, `mktexfmt`, `texdoc`) + root `texmf.cnf` + overlay tree `texmf-mtx` (LuaLaTeX fonts by name, [decision 0005](/decisions/0005-fonts-by-name.md); `texdoc/texdoc.cnf`); `--from ROOT` carries another installation's explicit and auto packages over | Hooks and `texmf.cnf` are written before `updmap` runs; bootstrap and dependency packages are not carried (the new release brings its own) |
+| `bootstrap` | Core set + hyphenation + hooks (`mktextex`, `mktextfm`, `mktexfmt`, `texdoc`, `latexmk`) + root `texmf.cnf` + overlay tree `texmf-mtx` (LuaLaTeX fonts by name, [decision 0005](/decisions/0005-fonts-by-name.md); `texdoc/texdoc.cnf`; `latexmk/LatexMk`, the system rc that `latexmk` gets through `$LATEXMKRCSYS`: `mtx prefetch --auto` in a `compile_begin` hook, `mtx log --problems --since` as `$failure_cmd`); `--from ROOT` carries another installation's explicit and auto packages over | Hooks and `texmf.cnf` are written before `updmap` runs; bootstrap and dependency packages are not carried (the new release brings its own) |
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
 | `docs` | Documentation on demand: `mtx docs PKG`, and `texdoc NAME` (mtx multi-call: finds the package by name or doc-file name, installs `archive/<pkg>.doc.tar.xz`, then execs TeX Live's `texdoc.tlu` with `texlua`); recorded as `<pkg>.doc` | Verified like runtime containers; ls-R is rebuilt, not appended ([texdoc](/upstream/texlive-scripts.md)); `remove` takes a package's docs along, `update` refreshes them, `gc` drops unread ones |
-| `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors, a newer TeX Live release, failed or declined installs in the last 24 h, a non-default autoinstall policy; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
+| `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors, latexmk programs set (in rc files) to another TeX installation, a newer TeX Live release, failed or declined installs in the last 24 h, a non-default autoinstall policy; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
 | `fontmaps` | Embedded TeX-font → map-package table ([decision 0004](/decisions/0004-font-map-index.md)); installs add map packages for TFMs they bring | Skips packages that map their own fonts |
 | `fontnames` | Embedded font-name → (package, file) table ([decision 0005](/decisions/0005-fonts-by-name.md)); `ensure_font_name`; prefetch reads fontspec commands | Full/PS names beat family names |
 | `formats` | `mktexfmt` (mtx multi-call): per-format lock, re-check, `fmtutil-sys --byfmt --fmtdir <staging>`, atomic rename into `texmf-var/web2c/<engine>/`, ls-R append | Never overwrites a format another process may be reading; fmtutil output goes to stderr (kpathsea reads stdout) |
@@ -43,7 +43,7 @@ verified:
 
 # Tests
 
-`cargo test` runs 55 tests (2026-10-08):
+`cargo test` runs 56 tests (2026-10-08):
 
 - unit tests for every module above, including a real tlnet signature fixture
   (`testdata/texlive.tlpdb.sha512{,.asc}`);

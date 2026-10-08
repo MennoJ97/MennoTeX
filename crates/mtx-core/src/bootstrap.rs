@@ -106,7 +106,39 @@ fn overlay_files(root: &Root) -> Vec<(&'static str, String)> {
                 root.tlpdb_path().display()
             ),
         ),
+        ("latexmk/LatexMk", latexmk_rc(root)),
     ]
+}
+
+/// MennoTeX's system rc for latexmk: prefetch before each build, and on a
+/// failed build, list the installs that failed or were declined (TeX's log
+/// never says why a package is missing).
+fn latexmk_rc(root: &Root) -> String {
+    let mtx = root.bin_dir().join("mtx");
+    format!(
+        r#"# MennoTeX's system rc for latexmk, written by mtx. This installation's
+# `latexmk` points $LATEXMKRCSYS here; your own ~/.latexmkrc is read
+# afterwards and can override anything below.
+
+# $LATEXMKRCSYS replaces latexmk's usual system rc files: read the first one
+# that exists, as latexmk would have.
+foreach my $f (@UNIX_rc_system_files) {{ if (-e $f) {{ process_rc_file($f); last; }} }}
+
+my $mtx = '{mtx}';
+add_hook('compile_begin', sub {{
+    my %info = @_;
+    # Install what the document visibly needs in one batch, before TeX asks
+    # for it file by file (`mtx config auto_prefetch no` turns this off).
+    system($mtx, 'prefetch', '--auto', $info{{tex_file}}) if $info{{tex_file}};
+    # If this build fails, show why packages were not installed.
+    if (!$failure_cmd || $failure_cmd =~ /^'\Q$mtx\E' log/) {{
+        $failure_cmd = "'$mtx' log --problems --since " . int(time());  # latexmk's time() has fractions
+    }}
+    return 0;
+}});
+"#,
+        mtx = mtx.display()
+    )
 }
 
 /// Write mtx's overlay tree, which TEXMFAUXTREES puts ahead of every other
@@ -151,8 +183,11 @@ pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
     // mktexfmt is mtx in every mode: it serializes concurrent format builds
     // and installs the result atomically (see formats.rs).
     // texdoc is mtx too: it installs the documentation asked for, then runs
-    // TeX Live's texdoc (docs.rs).
-    for (hook, target) in [("mktextex", "mtx"), ("mktextfm", mktextfm), ("mktexfmt", "mtx"), ("texdoc", "mtx")] {
+    // TeX Live's texdoc (docs.rs). So is latexmk: it runs TeX Live's latexmk
+    // with MennoTeX's system rc (the overlay's latexmk/LatexMk).
+    for (hook, target) in
+        [("mktextex", "mtx"), ("mktextfm", mktextfm), ("mktexfmt", "mtx"), ("texdoc", "mtx"), ("latexmk", "mtx")]
+    {
         let link = bin.join(hook);
         if link.symlink_metadata().is_ok() {
             fs::remove_file(&link)?;
@@ -275,6 +310,11 @@ mod tests {
         install_overlay(&root).unwrap();
         let lua = fs::read_to_string(root.texmf_overlay().join("tex/luatex/mtx/luaotfload-main.lua")).unwrap();
         assert!(lua.contains("require'luaotfload'"));
+        let rc = fs::read_to_string(root.texmf_overlay().join("latexmk/LatexMk")).unwrap();
+        assert!(rc.contains(&format!("my $mtx = '{}';", root.bin_dir().join("mtx").display())));
+        assert!(rc.contains("add_hook('compile_begin'") && rc.contains("int(time())"));
+        let cnf = fs::read_to_string(root.texmf_overlay().join("texdoc/texdoc.cnf")).unwrap();
+        assert!(cnf.contains(&format!("texlive_tlpdb = {}", root.tlpdb_path().display())));
         // Idempotent.
         install_overlay(&root).unwrap();
         for mode in [HookMode::Mktex, HookMode::Kpathsea] {

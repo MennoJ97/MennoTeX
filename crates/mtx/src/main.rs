@@ -106,6 +106,9 @@ enum Cmd {
         /// Only failed and declined installs.
         #[arg(long)]
         problems: bool,
+        /// Only entries from this Unix time on.
+        #[arg(long, value_name = "SECS")]
+        since: Option<u64>,
     },
     /// Remove packages.
     Remove {
@@ -140,7 +143,14 @@ enum Cmd {
     /// installs, hooks and overlay, generated files, ls-R and shims.
     Repair,
     /// Install what a .tex file statically needs, in one go.
-    Prefetch { file: PathBuf },
+    Prefetch {
+        file: PathBuf,
+        /// Run automatically (latexmk's MennoTeX rc): honours `autoinstall`
+        /// and `auto_prefetch`, says nothing when there is nothing to do,
+        /// and never fails the build.
+        #[arg(long)]
+        auto: bool,
+    },
     /// Install the documentation of packages (`texdoc NAME` does this by
     /// itself for what it is asked about).
     Docs { packages: Vec<String> },
@@ -170,6 +180,9 @@ fn main() -> ExitCode {
     }
     if prog == "texdoc" {
         return texdoc();
+    }
+    if prog == "latexmk" {
+        return latexmk();
     }
     let cli = Cli::parse();
     let explicit_root = cli.root.clone();
@@ -289,10 +302,14 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 }
             }
         }
-        Cmd::Log { lines, problems } => {
+        Cmd::Log { lines, problems, since } => {
             let now = mtx_core::db::now_secs();
             let entries = mtx_core::logview::tail(&root);
-            let shown: Vec<_> = entries.iter().filter(|e| !problems || e.is_problem()).collect();
+            let shown: Vec<_> =
+                entries.iter().filter(|e| (!problems || e.is_problem()) && e.at >= since.unwrap_or(0)).collect();
+            if since.is_some() && !shown.is_empty() {
+                eprintln!("mtx: why files may be missing (see `mtx log`):");
+            }
             for e in &shown[shown.len().saturating_sub(lines)..] {
                 println!("{:>12}  [{}] {}", mtx_core::logview::age(now, e.at), e.pid, e.msg);
             }
@@ -387,7 +404,27 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 eprintln!("mtx: installed {}; regenerated hooks, configuration, ls-R and shims", fixed.join(", "));
             }
         }
-        Cmd::Prefetch { file } => {
+        Cmd::Prefetch { file, auto } if auto => {
+            let mut ctx = open(&root)?;
+            let off = ctx.db.get("auto_prefetch")?.is_some_and(|v| v == "no");
+            if off || mtx_core::consent::policy(&ctx)? == mtx_core::consent::Policy::No || ctx.offline()? {
+                return Ok(ExitCode::SUCCESS);
+            }
+            let name = file.file_name().map_or_else(|| file.display().to_string(), |n| n.to_string_lossy().into_owned());
+            ctx.ask_for = Some(name);
+            let result = ctx.refresh(false).and_then(|_| mtx_core::prefetch::prefetch(&mut ctx, &file));
+            match result {
+                Ok(r) if !r.installed.is_empty() => eprintln!(
+                    "mtx: prefetched {} package(s), {:.1} MiB downloaded",
+                    r.installed.len(),
+                    r.bytes_downloaded as f64 / 1048576.0
+                ),
+                Ok(_) => {}
+                Err(e) if e.downcast_ref::<mtx_core::consent::Declined>().is_some() => {}
+                Err(e) => ctx.log(format!("error: prefetch {}: {e:#}", file.display())),
+            }
+        }
+        Cmd::Prefetch { file, .. } => {
             let mut ctx = open(&root)?;
             ctx.refresh(false)?;
             let r = mtx_core::prefetch::prefetch(&mut ctx, &file)?;
@@ -519,6 +556,42 @@ fn hook(prog: &str) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+/// `latexmk ARGS`: TeX Live's latexmk with MennoTeX's system rc
+/// (`$LATEXMKRCSYS`, unless set already), installing latexmk first if needed.
+fn latexmk() -> ExitCode {
+    use std::os::unix::process::CommandExt;
+    let root = match Root::discover(None) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("mtx: latexmk: {e:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let script = root.texmf_dist().join("scripts/latexmk/latexmk.pl");
+    if !script.exists() {
+        let installed = (|| -> Result<()> {
+            let mut ctx = open(&root)?;
+            ctx.ask_for = Some("latexmk".into());
+            ctx.refresh(false)?;
+            install::install(&mut ctx, &["latexmk"], Reason::Auto)?;
+            Ok(())
+        })();
+        if let Err(e) = installed {
+            eprintln!("mtx: cannot install latexmk: {e:#}");
+            return ExitCode::from(127);
+        }
+    }
+    let mut cmd = std::process::Command::new("/usr/bin/perl");
+    cmd.arg(&script).args(std::env::args_os().skip(1));
+    cmd.env("PATH", format!("{}:{}", root.bin_dir().display(), std::env::var("PATH").unwrap_or_default()));
+    if std::env::var_os("LATEXMKRCSYS").is_none() {
+        cmd.env("LATEXMKRCSYS", root.texmf_overlay().join("latexmk/LatexMk"));
+    }
+    let err = cmd.exec();
+    eprintln!("mtx: cannot run latexmk ({}): {err}", script.display());
+    ExitCode::from(2)
 }
 
 /// `texdoc ARGS`: install the documentation the arguments name, then run
