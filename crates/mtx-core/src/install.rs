@@ -34,6 +34,22 @@ pub struct Report {
     pub bytes_downloaded: u64,
 }
 
+/// Whether the last installation of `pkg` was interrupted: its journal
+/// entry stays until the whole transaction (ls-R, configuration, font maps,
+/// shims) is done, so its files may be there without the rest.
+pub fn interrupted(root: &crate::root::Root, pkg: &str) -> bool {
+    root.journal_dir().join(pkg).exists()
+}
+
+/// Crash tests (`tests/run_crash.sh`): with `MTX_CRASH_AT=<point>`, mtx
+/// kills itself with SIGKILL at that point of an install, as a power cut
+/// or `kill -9` would.
+fn crash_point(point: &str) {
+    if std::env::var("MTX_CRASH_AT").is_ok_and(|v| v == point) {
+        let _ = Command::new("/bin/kill").args(["-KILL", &std::process::id().to_string()]).status();
+    }
+}
+
 /// Packages in `names` that are missing, older than in `tlpdb`, or whose
 /// last installation was interrupted (still journaled).
 fn pending(ctx: &Ctx, tlpdb: &Tlpdb, names: &[String]) -> Result<Vec<String>> {
@@ -151,7 +167,15 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         all.extend(maps.iter().map(String::as_str));
         closure = tlpdb.closure(all)?;
     }
-    let plan = pending(ctx, tlpdb, &closure)?;
+    let mut plan = pending(ctx, tlpdb, &closure)?;
+    // Finish installs a crash interrupted, whatever this one is for.
+    if let Ok(entries) = fs::read_dir(ctx.root.journal_dir()) {
+        for name in entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()) {
+            if tlpdb.get(&name).is_some() && !plan.contains(&name) {
+                plan.push(name);
+            }
+        }
+    }
     if plan.is_empty() {
         return Ok(Report::default());
     }
@@ -175,6 +199,9 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         ctx.log("waiting for another mtx process to finish");
         lock.lock()?;
     }
+    // Unpacking happens only under this lock, so staging directories left
+    // here belong to a process that was killed.
+    let _ = fs::remove_dir_all(ctx.root.dir.join(".staging"));
     // Another process may have installed some of these while we downloaded.
     let plan = pending(ctx, tlpdb, &plan)?;
     let root_set: BTreeSet<&str> = roots.iter().copied().collect();
@@ -188,13 +215,20 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     let mut dist_files: Vec<String> = Vec::new();
     let journal = ctx.root.journal_dir();
     fs::create_dir_all(&journal)?;
+    let installed_before = ctx.db.installed()?;
     for name in &plan {
         let p = tlpdb.get(name).unwrap();
-        let why = if root_set.contains(name.as_str()) || reason == Reason::Upgrade { reason } else { Reason::Dependency };
-        // Crash safety: until the database records the package, it counts
-        // as not installed and is reinstalled the next time it is needed.
-        let entry = journal.join(name);
-        fs::write(&entry, b"")?;
+        let why = if root_set.contains(name.as_str()) || reason == Reason::Upgrade {
+            reason
+        } else if installed_before.contains_key(name.as_str()) {
+            Reason::Upgrade // redoing an interrupted install: keep its reason
+        } else {
+            Reason::Dependency
+        };
+        // Crash safety: the journal entry stays until the transaction is
+        // complete (below); until then the package counts as interrupted
+        // and is redone by the next install, lookup or `mtx repair`.
+        fs::write(journal.join(name), b"")?;
         let files = if p.is_meta() {
             Vec::new()
         } else {
@@ -202,6 +236,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
             let old: BTreeSet<String> = ctx.db.files_of(name)?.into_iter().collect();
             let unpacked = extract::unpack(archive, p.relocated, &ctx.root.dir, &protected)
                 .with_context(|| format!("unpacking {name}"))?;
+            crash_point("unpacked");
             // Remove files the new revision no longer ships (unless shared).
             let new: BTreeSet<&str> = unpacked.files.iter().map(String::as_str).collect();
             for f in old.iter().filter(|f| !new.contains(f.as_str())) {
@@ -213,18 +248,23 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
             unpacked.files
         };
         ctx.db.record(name, p.revision, why, &files)?;
-        fs::remove_file(&entry)?;
+        crash_point("recorded");
         report.files += files.len();
         report.installed.push((name.clone(), p.revision));
         regen.merge(Regen::for_package(p));
     }
     append_lsr(ctx, &dist_files)?;
+    crash_point("listed");
     if regen.any() {
         apply_regen(ctx, tlpdb, regen, &plan)?;
     }
+    crash_point("regenerated");
     // A binary package replaced its shims with real programs.
     if plan.iter().any(|n| crate::tlpdb::arch_suffix(n).is_some()) {
         crate::shims::sync(ctx, tlpdb)?;
+    }
+    for name in &plan {
+        fs::remove_file(journal.join(name))?;
     }
     drop(lock);
     Ok(report)

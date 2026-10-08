@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -68,6 +68,22 @@ tests/run_concurrent.sh /tmp/fresh-root pdflatex 8
 
 Starts 8 compiles at once against one fresh installation; passes when all succeed and
 `mtx doctor` reports no problem.
+
+# Crash-recovery test
+
+```bash
+tests/run_crash.sh /tmp/fresh-root
+```
+
+Needs MennoTeX's binaries in the root and the network. Kills mtx during five installs
+of font packages: at the crash points `unpacked`, `recorded`, `listed`, `regenerated`
+(`MTX_CRASH_AT`, mtx sends itself SIGKILL) and with a real `kill -9` while `cm-super`
+unpacks. After each, a lookup of the package's file and if needed another on-demand
+install must finish the install; then `mtx doctor` must be clean, the font map in
+`pdftex.map`, and pdfLaTeX must compile with the font. The report says what finished
+each install ([decision 0009](/decisions/0009-crash-recovery.md)). With binaries
+built before the `mtx_interrupted` check, the first three cases are finished by the
+next install instead of the lookup.
 
 # Building the TeX Live binaries
 

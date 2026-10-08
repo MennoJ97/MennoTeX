@@ -161,6 +161,20 @@ mtx_load (kpathsea kpse)
 /* Formats whose lookups must never install anything: configuration and
    databases (recursion during startup), formats (mktexfmt builds them),
    generated bitmap fonts, and pool files. */
+/* Whether mtx's install of PKG was interrupted (a crash or kill -9): its
+   journal entry stays until the whole install, including ls-R and font
+   maps, is done. Its files may then be in place without the rest, so a
+   lookup asks mtx to finish the install instead of just taking the file. */
+static boolean
+mtx_interrupted (const_string pkg)
+{
+  struct stat st;
+  string path = concat3 (mtx.root, "/tlpkg/mtx/journal/", pkg);
+  boolean ret = stat (path, &st) == 0;
+  free (path);
+  return ret;
+}
+
 static boolean
 mtx_format_allowed (kpse_file_format_type format)
 {
@@ -473,7 +487,8 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
     best = mtx_lookup (kpse, format, STR_LIST_ELT (candidates, i), subdir);
 
   if (best.path) {
-    if (kpathsea_readable_file (kpse, best.path)) {
+    boolean readable = kpathsea_readable_file (kpse, best.path) != NULL;
+    if (readable && !mtx_interrupted (best.pkg)) {
       /* Installed already (by another process, or as a sibling): just not
          in this process's ls-R view yet. */
       kpathsea_db_insert (kpse, best.path);
@@ -495,6 +510,12 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
         ret = mtx_run (kpse, argv);
       }
       free (setting);
+      if (!ret && readable) {
+        /* mtx could not finish the interrupted install; the file itself
+           is complete (mtx renames files into place whole). */
+        kpathsea_db_insert (kpse, best.path);
+        ret = xstrdup (best.path);
+      }
       if (!ret)
         str_list_add (&mtx.failed, xstrdup (name));
     }

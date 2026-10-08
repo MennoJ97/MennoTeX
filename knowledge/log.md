@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Creation**: [Decision 0009](/decisions/0009-crash-recovery.md): installs stay journaled until ls-R, configuration and font maps are done; lookups (also in the kpathsea patch) and later installs finish interrupted ones; `tests/run_crash.sh` passes all five crash cases ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md)).
 * **Update**: Corpus grown from 26 to 51 documents; all pass on fresh roots and the second run installs nothing, meeting Phase 1's exit ([status](/project/status.md), [playbook](/playbooks/development.md), [handoff](/project/handoff.md)).
 * **Update**: `mktexfmt` builds METAFONT's `mf.base` (installing `metafont`) so mktexpk works; fmtutil only acts as mktexfmt under that name ([TeX Live scripts](/upstream/texlive-scripts.md), [mtx-core](/architecture/mtx-core.md)).
 * **Update**: The luaotfload overlay rescans after an install, so a second font installed in one LuaLaTeX run is found ([decision 0005](/decisions/0005-fonts-by-name.md), [fonts by name](/upstream/fonts-by-name.md)).

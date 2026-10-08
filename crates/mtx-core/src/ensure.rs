@@ -112,19 +112,23 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
     let Some(hit) = resolve(&idx, kind, name) else { return Ok(None) };
     let rel = hit.path();
     let path = root.dir.join(&rel);
-    if path.exists() {
-        return Ok(Some(path)); // installed, just not in this process's ls-R view
-    }
-    if !autoinstall_enabled() {
-        return Ok(None);
-    }
     let pkg = idx.package(hit.pkg).name.to_string();
     drop(idx);
+    let redo = install::interrupted(root, &pkg);
+    // Files are renamed into place whole, so one that exists is complete,
+    // even when its package's install was interrupted.
+    let present = path.exists().then(|| path.clone());
+    if present.is_some() && !redo {
+        return Ok(present); // installed, just not in this process's ls-R view
+    }
+    if !autoinstall_enabled() {
+        return Ok(present);
+    }
 
     let mut ctx = Ctx::open(root.clone())?;
     if ctx.offline()? {
         ctx.log(format!("error: cannot install {pkg} for {name}: the network was unreachable a moment ago (mtx retries after a minute)"));
-        return Ok(None);
+        return Ok(present);
     }
     // A newer database may move the file to another package.
     let target = match ctx.refresh(false) {
@@ -135,20 +139,25 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
         Ok(_) => Some((pkg, rel)),
         Err(e) if is_network_error(&e) => {
             ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
-            return Ok(None);
+            return Ok(present);
         }
         Err(e) => return Err(e),
     };
     let Some((pkg, rel)) = target else { return Ok(None) };
-    ctx.log(format!("{name} → package {pkg}"));
-    ctx.ask_for = Some(name.to_string());
+    // Finishing an interrupted install needs no new consent.
+    if redo {
+        ctx.log(format!("{name}: finishing the interrupted install of {pkg}"));
+    } else {
+        ctx.log(format!("{name} → package {pkg}"));
+        ctx.ask_for = Some(name.to_string());
+    }
     if let Err(e) = install::install(&mut ctx, &[&pkg], Reason::Auto) {
         if is_declined(&e) {
-            return Ok(None);
+            return Ok(present);
         }
         if is_network_error(&e) {
             ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
-            return Ok(None);
+            return Ok(present);
         }
         return Err(e);
     }
@@ -166,33 +175,41 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
         return Ok(None);
     }
     let target = root.dir.join(rel);
-    if target.exists() {
-        return Ok(Some(vec![target]));
+    let redo = install::interrupted(root, pkg);
+    // A file that exists is complete (see `ensure`).
+    let present = target.exists().then(|| vec![target.clone()]);
+    if present.is_some() && !redo {
+        return Ok(present);
     }
     if !autoinstall_enabled() {
-        return Ok(None);
+        return Ok(present);
     }
     let mut ctx = Ctx::open(root.clone())?;
     if ctx.offline()? {
         ctx.log(format!("error: cannot install {pkg} for {rel}: the network was unreachable a moment ago (mtx retries after a minute)"));
-        return Ok(None);
+        return Ok(present);
     }
     if let Err(e) = ctx.refresh(false) {
         if is_network_error(&e) {
             ctx.log(format!("error: cannot install {pkg}: {e:#}"));
-            return Ok(None);
+            return Ok(present);
         }
         return Err(e);
     }
     let file = rel.rsplit('/').next().unwrap_or(rel);
-    ctx.log(format!("{file} → package {pkg}"));
-    ctx.ask_for = Some(file.to_string());
+    // Finishing an interrupted install needs no new consent.
+    if redo {
+        ctx.log(format!("{file}: finishing the interrupted install of {pkg}"));
+    } else {
+        ctx.log(format!("{file} → package {pkg}"));
+        ctx.ask_for = Some(file.to_string());
+    }
     let report = match install::install(&mut ctx, &[pkg], Reason::Auto) {
         Ok(r) => r,
-        Err(e) if is_declined(&e) => return Ok(None),
+        Err(e) if is_declined(&e) => return Ok(present),
         Err(e) if is_network_error(&e) => {
             ctx.log(format!("error: cannot install {pkg}: {e:#}"));
-            return Ok(None);
+            return Ok(present);
         }
         Err(e) => return Err(e),
     };

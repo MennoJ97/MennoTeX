@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T22:30:00Z }
 ---
@@ -29,7 +29,7 @@ verified:
 | `extract` | Unpack `.tar.xz` via a staging dir | No absolute paths, no `..`, symlinks must stay inside the root; skips `tlpkg/tlpobj/` |
 | `lsr` | Rebuild/append kpathsea `ls-R` | Repeated directory blocks are legal |
 | `configfiles` | `fmtutil.cnf`, `updmap.cfg`, `language.*` | Output matches tlmgr byte for byte apart from the generated-by line (see [tlmgr config generation](/upstream/tlmgr-config.md)) |
-| `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update`; `remove` (refuses while another installed package depends on the target, keeps shared files, removes emptied directories, rebuilds ls-R) | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until recorded, and journaled packages count as not installed, so an interrupted install is redone on next use |
+| `install` | Plan → download → lock → commit → regen; `outdated` for `mtx update`; `remove` (refuses while another installed package depends on the target, keeps shared files, removes emptied directories, rebuilds ls-R) | Never holds the lock while downloading; never unpacks over `PROTECTED` or `mennotex-binaries` files; a package is journaled (`tlpkg/mtx/journal/<pkg>`) from unpack until the whole transaction (ls-R, configuration, font maps, shims) is done; journaled packages count as interrupted and are finished by the next lookup of their files, the next install of anything, or `mtx repair` ([decision 0009](/decisions/0009-crash-recovery.md)); `MTX_CRASH_AT` crash points for `tests/run_crash.sh` |
 | `ensure` | Hook entry point | Miss path touches only the index |
 | `bootstrap` | Core set + hyphenation + hooks (`mktextex`, `mktextfm`, `mktexfmt`, `texdoc`, `latexmk`) + root `texmf.cnf` + overlay tree `texmf-mtx` (LuaLaTeX fonts by name, [decision 0005](/decisions/0005-fonts-by-name.md); `texdoc/texdoc.cnf`; `latexmk/LatexMk`, the system rc that `latexmk` gets through `$LATEXMKRCSYS`: `mtx log --problems --since <start>` as `$failure_cmd`, then `mtx prefetch --auto` on the command line's documents while the rc is read, with `$go_mode = 1` when that installed something (exit status 3)); `--from ROOT` carries another installation's explicit and auto packages over | Hooks and `texmf.cnf` are written before `updmap` runs; bootstrap and dependency packages are not carried (the new release brings its own) |
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |

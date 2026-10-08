@@ -131,6 +131,34 @@ fn interrupted_install_is_redone() {
 }
 
 #[test]
+fn any_install_or_lookup_finishes_an_interrupted_install() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+
+    // Killed while finishing foo (recorded, but ls-R/configuration not done):
+    // installing something unrelated finishes it and keeps its reason.
+    fs::write(root.journal_dir().join("foo"), b"").unwrap();
+    let r = install::install(&mut ctx, &["fonts-x"], Reason::Auto).unwrap();
+    let names: Vec<&str> = r.installed.iter().map(|(n, _)| n.as_str()).collect();
+    assert!(names.contains(&"foo") && names.contains(&"fonts-x"), "{names:?}");
+    assert!(!root.journal_dir().join("foo").exists());
+    assert_eq!(ctx.db.installed().unwrap()["foo"].reason, "explicit");
+    drop(ctx);
+
+    // A lookup of a file that exists, but whose package is journaled,
+    // redoes the package instead of trusting it; a healthy package's file
+    // is returned at once.
+    fs::write(root.journal_dir().join("bar"), b"").unwrap();
+    let got = ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap().unwrap();
+    assert!(got[0].exists());
+    assert!(root.journal_dir().join("bar").exists(), "foo is healthy: no install");
+    let got = ensure::ensure_path(&root, "bar", "texmf-dist/tex/latex/bar/bar.sty", false).unwrap().unwrap();
+    assert!(got[0].exists());
+    assert!(!root.journal_dir().join("bar").exists());
+}
+
+#[test]
 fn remove_respects_dependencies() {
     let (_d, root, mut ctx) = setup(&testdata_repo());
     ctx.refresh(true).unwrap();
