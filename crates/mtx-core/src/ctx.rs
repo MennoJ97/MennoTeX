@@ -114,6 +114,10 @@ impl Ctx {
         let _ = self.db.set("offline_until", &(now_secs() + OFFLINE_SECS).to_string());
     }
 
+    pub fn clear_offline(&self) {
+        let _ = self.db.unset("offline_until");
+    }
+
     /// Whether `host` recently served data that failed verification.
     fn is_bad_host(&self, host: &str) -> Result<bool> {
         let bad = self.db.get_u64(&format!("bad_mirror:{host}"))?;

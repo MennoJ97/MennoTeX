@@ -5,7 +5,7 @@ description: Layout, signing chain, archive formats and mirror behaviour of tlne
 resource: https://mirror.ctan.org/systems/texlive/tlnet/
 tags: [tlnet, texlive, repository, security, mirrors]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T22:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:40:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 sources:
@@ -64,6 +64,11 @@ files. See [decision 0004](/decisions/0004-font-map-index.md) for the extracted 
 - `mirror.ctan.org` redirects **each request** to a possibly different mirror.
 - Mirrors lag differently: in one session `cicku.me` served tlpdb r80534 while `lyrahosting.com` served r80505.
 - `nl.mirrors.cicku.me` served a corrupt `archive/amsfonts.tar.xz` (3,626,288 bytes instead of the signed 3,626,284) while other mirrors were correct. mtx now treats size/hash mismatches as integrity failures, retries, then avoids that mirror for 24 h.
+- 2026-10-08, on the user's network: TCP connects to `mirror.koddos.net` and
+  `mirror.ctan.org` took about 2 s, and a moment earlier both exceeded mtx's 5 s connect
+  timeout, so mtx went offline for 60 s in the middle of a VS Code build. The connect
+  timeout is now 10 s, and each latexmk build starts with a fresh network check
+  (prefetch ignores an older offline marker).
 - 2026-10-08, during three parallel corpus runs: `mirror.lyrahosting.com` again presented
   its expired certificate, and `nl.mirrors.cicku.me` served `pst-node.tar.xz` and
   `translations.tar.xz` with a SHA-512 that did not match the signed database. Both were

@@ -4,9 +4,10 @@ title: Licenses of TeX Live, its programs and MiKTeX
 description: Verified license terms of kpathsea, XeTeX, pdfTeX, LuaTeX, dvipdfmx and luaotfload, TeX Live's and MiKTeX's redistribution guidelines, and Knuth's renaming condition.
 tags: [license, upstream, texlive, miktex, redistribution]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T10:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:45:00Z }
+  - { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
 sources:
   - id: src
     resource: https://github.com/TeX-Live/texlive-source/tree/6a300188053b8f2ded89dbd52293732a706b9c0e
@@ -42,6 +43,28 @@ sources:
 
 Other programs were not checked one by one; the legal statement in each source
 directory is authoritative.
+
+# License files in texlive-source
+
+At the pinned revision the tree holds 95 files named `COPYING*`, `LICENSE*` or
+`LICENCE*` (and 14 more named `COPYRIGHT*`), one or more per program or library
+directory.[^src] The full texts the release archive needs:
+
+- GPL-2: `texk/web2c/pdftexdir/COPYINGv2`; LGPL-2.1: `texk/kpathsea/COPYING.LESSERv2`.
+- GPL-3: `texk/dvisvgm/dvisvgm-src/COPYING`, `texk/dvipng/dvipng-src/COPYING`,
+  `utils/autosp/autosp-src/COPYING`, `utils/xml2pmx/xml2pmx-src/COPYING` (all four
+  programs are in the CI build); LGPL-3: `texk/dvipng/dvipng-src/COPYING.LESSER`.
+- XeTeX's MIT/X11 notice: `texk/web2c/xetexdir/COPYING`.
+- Bundled libraries, linked statically: `libs/icu/icu-src/LICENSE`,
+  `libs/freetype2/freetype-src/LICENSE.TXT`, `libs/libpng/libpng-src/LICENSE`,
+  `libs/zlib/zlib-src/LICENSE`, `libs/harfbuzz/harfbuzz-src/COPYING`,
+  `libs/graphite2/graphite2-src/{COPYING,LICENSE}`, `libs/luajit/LuaJIT-src/COPYRIGHT`,
+  and others under `libs/`.
+- TeX Live's trimmed copies of GMP and MPFR (`libs/gmp/gmp-src`, `libs/mpfr/…`) carry
+  no `COPYING` file; their LGPL-3 text comes in through dvipng's `COPYING.LESSER`.
+
+The workflow copies all of them into the archive's `licenses/` tree
+([decision 0008](/decisions/0008-licensing.md)).
 
 # TeX Live redistribution guidelines
 

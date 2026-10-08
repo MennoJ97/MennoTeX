@@ -75,7 +75,9 @@ pub struct NetworkError {
 fn agent(follow_redirects: bool) -> ureq::Agent {
     ureq::Agent::config_builder()
         .user_agent(concat!("mtx/", env!("CARGO_PKG_VERSION"), " (MennoTeX)"))
-        .timeout_connect(Some(Duration::from_secs(5)))
+        // 5 s was too short: on a slow network (2 s connects seen) both the
+        // mirror and the redirector timed out, and mtx went offline.
+        .timeout_connect(Some(Duration::from_secs(10)))
         .timeout_recv_response(Some(Duration::from_secs(30)))
         .max_redirects(if follow_redirects { 5 } else { 0 })
         .max_redirects_will_error(false)

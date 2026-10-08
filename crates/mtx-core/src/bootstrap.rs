@@ -110,6 +110,9 @@ fn overlay_files(root: &Root) -> Vec<(&'static str, String)> {
     ]
 }
 
+/// Exit status of `mtx prefetch --auto` when it installed packages.
+pub const PREFETCH_INSTALLED: u8 = 3;
+
 /// MennoTeX's system rc for latexmk: prefetch before each build, and on a
 /// failed build, list the installs that failed or were declined (TeX's log
 /// never says why a package is missing).
@@ -125,19 +128,31 @@ fn latexmk_rc(root: &Root) -> String {
 foreach my $f (@UNIX_rc_system_files) {{ if (-e $f) {{ process_rc_file($f); last; }} }}
 
 my $mtx = '{mtx}';
-add_hook('compile_begin', sub {{
-    my %info = @_;
-    # Install what the document visibly needs in one batch, before TeX asks
-    # for it file by file (`mtx config auto_prefetch no` turns this off).
-    system($mtx, 'prefetch', '--auto', $info{{tex_file}}) if $info{{tex_file}};
-    # If this build fails, show why packages were not installed.
-    if (!$failure_cmd || $failure_cmd =~ /^'\Q$mtx\E' log/) {{
-        $failure_cmd = "'$mtx' log --problems --since " . int(time());  # latexmk's time() has fractions
+
+# If a build fails, show why packages were not installed (since latexmk
+# started; latexmk's time() has fractions).
+$failure_cmd = "'$mtx' log --problems --since " . int(time());
+
+# Before latexmk decides what to run: install what the documents on the
+# command line visibly need, in one batch (`mtx config auto_prefetch no`
+# turns this off). If that installed anything, rerun everything, as -g
+# does: latexmk does not rerun a rule that failed last time unless one of
+# its recorded inputs changed, and a missing package is not one of them.
+# This runs while rc files are read, before the command line is parsed.
+{{
+    my @args = @ARGV;
+    while (defined(my $arg = shift @args)) {{
+        if ($arg eq '-e' || $arg eq '-r') {{ shift @args; next; }}
+        next if $arg =~ /^-/;
+        my $tex = -f "$arg.tex" ? "$arg.tex" : $arg;  # LaTeX Workshop passes main, not main.tex
+        next unless -f $tex;
+        system($mtx, 'prefetch', '--auto', $tex);
+        $go_mode = 1 if ($? >> 8) == {installed};
     }}
-    return 0;
-}});
+}}
 "#,
-        mtx = mtx.display()
+        mtx = mtx.display(),
+        installed = PREFETCH_INSTALLED
     )
 }
 
@@ -312,7 +327,7 @@ mod tests {
         assert!(lua.contains("require'luaotfload'"));
         let rc = fs::read_to_string(root.texmf_overlay().join("latexmk/LatexMk")).unwrap();
         assert!(rc.contains(&format!("my $mtx = '{}';", root.bin_dir().join("mtx").display())));
-        assert!(rc.contains("add_hook('compile_begin'") && rc.contains("int(time())"));
+        assert!(rc.contains("$go_mode = 1 if ($? >> 8) == 3;") && rc.contains("int(time())"));
         let cnf = fs::read_to_string(root.texmf_overlay().join("texdoc/texdoc.cnf")).unwrap();
         assert!(cnf.contains(&format!("texlive_tlpdb = {}", root.tlpdb_path().display())));
         // Idempotent.

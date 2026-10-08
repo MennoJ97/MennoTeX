@@ -49,6 +49,16 @@ If you redistribute these binaries, the GPL requires you to make the correspondi
 source available: the texlive-source revision plus this repository's
 `kpathsea-ondemand/` directory.
 
+The workflow's binary archive (`mennotex-bin-<release>-<rev>-arm64-darwin.tar.xz`)
+therefore carries, next to the programs: this file, `LICENSE-MIT`, `LICENSE-APACHE`,
+`texlive-source.rev`, `kpathsea-ondemand/`, the GPL version 2 (`COPYINGv2`, from
+pdfTeX) and LGPL version 2.1 (`COPYING.LESSERv2`, from kpathsea) texts, and
+`licenses/`: every `COPYING*`, `LICENSE*` and `COPYRIGHT*` file of texlive-source at
+its path there. Some programs are GPL version 3 (dvisvgm, dvipng), and the bundled
+libraries (ICU, FreeType, libpng, zlib, HarfBuzz, …) have their own notices. A
+GitHub Release also carries `mennotex-src-<release>-<rev>.tar.xz`: texlive-source at
+that revision, unpatched, plus `kpathsea-ondemand/`, `build/` and the workflow.
+
 ## TeX Live packages
 
 `mtx` downloads packages unmodified from TeX Live's network repository (tlnet) and

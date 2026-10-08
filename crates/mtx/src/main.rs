@@ -407,18 +407,26 @@ fn run(cli: Cli) -> Result<ExitCode> {
         Cmd::Prefetch { file, auto } if auto => {
             let mut ctx = open(&root)?;
             let off = ctx.db.get("auto_prefetch")?.is_some_and(|v| v == "no");
-            if off || mtx_core::consent::policy(&ctx)? == mtx_core::consent::Policy::No || ctx.offline()? {
+            if off || mtx_core::consent::policy(&ctx)? == mtx_core::consent::Policy::No {
                 return Ok(ExitCode::SUCCESS);
             }
+            // Each build checks the network afresh: an offline marker left by
+            // an earlier build (a network blip) must not fail this one. If the
+            // network fails now, the new marker stands for the TeX run.
+            ctx.clear_offline();
             let name = file.file_name().map_or_else(|| file.display().to_string(), |n| n.to_string_lossy().into_owned());
             ctx.ask_for = Some(name);
             let result = ctx.refresh(false).and_then(|_| mtx_core::prefetch::prefetch(&mut ctx, &file));
             match result {
-                Ok(r) if !r.installed.is_empty() => eprintln!(
-                    "mtx: prefetched {} package(s), {:.1} MiB downloaded",
-                    r.installed.len(),
-                    r.bytes_downloaded as f64 / 1048576.0
-                ),
+                Ok(r) if !r.installed.is_empty() => {
+                    eprintln!(
+                        "mtx: prefetched {} package(s), {:.1} MiB downloaded",
+                        r.installed.len(),
+                        r.bytes_downloaded as f64 / 1048576.0
+                    );
+                    // Tells latexmk's MennoTeX rc to rerun everything.
+                    return Ok(ExitCode::from(bootstrap::PREFETCH_INSTALLED));
+                }
                 Ok(_) => {}
                 Err(e) if e.downcast_ref::<mtx_core::consent::Declined>().is_some() => {}
                 Err(e) => ctx.log(format!("error: prefetch {}: {e:#}", file.display())),

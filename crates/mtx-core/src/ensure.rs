@@ -123,7 +123,7 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
 
     let mut ctx = Ctx::open(root.clone())?;
     if ctx.offline()? {
-        ctx.log(format!("{name} is in package {pkg}, but the network was unreachable a moment ago"));
+        ctx.log(format!("error: cannot install {pkg} for {name}: the network was unreachable a moment ago (mtx retries after a minute)"));
         return Ok(None);
     }
     // A newer database may move the file to another package.
@@ -174,7 +174,7 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
     }
     let mut ctx = Ctx::open(root.clone())?;
     if ctx.offline()? {
-        ctx.log(format!("{rel} is in package {pkg}, but the network was unreachable a moment ago"));
+        ctx.log(format!("error: cannot install {pkg} for {rel}: the network was unreachable a moment ago (mtx retries after a minute)"));
         return Ok(None);
     }
     if let Err(e) = ctx.refresh(false) {

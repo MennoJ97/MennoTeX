@@ -150,3 +150,81 @@ pub fn install_binaries(ctx: &mut Ctx, dir: &Path) -> Result<usize> {
     ctx.log(format!("installed {} MennoTeX-built binaries from {}", files.len(), dir.display()));
     Ok(files.len())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::root::Root;
+
+    /// Pack `files` (path, contents) into `<dir>/<name>.tar.xz` under the
+    /// top-level directory `<name>/`, as the workflow's Package step does.
+    fn pack(dir: &Path, name: &str, files: &[(&str, &[u8])]) -> std::path::PathBuf {
+        let path = dir.join(format!("{name}.tar.xz"));
+        let xz = liblzma::write::XzEncoder::new(fs::File::create(&path).unwrap(), 1);
+        let mut tar = tar::Builder::new(xz);
+        for (p, data) in files {
+            let mut h = tar::Header::new_gnu();
+            h.set_size(data.len() as u64);
+            h.set_mode(0o644);
+            h.set_cksum();
+            tar.append_data(&mut h, format!("{name}/{p}"), *data).unwrap();
+        }
+        tar.into_inner().unwrap().finish().unwrap();
+        path
+    }
+
+    fn sha256(path: &Path) -> String {
+        use sha2::{Digest, Sha256};
+        hex::encode(Sha256::digest(fs::read(path).unwrap()))
+    }
+
+    #[test]
+    fn installs_only_the_programs_of_a_license_complete_archive() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = Root::new(dir.path().join("root"));
+        let mut ctx = Ctx::open(root.clone()).unwrap();
+        ctx.set_quiet(true);
+        let name = "mennotex-bin-2026-6a3001880-arm64-darwin";
+        let macho: &[u8] = &[0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1];
+        let archive = pack(
+            dir.path(),
+            name,
+            &[
+                ("pdftex", macho),
+                ("xetex", macho),
+                ("texlive-source.rev", b"6a300188053b8f2ded89dbd52293732a706b9c0e\n"),
+                ("LICENSING.md", b"# Licensing\n"),
+                ("LICENSE-MIT", b"MIT\n"),
+                ("LICENSE-APACHE", b"Apache\n"),
+                ("COPYING.LESSERv2", b"LGPL\n"),
+                ("COPYINGv2", b"GPL\n"),
+                ("licenses/texk/kpathsea/COPYING.LESSERv2", b"LGPL\n"),
+                ("licenses/libs/icu/icu-src/LICENSE", b"ICU\n"),
+                ("kpathsea-ondemand/mtx-ondemand.c", b"/* public domain */\n"),
+                ("kpathsea-ondemand/patches/0001-kpathsea-ondemand.patch", b"--- a\n+++ b\n"),
+            ],
+        );
+        // A release's SHA256SUMS also lists the source archive.
+        let sums = dir.path().join("SHA256SUMS");
+        let bin_line = format!("{}  {name}.tar.xz\n", sha256(&archive));
+        fs::write(&sums, format!("{}  mennotex-src-2026-6a3001880.tar.xz\n{bin_line}", "0".repeat(64))).unwrap();
+
+        assert_eq!(install_binaries_archive(&mut ctx, &archive, Some(&sums)).unwrap(), 2);
+        let bin = root.bin_dir();
+        assert!(bin.join("pdftex").is_file() && bin.join("xetex").is_file());
+        for extra in ["texlive-source.rev", "LICENSING.md", "LICENSE-MIT", "COPYINGv2", "licenses", "LICENSE", "kpathsea-ondemand", "mtx-ondemand.c"] {
+            assert!(bin.join(extra).symlink_metadata().is_err(), "{extra} was installed");
+        }
+        let mut files = ctx.db.files_of(BIN_PACKAGE).unwrap();
+        files.sort();
+        assert_eq!(files, [format!("bin/{ARCH}/pdftex"), format!("bin/{ARCH}/xetex")]);
+        assert_eq!(ctx.db.get("binaries_build").unwrap().as_deref(), Some(name));
+        // The unpack directory is cleaned up.
+        assert!(!fs::read_dir(root.mtx_dir()).unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with("unpack-")));
+
+        // A tampered archive is refused before anything is unpacked.
+        fs::write(&sums, bin_line.replace(&sha256(&archive), &"1".repeat(64))).unwrap();
+        let err = install_binaries_archive(&mut ctx, &archive, Some(&sums)).unwrap_err();
+        assert!(err.to_string().contains("SHA-256 does not match"), "{err}");
+    }
+}

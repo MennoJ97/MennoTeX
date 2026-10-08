@@ -4,7 +4,7 @@ title: "TeX Live scripts: mktexfmt, fmtutil, updmap, texdoc, latexmk"
 description: Behaviour of the TeX Live scripts mtx relies on, including the TEXMFVAR constraint, how texdoc finds its database and documents, and latexmk's rc files and hooks.
 tags: [texlive, fmtutil, mktexfmt, updmap, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:40:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:30:00Z }
 sources:
@@ -87,6 +87,15 @@ sources:
   (not per pass) with `tex_file`, `root_name`, `aux_dir`, …; `$failure_cmd` runs when a
   build fails, in normal and `-pvc` mode (`compile_failure` hooks only in `-pvc`).
 - `time()` inside rc code returns fractions (latexmk loads Time::HiRes).
+- rc files are read **before** the command line is parsed, with `@ARGV` intact; `-g`
+  (`$go_mode`) is applied before the first `rdb_make`, so a `compile_begin` hook is too
+  late to force a rerun, but rc code can set `$go_mode = 1`.
+- latexmk does not rerun a rule that failed in its previous invocation ("gave an error
+  in previous invocation of latexmk") unless a recorded input changed. A file that was
+  missing (and is installed meanwhile) is not a recorded input, so after a failed build
+  a plain rebuild does nothing. Found 2026-10-08 when a network blip failed a VS Code
+  build; MennoTeX's rc now sets `$go_mode = 1` when its prefetch installed something.
+- LaTeX Workshop passes the root file without `.tex` (`%DOC%`, e.g. `…/main`).
 - `latexmk -commands` prints the effective command per program after all rc files,
   which shows overrides such as `$biber` pointing into another installation.
 - On this Mac, `~/.latexmkrc` (2026-10-06) pinned `$biber` to MiKTeX's binary

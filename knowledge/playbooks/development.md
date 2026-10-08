@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -92,6 +92,21 @@ gh run download <run-id> -R MennoJ97/MennoTeX -D /tmp/ci
 (cd /tmp/ci/mennotex-bin-* && shasum -a 256 -c SHA256SUMS)
 mtx --root /tmp/mtxroot install-binaries /tmp/ci/mennotex-bin-*/*.tar.xz --sums /tmp/ci/mennotex-bin-*/SHA256SUMS
 ```
+
+## Release archives and licenses
+
+The Package step puts the license texts, `kpathsea-ondemand/` and a `licenses/` tree
+(every `COPYING*`/`LICENSE*`/`COPYRIGHT*` file of texlive-source, via `git archive` with
+`:(icase,glob)` pathspecs) next to the programs; with `release: true` the Publish step
+adds `mennotex-src-<release>-<rev>.tar.xz` and appends it to `SHA256SUMS`
+([decision 0008](/decisions/0008-licensing.md)). To try that shell without a CI run,
+take a shallow clone at the pinned revision and a directory of fake binaries (Mach-O
+magic `cf fa ed fe` is enough), then run the two steps' commands by hand with
+`TL_SRC`, `BIN_DIR` and `ARCHIVE` set and `GITHUB_ENV=/dev/null`, from a checkout of
+this repository. Check with `tar -tJf`, then install the result into a scratch root
+with `mtx --root <scratch> install-binaries <archive> --sums SHA256SUMS`.
+`git archive` of a blob-less partial clone fetches blobs lazily and is far slower than
+a plain shallow clone; use the latter.
 
 # Useful commands
 
