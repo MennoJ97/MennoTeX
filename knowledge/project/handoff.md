@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T20:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -92,16 +92,13 @@ archives. See the [development playbook](/playbooks/development.md).
    and TeXstudio, which look in `/Library/TeX/texbin` rather than the shell's PATH
    (plan §5.2: TeXDist registration needs admin once, so ask first).
 2. **Self-update and signed releases (2026-10-08, [decision 0011](/decisions/0011-releases-and-self-update.md)):**
-   `mtx self-update` and `mtx upgrade-release` are implemented and tested with test
-   builds and a throwaway key; the workflow now builds mtx and drafts releases. To
-   finish: (a) the user generates the key (`minisign -G`, see the playbook) and it is
-   committed; (b) a CI run with `release: true` (user's OK), the first with the new
-   naming, so it rebuilds TeX Live's programs; (c) the user runs
-   `tools/sign_release.sh <tag>`; (d) the real installation updates with
-   `./target/release/mtx --root ~/Library/MennoTeX/2026 self-update` (once from a
-   local build, since the installed mtx predates self-update), and the user may switch
-   PATH to `~/Library/MennoTeX/current/bin/universal-darwin` (bootstrap and `mtx repair`
-   create `current` when it is missing; `mtx doctor` suggests the switch). Earlier binary channel notes:
+   done. First signed release `mennotex-2026-f06b1506f` (CI run 37781813612, 2 min:
+   programs reused from the run before; signed by the user with
+   `tools/sign_release.sh`); the real installation updated to it with a local build's
+   `self-update` and now updates with plain `mtx self-update`. The user's `~/.zprofile`
+   PATH line points at `~/Library/MennoTeX/current/bin/universal-darwin` (changed at the
+   user's request). A new release needs: a CI run with `release: true` (user's OK), then
+   the user signs. Next release should carry the dialog fix (`93d879f`). Earlier binary channel notes:
    `mtx install-binaries --github` (TeX Live's programs only):
    `mtx install-binaries --github [--run ID | --release TAG|latest]` uses `gh` (private
    repository), checks the archive's release and `SHA256SUMS`, and skips an installed
