@@ -13,7 +13,7 @@ use mtx_core::root::Root;
 use mtx_core::{binaries, bootstrap, ensure, install};
 
 #[derive(Parser)]
-#[command(name = "mtx", version, about = "MennoTeX package manager: TeX Live packages, installed on demand")]
+#[command(name = "mtx", version = mtx_core::release::VERSION, about = "MennoTeX package manager: TeX Live packages, installed on demand")]
 struct Cli {
     /// Installation root (default: $MTX_ROOT, the root containing this
     /// executable, or ~/Library/MennoTeX/<release>).
@@ -55,6 +55,32 @@ enum Cmd {
         #[arg(long, conflicts_with_all = ["format", "package"])]
         font_name: bool,
         name: String,
+    },
+    /// Update MennoTeX itself: install the newest signed release of mtx and
+    /// of TeX Live's programs for this TeX Live release, then repair.
+    SelfUpdate {
+        /// Only say whether an update is available.
+        #[arg(long)]
+        check: bool,
+        /// Install this release (a tag) instead of the newest.
+        #[arg(long, conflicts_with = "from")]
+        release: Option<String>,
+        /// Use the release files in this directory instead of GitHub.
+        #[arg(long)]
+        from: Option<PathBuf>,
+        /// Also install a release older than this mtx (a development build).
+        #[arg(long)]
+        force: bool,
+    },
+    /// Install MennoTeX for the next TeX Live release next to this one,
+    /// with the same packages, and point …/MennoTeX/current at it.
+    UpgradeRelease {
+        /// Install this release (a tag) instead of the newest.
+        #[arg(long, conflicts_with = "from")]
+        release: Option<String>,
+        /// Use the release files in this directory instead of GitHub.
+        #[arg(long)]
+        from: Option<PathBuf>,
     },
     /// Install MennoTeX-built (kpathsea-patched) binaries from a directory
     /// or a release archive (mennotex-bin-*.tar.xz) and switch on-demand
@@ -238,6 +264,42 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 }
                 None => ExitCode::from(1),
             });
+        }
+        Cmd::SelfUpdate { check, release, from, force } => {
+            use mtx_core::release::{From, Updated};
+            let ctx = open(&root)?;
+            let src = match &from {
+                Some(dir) => From::Dir(dir),
+                None => From::GitHub(release.as_deref()),
+            };
+            match mtx_core::release::self_update(&ctx, &src, check, force)? {
+                Updated::Current => eprintln!("mtx: MennoTeX is up to date ({})", mtx_core::release::VERSION),
+                Updated::To(tag) => eprintln!("mtx: updated to {tag}"),
+                Updated::Available(tag) => eprintln!("mtx: {tag} is available; `mtx self-update` installs it"),
+                Updated::Older(tag) => {
+                    eprintln!("mtx: {tag} is older than this mtx ({}); --force installs it anyway", mtx_core::release::VERSION)
+                }
+            }
+        }
+        Cmd::UpgradeRelease { release, from } => {
+            use mtx_core::release::From;
+            let ctx = open(&root)?;
+            let src = match &from {
+                Some(dir) => From::Dir(dir),
+                None => From::GitHub(release.as_deref()),
+            };
+            let new_root = mtx_core::release::upgrade_release(&ctx, &src)?;
+            eprintln!("mtx: installed {} with this installation's packages", new_root.display());
+            match mtx_core::release::current_link(&Root::new(&new_root)) {
+                Some(link) => eprintln!(
+                    "mtx: {} now points to it. If your PATH has {}, change it to {}/bin/universal-darwin; {} stays as it is until you remove it",
+                    link.display(),
+                    root.bin_dir().display(),
+                    link.display(),
+                    root.dir.display()
+                ),
+                None => eprintln!("mtx: put {}/bin/universal-darwin first on your PATH", new_root.display()),
+            }
         }
         Cmd::InstallBinaries { source, sums, github, run, release, force } => {
             use mtx_core::github::Source;

@@ -1,27 +1,77 @@
-# Builds MennoTeX's TeX Live binaries (texlive-source + kpathsea on-demand
-# patch) for Apple Silicon. Manual only: on a private repository macOS
-# minutes are billed at 10x. The first run (2026-10-07) took 14 minutes.
+# Builds a MennoTeX release for Apple Silicon: mtx, and TeX Live's programs
+# (texlive-source + kpathsea on-demand patch). Manual only (decided while
+# the repository was private and macOS minutes were billed at 10x). The programs take about 15
+# minutes and are rebuilt only when texlive-source's revision, the patches
+# (kpathsea-ondemand/) or the build script (build/) changed; otherwise the
+# archive of an earlier release with the same id is reused, and the run
+# takes a few minutes.
+#
+# With `release`, the run creates a *draft* release tagged
+# mennotex-<TeX Live release>-<commit>. It is signed on the maintainer's
+# Mac and published with tools/sign_release.sh (decision 0011); mtx only
+# installs signed releases.
 name: Build TeX Live binaries
 
 on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Also publish the binaries as a GitHub Release"
+        description: "Also create a draft release (sign and publish it with tools/sign_release.sh)"
+        type: boolean
+        default: false
+      rebuild:
+        description: "Rebuild TeX Live's programs even if a release has them already"
         type: boolean
         default: false
 
 permissions:
-  contents: write  # only used when publishing a release
+  contents: write  # reading releases to reuse programs; drafting a release
 
 jobs:
   build:
     runs-on: macos-15  # arm64
     timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Name this build
+        run: |
+          set -eu
+          release=$(sed -n 's/^pub const RELEASE: u32 = \([0-9]*\);.*/\1/p' crates/mtx-core/src/root.rs)
+          rev=$(cut -c1-9 build/texlive-source.rev)
+          # The programs depend on texlive-source's revision, the patches and
+          # the build script, so their archive is named after all three.
+          patches=$(git rev-parse HEAD:kpathsea-ondemand HEAD:build | shasum | cut -c1-8)
+          commit=$(git rev-parse --short=9 HEAD)
+          {
+            echo "RELEASE=$release"
+            echo "BIN=mennotex-bin-$release-$rev.$patches-arm64-darwin"
+            echo "SRC=mennotex-src-$release-$rev.$patches"
+            echo "MTX=mtx-$release-$commit-arm64-darwin"
+            echo "TAG=mennotex-$release-$commit"
+            echo "MTX_COMMIT=$commit"
+            echo "MTX_COMMIT_TIME=$(git log -1 --format=%ct)"
+          } >> "$GITHUB_ENV"
+          mkdir dist
+
+      - name: Reuse TeX Live's programs from an earlier release
+        if: ${{ !inputs.rebuild }}
+        run: |
+          set -eu
+          from=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+            --jq ".[] | select(any(.assets[]; .name == \"$BIN.tar.xz\")) | .tag_name" | head -1)
+          if [ -z "$from" ]; then echo "no release has $BIN; building"; exit 0; fi
+          mkdir reuse
+          gh release download "$from" -R "$GITHUB_REPOSITORY" -D reuse -p "$BIN.tar.xz" -p "$SRC.tar.xz" -p SHA256SUMS
+          (cd reuse && grep -E "  ($BIN|$SRC)\.tar\.xz\$" SHA256SUMS | shasum -a 256 -c -)
+          mv "reuse/$BIN.tar.xz" dist/
+          if [ -f "reuse/$SRC.tar.xz" ]; then mv "reuse/$SRC.tar.xz" dist/; fi
+          echo "REUSED=$from" >> "$GITHUB_ENV"
+
       - name: Fetch texlive-source at the pinned revision
+        if: ${{ !env.REUSED }}
         run: |
           rev=$(cat build/texlive-source.rev)
           git init -q "$RUNNER_TEMP/texlive-source"
@@ -31,10 +81,12 @@ jobs:
           git checkout -q FETCH_HEAD
           echo "TL_SRC=$RUNNER_TEMP/texlive-source" >> "$GITHUB_ENV"
 
-      - name: Build
+      - name: Build TeX Live's programs
+        if: ${{ !env.REUSED }}
         run: build/build-texlive.sh "$TL_SRC"
 
-      - name: Check the binaries
+      - name: Check the programs
+        if: ${{ !env.REUSED }}
         run: |
           set -eu
           test "$(cat "$TL_SRC/Work/exitstatus.txt")" = 0
@@ -46,59 +98,77 @@ jobs:
               echo "$p links non-system libraries"; exit 1
             fi
           done
+          "$bin/pdftex" --version | grep -q "TeX Live $RELEASE" || { echo "not TeX Live $RELEASE"; exit 1; }
           echo "BIN_DIR=$bin" >> "$GITHUB_ENV"
 
-      - name: Package
+      - name: Package TeX Live's programs
+        if: ${{ !env.REUSED }}
         run: |
           set -eu
-          release=$(grep -m1 -o 'TeX Live 20[0-9][0-9]' <("$BIN_DIR/pdftex" --version) | tr -dc 0-9)
-          rev=$(cut -c1-9 build/texlive-source.rev)
-          name="mennotex-bin-$release-$rev-arm64-darwin"
-          mkdir -p "dist/$name"
+          mkdir -p "dist/$BIN"
           for f in "$BIN_DIR"*; do
-            if [ -f "$f" ] && [ ! -L "$f" ] && file "$f" | grep -q Mach-O; then cp "$f" "dist/$name/"; fi
+            if [ -f "$f" ] && [ ! -L "$f" ] && file "$f" | grep -q Mach-O; then cp "$f" "dist/$BIN/"; fi
           done
           # License texts and the changes to TeX Live go with the binaries
-          # (decision 0008); the full source is attached to a Release.
-          cp build/texlive-source.rev LICENSING.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
-          cp -R kpathsea-ondemand "dist/$name/"
-          cp "$TL_SRC/texk/kpathsea/COPYING.LESSERv2" "$TL_SRC/texk/web2c/pdftexdir/COPYINGv2" "dist/$name/"
+          # (decision 0008); the full source is attached to a release.
+          cp build/texlive-source.rev LICENSING.md LICENSE-MIT LICENSE-APACHE "dist/$BIN/"
+          cp -R kpathsea-ondemand "dist/$BIN/"
+          cp "$TL_SRC/texk/kpathsea/COPYING.LESSERv2" "$TL_SRC/texk/web2c/pdftexdir/COPYINGv2" "dist/$BIN/"
           # Every license and copyright file of texlive-source, at its path
           # there: some programs are GPL-3 (dvisvgm, dvipng), and the bundled
           # libraries (ICU, FreeType, libpng, zlib, ...) ask for their notices
           # to go with the binaries.
           git -C "$TL_SRC" archive --prefix=licenses/ "$(cat build/texlive-source.rev)" -- \
             ':(icase,glob)**/copying*' ':(icase,glob)**/licen[cs]e*' ':(icase,glob)**/copyright*' \
-            | tar -x -C "dist/$name"
-          test -s "dist/$name/licenses/libs/icu/icu-src/LICENSE"
-          tar -C dist -cJf "dist/$name.tar.xz" "$name"
-          (cd dist && shasum -a 256 "$name.tar.xz" > SHA256SUMS)
-          echo "ARCHIVE=$name" >> "$GITHUB_ENV"
-          ls -la dist
+            | tar -x -C "dist/$BIN"
+          test -s "dist/$BIN/licenses/libs/icu/icu-src/LICENSE"
+          tar -C dist -cJf "dist/$BIN.tar.xz" "$BIN"
+          rm -rf "dist/$BIN"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARCHIVE }}
-          path: |
-            dist/${{ env.ARCHIVE }}.tar.xz
-            dist/SHA256SUMS
-
-      - name: Publish release
-        if: inputs.release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Package the corresponding source
+        if: ${{ !env.REUSED && inputs.release }}
         run: |
           set -eu
           # The GPL's corresponding source: texlive-source at the pinned
           # revision as committed (the build patched only the working tree),
           # plus MennoTeX's patches, build script and this workflow.
-          src="${ARCHIVE%-arm64-darwin}"; src="mennotex-src-${src#mennotex-bin-}"
-          git -C "$TL_SRC" archive --prefix="$src/texlive-source/" -o "$PWD/dist/tl.tar" "$(cat build/texlive-source.rev)"
-          git archive --prefix="$src/" -o dist/mtx.tar HEAD \
+          git -C "$TL_SRC" archive --prefix="$SRC/texlive-source/" -o "$PWD/dist/tl.tar" "$(cat build/texlive-source.rev)"
+          git archive --prefix="$SRC/" -o dist/mtx.tar HEAD \
             kpathsea-ondemand build LICENSING.md LICENSE-MIT LICENSE-APACHE README.md .github/workflows/build-binaries.yml
-          tar -cJf "dist/$src.tar.xz" @dist/tl.tar @dist/mtx.tar
+          tar -cJf "dist/$SRC.tar.xz" @dist/tl.tar @dist/mtx.tar
           rm dist/tl.tar dist/mtx.tar
-          (cd dist && shasum -a 256 "$src.tar.xz" >> SHA256SUMS && cat SHA256SUMS)
-          gh release create "$ARCHIVE" "dist/$ARCHIVE.tar.xz" "dist/$src.tar.xz" dist/SHA256SUMS \
-            --title "$ARCHIVE" \
-            --notes "TeX Live programs built from texlive-source $(cat build/texlive-source.rev) with the MennoTeX kpathsea on-demand patch. Install with: mtx install-binaries --github --release $ARCHIVE (or mtx install-binaries <unpacked directory>). Licenses: see LICENSING.md in the archive; most programs are GPL-2.0-or-later. $src.tar.xz is the corresponding source: texlive-source at that revision plus MennoTeX's patches and build script."
+
+      - name: Build and test mtx
+        run: |
+          set -eu
+          rustup toolchain install stable --profile minimal
+          cargo build --release --locked
+          cargo test --release --locked
+          ./target/release/mtx --version | grep -q "$MTX_COMMIT"
+
+      - name: Package mtx
+        run: |
+          set -eu
+          mkdir "dist/$MTX"
+          cp target/release/mtx LICENSE-MIT LICENSE-APACHE LICENSING.md "dist/$MTX/"
+          printf 'release=%s\ncommit=%s\ncommit_time=%s\nbinaries=%s\n' \
+            "$RELEASE" "$MTX_COMMIT" "$MTX_COMMIT_TIME" "$BIN" > "dist/$MTX/VERSION"
+          tar -C dist -cJf "dist/$MTX.tar.xz" "$MTX"
+          rm -rf "dist/$MTX"
+          (cd dist && shasum -a 256 *.tar.xz > SHA256SUMS && cat SHA256SUMS)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN }}
+          path: |
+            dist/${{ env.BIN }}.tar.xz
+            dist/${{ env.MTX }}.tar.xz
+            dist/SHA256SUMS
+
+      - name: Create a draft release
+        if: inputs.release
+        run: |
+          set -eu
+          test -f "dist/$SRC.tar.xz" || { echo "no corresponding source for $BIN (reused from ${REUSED:-?} without one); rerun with rebuild"; exit 1; }
+          gh release create "$TAG" dist/*.tar.xz dist/SHA256SUMS --draft --title "$TAG" \
+            --notes "MennoTeX for TeX Live $RELEASE: mtx built from commit $MTX_COMMIT, and TeX Live's programs ($BIN${REUSED:+, as in $REUSED}) built from texlive-source $(cat build/texlive-source.rev) with MennoTeX's kpathsea on-demand patch. Update with \`mtx self-update\`. Signed: SHA256SUMS.minisig (minisign). Licenses: LICENSING.md in the archives; most programs are GPL-2.0-or-later. $SRC.tar.xz is the corresponding source."

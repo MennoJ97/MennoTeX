@@ -314,6 +314,13 @@ pub fn bootstrap(root: &Root, repository: Option<&str>, from: Option<&Root>) -> 
     crate::shims::sync(&ctx, &tlpdb)?;
     let shims = fs::read_dir(root.bin_dir())?.flatten().filter(|e| crate::shims::is_shim(&e.path())).count();
     ctx.log(format!("{shims} command shims for programs installed on first use"));
+    // `…/MennoTeX/current` → this release, unless it points elsewhere
+    // already (`mtx upgrade-release` moves it).
+    if let Some(link) = crate::release::current_link(root) {
+        if link.symlink_metadata().is_err() {
+            crate::release::point_current(root)?;
+        }
+    }
     Ok(report)
 }
 

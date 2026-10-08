@@ -11,6 +11,7 @@
 //! <root>/tlpkg/mtx/              index, installed database, cache, lock, log
 //! ```
 
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -32,23 +33,26 @@ impl Root {
 
     /// Find the root: explicit argument, then `$MTX_ROOT`, then the root
     /// containing the running executable (`<root>/bin/<arch>/mtx`), then
-    /// `~/Library/MennoTeX/<release>`.
+    /// `~/Library/MennoTeX/<release>`. An existing root is resolved to its
+    /// real directory: reached through `…/MennoTeX/current`, it must stay
+    /// the same root when `mtx upgrade-release` moves that link.
     pub fn discover(explicit: Option<&Path>) -> Result<Root> {
+        let real = |p: PathBuf| Root::new(fs::canonicalize(&p).unwrap_or(p));
         if let Some(p) = explicit {
-            return Ok(Root::new(absolute(p)?));
+            return Ok(real(absolute(p)?));
         }
         if let Some(p) = std::env::var_os("MTX_ROOT").filter(|v| !v.is_empty()) {
-            return Ok(Root::new(absolute(Path::new(&p))?));
+            return Ok(real(absolute(Path::new(&p))?));
         }
         if let Ok(exe) = std::env::current_exe() {
             if let Some(root) = exe.parent().and_then(Path::parent).and_then(Path::parent) {
                 if root.join("tlpkg/mtx").is_dir() {
-                    return Ok(Root::new(root));
+                    return Ok(real(root.to_path_buf()));
                 }
             }
         }
         let home = std::env::var_os("HOME").context("HOME is not set")?;
-        Ok(Root::new(PathBuf::from(home).join(format!("Library/MennoTeX/{RELEASE}"))))
+        Ok(real(PathBuf::from(home).join(format!("Library/MennoTeX/{RELEASE}"))))
     }
 
     pub fn bin_dir(&self) -> PathBuf {

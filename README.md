@@ -8,7 +8,9 @@ carries on. You get MiKTeX's convenience with TeX Live's engines, packages and
 results, built natively for arm64.
 
 **Status:** working, not yet released. pdfLaTeX, XeLaTeX and LuaLaTeX compile the
-26-document test corpus on the first run from an empty installation.
+51-document test corpus on the first run from an empty installation, with the same
+output as a full TeX Live 2026 (XeLaTeX differs only where MennoTeX finds TeX fonts by
+name and a stock TeX Live on macOS does not).
 [knowledge/project/status.md](knowledge/project/status.md) has the measurements.
 
 ## How it works
@@ -31,24 +33,29 @@ holds the up-to-date architecture, decisions and upstream facts.
 
 ## Getting started
 
-You need Rust (`brew install rust`). To fetch prebuilt binaries you also need `gh`
-with access to this repository.
+You need Rust (`brew install rust`).
 
 ```bash
 cargo build --release
 ./target/release/mtx bootstrap                 # creates ~/Library/MennoTeX/2026
-~/Library/MennoTeX/2026/bin/universal-darwin/mtx install-binaries --github
+~/Library/MennoTeX/current/bin/universal-darwin/mtx self-update
 ```
 
-`bootstrap` installs a minimal TeX Live. `install-binaries --github` replaces its
-engines with MennoTeX's patched arm64 build from CI. Before that step, on-demand
-installs go through TeX Live's stock `mktex*` hooks, which cover less. Then put the
-bin directory first on your `PATH`:
+`bootstrap` installs a minimal TeX Live and points `~/Library/MennoTeX/current` at it.
+`self-update` installs the newest signed MennoTeX release: its `mtx` and the patched
+arm64 TeX Live programs built by CI. Before that step, on-demand installs go through
+TeX Live's stock `mktex*` hooks, which cover less. (Until the first signed release is
+published, `mtx install-binaries --github` fetches the programs instead; it needs
+`gh`.) Then put the bin directory first on your `PATH`, through `current`, so moving
+to the next TeX Live release later needs no PATH change:
 
 ```bash
-export PATH="$HOME/Library/MennoTeX/2026/bin/universal-darwin:$PATH"
+export PATH="$HOME/Library/MennoTeX/current/bin/universal-darwin:$PATH"
 pdflatex paper.tex
 ```
+
+Releases are signed with minisign on the maintainer's Mac; `mtx` only installs a
+release whose signature and checksums verify.
 
 Use `--root DIR` (or `$MTX_ROOT`) to put an installation somewhere else, for example
 a throw-away root for testing.
@@ -58,6 +65,8 @@ a throw-away root for testing.
 | Command | What it does |
 |---|---|
 | `mtx doctor` / `mtx repair` | Check the installation and environment; fix what doctor finds |
+| `mtx self-update [--check]` | Install the newest signed release of MennoTeX itself (mtx and the TeX programs) |
+| `mtx upgrade-release` | Install MennoTeX for the next TeX Live release next to this one, with the same packages, and switch `current` to it |
 | `mtx install PKG…` / `mtx remove PKG…` | Install or remove packages by hand |
 | `mtx prefetch FILE.tex` | Install everything a document statically needs in one go |
 | `mtx which FILE` / `mtx info PKG` / `mtx list` | Find a file's package, show a package, list what is installed |

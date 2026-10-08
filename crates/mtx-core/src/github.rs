@@ -1,7 +1,8 @@
 //! Fetching MennoTeX-built binaries from GitHub (`mtx install-binaries
 //! --github`): the artifact of a run of `.github/workflows/build-binaries.yml`,
-//! or a GitHub Release it published. The repository is private, so this
-//! goes through the GitHub CLI (`gh`), which holds the user's credentials.
+//! or a GitHub Release it published. This goes through the GitHub CLI (`gh`),
+//! which also works while the repository is private (run artifacts always
+//! need a login). `mtx self-update` downloads releases directly (release.rs).
 //! The archive is then checked against the `SHA256SUMS` next to it.
 
 use std::fs;
@@ -38,10 +39,10 @@ fn gh() -> Result<PathBuf> {
         .chain(["/opt/homebrew/bin", "/usr/local/bin"])
         .map(|d| Path::new(d).join("gh"))
         .find(|p| p.is_file())
-        .context("the GitHub CLI (`gh`) is needed to fetch binaries from the private repository; install it and run `gh auth login`")
+        .context("the GitHub CLI (`gh`) is needed for this; install it and run `gh auth login`")
 }
 
-fn run_gh(args: &[&str]) -> Result<String> {
+pub(crate) fn run_gh(args: &[&str]) -> Result<String> {
     let out = Command::new(gh()?).args(args).output().context("running gh")?;
     if !out.status.success() {
         bail!("gh {}: {}", args.join(" "), String::from_utf8_lossy(&out.stderr).trim());

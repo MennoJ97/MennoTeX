@@ -23,6 +23,7 @@ pub mod install;
 pub mod logview;
 pub mod lsr;
 pub mod prefetch;
+pub mod release;
 pub mod repo;
 pub mod root;
 pub mod shadows;

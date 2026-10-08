@@ -1,6 +1,8 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Creation**: [Decision 0011](/decisions/0011-releases-and-self-update.md): signed releases (minisign key on the user's Mac), `mtx self-update`, `mtx upgrade-release`, the `current` link; the workflow builds mtx, reuses unchanged TeX Live programs and drafts releases ([mtx-core](/architecture/mtx-core.md), [playbook](/playbooks/development.md), [handoff](/project/handoff.md)).
+* **Update**: The repository is public (the user); docs that said private are corrected. Roots are resolved to their real directory, so `current` can move under a running mtx.
 * **Update**: Phase 2 exit met: the corpus matches a full TeX Live 2026 (`tests/compare_texlive.py`; [status](/project/status.md), [playbook](/playbooks/development.md)).
 * **Creation**: [Decision 0010](/decisions/0010-shadowing-packages.md): installs add packages whose same-named `tex/` files a LaTeX format finds first (`xetex-pstricks`); [mtx-core](/architecture/mtx-core.md).
 * **Update**: `texfonts.map` is read by a path search that bypasses the hook, so `fontname` joined the bootstrap core ([kpathsea](/upstream/kpathsea.md)).

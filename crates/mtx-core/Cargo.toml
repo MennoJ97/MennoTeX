@@ -10,6 +10,7 @@ anyhow = "1.0.104"
 hex = "0.4.3"
 liblzma = "0.4.8"
 memmap2 = "0.9.11"
+minisign-verify = "0.3.0"
 pgp = "0.21.0"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 sha2 = "0.11.0"

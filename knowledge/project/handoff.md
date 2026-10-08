@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -38,7 +38,7 @@ verified:
   with it from VS Code LaTeX Workshop. In a login shell `which -a pdflatex` lists
   MennoTeX before MiKTeX's `/usr/local/bin` links; `mtx doctor` reports the bin directory
   on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
-- **Repository:** private `MennoJ97/MennoTeX`, branch `main`, all work committed and
+- **Repository:** public `MennoJ97/MennoTeX` (the user, 2026-10-08), branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
   2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 60 `cargo test` tests; the OKF bundle checks clean.
 
@@ -65,9 +65,13 @@ archives. See the [development playbook](/playbooks/development.md).
 # Decisions the user made
 
 - **CI:** the binary build workflow (`.github/workflows/build-binaries.yml`) is
-  **manual only** (private repo; macOS minutes billed at 10×). The user approved a
-  run on 2026-10-07 (artifact only) and on 2026-10-08 one with `release: true`, which
-  published the first Release; ask before any further run. No other workflows were added (a cheap Linux
+  **manual only** (decided while the repository was private and macOS minutes were
+  billed at 10×; it is public now, where standard runners are free). The user approved
+  runs on 2026-10-07 (artifact only), 2026-10-08 (`release: true`, the first Release)
+  and 2026-10-08 (run 37765924689, artifact only, with the `mtx_interrupted` C change);
+  ask before any further run.
+- **Release signing (decision 0011):** the minisign secret key stays on the user's
+  Mac; CI only drafts releases, `tools/sign_release.sh` signs and publishes. No other workflows were added (a cheap Linux
   `cargo test` + OKF check on push would also need the user's OK).
 - **Real installation on this Mac:** installed 2026-10-08 (the user chose "install, no
   PATH edit", then "finish the install"); the user then added it to PATH themselves in
@@ -87,7 +91,18 @@ archives. See the [development playbook](/playbooks/development.md).
    a build at 09:55 is the one behind commit `f334f3b`). Still to smoke-test: TeXShop
    and TeXstudio, which look in `/Library/TeX/texbin` rather than the shell's PATH
    (plan §5.2: TeXDist registration needs admin once, so ask first).
-2. **Release downloads:** done 2026-10-08 for TeX Live's programs:
+2. **Self-update and signed releases (2026-10-08, [decision 0011](/decisions/0011-releases-and-self-update.md)):**
+   `mtx self-update` and `mtx upgrade-release` are implemented and tested with test
+   builds and a throwaway key; the workflow now builds mtx and drafts releases. To
+   finish: (a) the user generates the key (`minisign -G`, see the playbook) and it is
+   committed; (b) a CI run with `release: true` (user's OK), the first with the new
+   naming, so it rebuilds TeX Live's programs; (c) the user runs
+   `tools/sign_release.sh <tag>`; (d) the real installation updates with
+   `./target/release/mtx --root ~/Library/MennoTeX/2026 self-update` (once from a
+   local build, since the installed mtx predates self-update), and the user may switch
+   PATH to `~/Library/MennoTeX/current/bin/universal-darwin` (bootstrap and `mtx repair`
+   create `current` when it is missing; `mtx doctor` suggests the switch). Earlier binary channel notes:
+   `mtx install-binaries --github` (TeX Live's programs only):
    `mtx install-binaries --github [--run ID | --release TAG|latest]` uses `gh` (private
    repository), checks the archive's release and `SHA256SUMS`, and skips an installed
    build. Still open:
@@ -99,7 +114,7 @@ archives. See the [development playbook](/playbooks/development.md).
      source archive (95 MB) and `SHA256SUMS`. `mtx install-binaries --github --release
      latest` installed its 153 programs into a scratch root in 26 s. Release assets do
      not expire; run artifacts do (90 days by default).
-   - A signed manifest (plan §5.8) matters once the repository or releases are public.
+   - Signed manifest (plan §5.8): done as minisign-signed `SHA256SUMS` (decision 0011).
    - **Licensing before publishing a Release:** done in the workflow 2026-10-08
      ([decision 0008](/decisions/0008-licensing.md)): the archive carries the license
      texts (`LICENSING.md`, `COPYINGv2`, `COPYING.LESSERv2`, a `licenses/` tree with

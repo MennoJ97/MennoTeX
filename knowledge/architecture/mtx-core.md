@@ -5,7 +5,7 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:20:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T22:30:00Z }
 ---
@@ -35,6 +35,7 @@ verified:
 | `prefetch` | `mtx prefetch doc.tex`: statically scan a document (and local `\input`s) for classes, packages, TikZ/pgfplots libraries and `.bst`, then iterate over `\RequirePackage` in installed files; install in batched transactions | Heuristic: may over-fetch conditional packages; on-demand hooks cover the rest |
 | `docs` | Documentation on demand: `mtx docs PKG`, and `texdoc NAME` (mtx multi-call: finds the package by name or doc-file name, installs `archive/<pkg>.doc.tar.xz`, then execs TeX Live's `texdoc.tlu` with `texlua`); recorded as `<pkg>.doc` | Verified like runtime containers; ls-R is rebuilt, not appended ([texdoc](/upstream/texlive-scripts.md)); `remove` takes a package's docs along, `update` refreshes them, `gc` drops unread ones |
 | `doctor` | `mtx doctor`: PATH shadowing, hook-mode consistency, index/db agreement, journal and staging leftovers, missing files, fonts without map packages, avoided mirrors, latexmk programs set (in rc files) to another TeX installation, a newer TeX Live release, failed or declined installs in the last 24 h, a non-default autoinstall policy; `mtx repair` (in `install`) fixes map packages, journal, ls-R, generated files and shims | Exit 1 only for problems, not warnings |
+| `release` | `mtx self-update` / `upgrade-release`: list releases (GitHub API, else `gh`), download, verify the minisign signature of `SHA256SUMS` (trusted comment `mennotex release <tag>`, key in `data/release-key.pub`) and every file's SHA-256, read `VERSION`, swap mtx atomically and hand over to the new one; `…/MennoTeX/current` link ([decision 0011](/decisions/0011-releases-and-self-update.md)) | Nothing from a release is used before it verifies; the old mtx only downloads, verifies and swaps |
 | `shadows` | Packages with a same-named `tex/` file in a directory a LaTeX format searches first (`pstricks` → `xetex-pstricks`), added to installs and `mtx repair` ([decision 0010](/decisions/0010-shadowing-packages.md)) | LaTeX formats only (plain formats search `generic` first); files without an extension are ignored |
 | `fontmaps` | Embedded TeX-font → map-package table ([decision 0004](/decisions/0004-font-map-index.md)); installs add map packages for TFMs they bring | Skips packages that map their own fonts |
 | `fontnames` | Embedded font-name → (package, file) table ([decision 0005](/decisions/0005-fonts-by-name.md)); `ensure_font_name`; prefetch reads fontspec commands | Full/PS names beat family names |

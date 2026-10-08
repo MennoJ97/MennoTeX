@@ -41,16 +41,28 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
     let root = &ctx.root;
     let bin = root.bin_dir();
 
-    // PATH: our bin directory, and nothing shadowing it.
-    let on_path = path_env.split(':').any(|d| Path::new(d) == bin);
-    if on_path {
-        push(&mut out, Severity::Ok, format!("{} is on PATH", bin.display()));
+    // PATH: our bin directory, and nothing shadowing it. The root is a
+    // real path; PATH may reach it through `…/MennoTeX/current`.
+    let is_bin = |d: &Path| d == bin || fs::canonicalize(d).is_ok_and(|r| r == bin);
+    let entry = path_env.split(':').map(Path::new).find(|d| is_bin(d));
+    if let Some(entry) = entry {
+        push(&mut out, Severity::Ok, format!("{} is on PATH", entry.display()));
+        if let Some(link) = crate::release::current_link(root).filter(|l| l.exists()) {
+            let via_link = link.join("bin").join(crate::tlpdb::ARCH);
+            if entry != via_link {
+                push(
+                    &mut out,
+                    Severity::Ok,
+                    format!("PATH could use {} instead, so `mtx upgrade-release` needs no PATH change", via_link.display()),
+                );
+            }
+        }
     } else {
         push(&mut out, Severity::Problem, format!("{} is not on PATH; kpathsea finds mtx's hooks through PATH", bin.display()));
     }
     for prog in PROGRAMS {
         let Some(found) = which(prog, path_env) else { continue };
-        if found.parent() != Some(bin.as_path()) {
+        if !found.parent().is_some_and(is_bin) {
             let target = fs::canonicalize(&found).unwrap_or(found.clone());
             let ours = bin.join(prog).exists();
             let sev = if ours { Severity::Problem } else { Severity::Warning };

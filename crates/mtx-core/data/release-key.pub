@@ -1,0 +1,1 @@
+untrusted comment: no release signing key yet: generate one with minisign -G (see tools/sign_release.sh)

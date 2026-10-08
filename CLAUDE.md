@@ -41,7 +41,7 @@ bundle reflects it.
 ## Working conventions
 
 - Commit in small, traceable steps with descriptive messages, and push to
-  `origin main` (private GitHub repo `MennoJ97/MennoTeX`).
+  `origin main` (public GitHub repo `MennoJ97/MennoTeX`).
 - `cargo build --release && cargo test` must pass before each commit.
 - Test end to end on real `.tex` files when a change affects installing or
   compiling: bootstrap a scratch root (never `~/Library/MennoTeX` unless asked),

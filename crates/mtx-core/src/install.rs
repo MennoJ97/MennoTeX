@@ -425,5 +425,11 @@ pub fn repair(ctx: &mut Ctx) -> Result<Vec<String>> {
     lsr::rebuild(&ctx.root.texmf_dist())?;
     apply_regen(ctx, &tlpdb, Regen::all(), &[])?;
     crate::shims::sync(ctx, &tlpdb)?;
+    // Roots made before `…/MennoTeX/current` existed get it here.
+    if let Some(link) = crate::release::current_link(&ctx.root) {
+        if link.symlink_metadata().is_err() {
+            crate::release::point_current(&ctx.root)?;
+        }
+    }
     Ok(fixed)
 }

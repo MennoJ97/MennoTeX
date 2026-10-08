@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -90,6 +90,20 @@ the `texmf-dist` files read (`.fls`); it needs poppler and pypdf. Expected diffe
 on macOS: XeLaTeX documents that select TeX-tree fonts by name fail or fall back in a
 stock TeX Live ([package quirks](/upstream/package-quirks.md)).
 
+# Making a release ([decision 0011](/decisions/0011-releases-and-self-update.md))
+
+1. Once: `minisign -G -p crates/mtx-core/data/release-key.pub -s ~/.minisign/mennotex.key`
+   (password protected; the secret key stays on that Mac), commit the public key.
+2. Run the workflow with `release: true` (the user's OK). It builds mtx, reuses TeX
+   Live's programs from an earlier release when `build/texlive-source.rev`,
+   `kpathsea-ondemand/` and `build/` are unchanged (`rebuild: true` forces a build), and
+   creates a **draft** `mennotex-<release>-<commit>`.
+3. `tools/sign_release.sh <tag>`: checks the draft's files against `SHA256SUMS`, signs it
+   (minisign asks for the password), uploads `SHA256SUMS.minisig`, publishes.
+4. Installations update with `mtx self-update` (`--check` only reports); `--from DIR`
+   takes a directory of release files instead of GitHub. Test fixtures for the
+   verification: `tools/make_test_release.sh` (a throwaway key).
+
 # Crash-recovery test
 
 ```bash
@@ -116,17 +130,18 @@ build/build-texlive.sh /tmp/tl2026
 mtx --root /tmp/mtxroot install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darwin*/
 ```
 
-Or let mtx fetch the newest successful CI build itself (needs `gh` with access to the
-private repository; checks the archive's release and `SHA256SUMS`, skips a build that is
-installed already):
+Or let mtx fetch the newest successful CI build itself (needs `gh`; checks the
+archive's release and `SHA256SUMS`, skips a build that is installed already). For a
+signed release, `mtx self-update` is the normal path (see "Making a release"):
 
 ```bash
 mtx --root /tmp/mtxroot install-binaries --github            # or --run <id>, --release <tag|latest>
 ```
 
 On GitHub: run the **Build TeX Live binaries** workflow by hand (Actions tab,
-`workflow_dispatch`; optionally publish a release). It is manual on purpose: macOS
-minutes are billed at 10× on a private repo. A run's artifact is on the run's
+`workflow_dispatch`, or `gh workflow run build-binaries.yml -f release=true`). It was
+made manual while the repository was private (macOS minutes billed at 10×); it is
+public since (at the latest) 2026-10-08, and the user still approves each run. A run's artifact is on the run's
 **Summary** page (Actions → Build TeX Live binaries → the run → "Artifacts" below the
 job graph), not in the job log; with `release: true` the files are also under the
 repository's Releases. The second run (2026-10-08, run 37750229150, `release: true`)
