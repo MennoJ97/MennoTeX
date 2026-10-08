@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Releases `mennotex-2026-cf6183267` and `mennotex-2026-675989434` (run 37794123819, 2½ min, programs reused, new mtx) signed and published by the user; the real installation runs mtx `675989434` with programs `9c5675bd`, has `fontmaps.tsv`, and its unstamped formats were removed to rebuild on use ([handoff](/project/handoff.md)).
 * **Update**: GitHub lists releases oldest first (seen 2026-10-08), so `mtx self-update` chose the release already installed; it now sorts by `published_at`. Installed versions up to `cf6183267` need `--release TAG` once ([decision 0011](/decisions/0011-releases-and-self-update.md)).
 * **Update**: Release `mennotex-2026-cf6183267` drafted by CI (run 37791928013) with everything above; the incremental CI build from the cached tree works (5½ min) ([handoff](/project/handoff.md)).
 * **Creation**: [Decision 0017](/decisions/0017-mirror-faults.md): fault-injection tests over HTTP (PLAN.md §8) found that error statuses, broken-off transfers and unverifiable databases did not switch mirrors, and that a good mirror one revision ahead got avoided after a failover; all fixed ([playbook](/playbooks/development.md), [status](/project/status.md)).

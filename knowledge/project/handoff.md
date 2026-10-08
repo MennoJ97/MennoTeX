@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -13,23 +13,18 @@ verified:
 
 # Where things stand (2026-10-08)
 
-- **Ready for the next release, not in one yet (2026-10-08, the user asked for PLAN.md
-  items 1–5 before it):** probe installs measured, no deny list ([decision 0013](/decisions/0013-no-probe-deny-list.md));
-  `Package mtx Warning` lines in TeX's log for declined/failed installs ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md),
-  new patch 0004); map packages installed during the compile ([decision 0015](/decisions/0015-font-map-on-miss.md));
-  format stamps ([decision 0016](/decisions/0016-format-stamps.md)); fault-injection tests and the
-  mirror-failover fixes they led to ([decision 0017](/decisions/0017-mirror-faults.md)); `mtx search`; and, at the
-  user's request mid-session, the install prompt lists every package with its
-  dependencies (an expandable, scrolling dialog the user clicked through). Plus the
-  dialog-click fix `93d879f`. Patches 0001 and 0003 changed and 0004 is new, so the
-  release run rebuilt TeX Live's programs. **Drafted 2026-10-08:** `mennotex-2026-cf6183267`
-  (run 37791928013, 8 min with an exact build-tree cache hit; programs
-  `mennotex-bin-2026-6a3001880.9c5675bd`, checked to contain the new C code). The run
-  before it, 37790938276 (`8ac906d`), was the first incremental CI build from the cache
-  (5½ min build) and its draft was deleted. Next: the user signs with
-  `tools/sign_release.sh mennotex-2026-cf6183267`, then `mtx self-update` on the real
-  installation. The first `repair` after that deletes the
-  real installation's formats once (they have no stamps) and they rebuild on next use.
+- **Released and installed (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
+  programs `mennotex-bin-2026-6a3001880.9c5675bd`, reused from `cf6183267`'s run
+  37791928013) carries PLAN.md items 1–5 the user asked for: probe installs measured, no
+  deny list ([decision 0013](/decisions/0013-no-probe-deny-list.md)); `Package mtx Warning`
+  lines in TeX's log ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md), patch
+  0004); map packages installed during the compile ([decision 0015](/decisions/0015-font-map-on-miss.md));
+  format stamps ([decision 0016](/decisions/0016-format-stamps.md)); mirror-failover fixes
+  from fault injection ([decision 0017](/decisions/0017-mirror-faults.md)); `mtx search`; the
+  package-list install prompt; the dialog-click fix; and `self-update` ordering releases
+  by `published_at`. The user signed both releases and updated the real installation
+  (`mtx --version` → `675989434`, `fontmaps.tsv` present, old unstamped formats removed;
+  they rebuild on next use). From here plain `mtx self-update` finds new releases.
 
 - **Phase 2's exit criteria are met (2026-10-08):** the corpus matches a full TeX Live
   2026 (pdfLaTeX, LuaLaTeX; XeLaTeX except TeX-tree fonts by name) and crashes
