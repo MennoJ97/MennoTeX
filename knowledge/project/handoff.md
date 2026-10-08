@@ -22,10 +22,13 @@ verified:
   user's request mid-session, the install prompt lists every package with its
   dependencies (an expandable, scrolling dialog the user clicked through). Plus the
   dialog-click fix `93d879f`. Patches 0001 and 0003 changed and 0004 is new, so the
-  release run rebuilds TeX Live's programs (incrementally from the cached build tree; a
-  local incremental build took about 2 minutes). Next: a CI run with `release: true`
-  (needs the user's OK), the user signs with `tools/sign_release.sh <tag>`, then
-  `mtx self-update` on the real installation. The first `repair` after that deletes the
+  release run rebuilt TeX Live's programs. **Drafted 2026-10-08:** `mennotex-2026-cf6183267`
+  (run 37791928013, 8 min with an exact build-tree cache hit; programs
+  `mennotex-bin-2026-6a3001880.9c5675bd`, checked to contain the new C code). The run
+  before it, 37790938276 (`8ac906d`), was the first incremental CI build from the cache
+  (5½ min build) and its draft was deleted. Next: the user signs with
+  `tools/sign_release.sh mennotex-2026-cf6183267`, then `mtx self-update` on the real
+  installation. The first `repair` after that deletes the
   real installation's formats once (they have no stamps) and they rebuild on next use.
 
 - **Phase 2's exit criteria are met (2026-10-08):** the corpus matches a full TeX Live
