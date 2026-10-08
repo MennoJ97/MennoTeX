@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T11:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -61,8 +61,9 @@ archives. See the [development playbook](/playbooks/development.md).
 # Decisions the user made
 
 - **CI:** the binary build workflow (`.github/workflows/build-binaries.yml`) is
-  **manual only** (private repo; macOS minutes billed at 10×). The user approved one
-  run on 2026-10-08 (done, without publishing a Release); ask before any further run. No other workflows were added (a cheap Linux
+  **manual only** (private repo; macOS minutes billed at 10×). The user approved a
+  run on 2026-10-07 (artifact only) and on 2026-10-08 one with `release: true`, which
+  published the first Release; ask before any further run. No other workflows were added (a cheap Linux
   `cargo test` + OKF check on push would also need the user's OK).
 - **Real installation on this Mac:** installed 2026-10-08 (the user chose "install, no
   PATH edit", then "finish the install"); the user then added it to PATH themselves in
@@ -89,18 +90,20 @@ archives. See the [development playbook](/playbooks/development.md).
    - The artifact holds TeX Live's programs only, not `mtx`. A one-command upgrade
      (`mtx self-update`, and moving to the next release) needs the workflow to build and
      package mtx too: a workflow change plus a CI run, which needs the user's OK.
-   - Releases: none published yet (the workflow's `release: true` input; needs the
-     user's OK). Artifacts expire after GitHub's retention period (90 days by default), so
-     publish a Release before relying on `--github` long term.
+   - Releases: the first, `mennotex-bin-2026-6a3001880-arm64-darwin`, was published
+     2026-10-08 by run 37750229150 (15 min 49 s) with the binary archive (37 MB), the
+     source archive (95 MB) and `SHA256SUMS`. `mtx install-binaries --github --release
+     latest` installed its 153 programs into a scratch root in 26 s. Release assets do
+     not expire; run artifacts do (90 days by default).
    - A signed manifest (plan §5.8) matters once the repository or releases are public.
    - **Licensing before publishing a Release:** done in the workflow 2026-10-08
      ([decision 0008](/decisions/0008-licensing.md)): the archive carries the license
      texts (`LICENSING.md`, `COPYINGv2`, `COPYING.LESSERv2`, a `licenses/` tree with
      every license file of texlive-source) and `kpathsea-ondemand/`; a Release also
      gets `mennotex-src-<release>-<rev>.tar.xz` (texlive-source at the pinned revision,
-     unpatched, plus the patches, `build/` and the workflow). The packaging shell was
-     tested locally against a fake bin directory and a shallow texlive-source clone; the
-     workflow itself has not run with it yet (a CI run needs the user's OK).
+     unpatched, plus the patches, `build/` and the workflow). Checked in the first
+     Release: both assets match `SHA256SUMS`, `licenses/` has 109 files, and the source
+     archive's `tex-make.c` is the unpatched upstream file.
 3. **Install feedback:** done 2026-10-08 ([decision 0007](/decisions/0007-install-consent.md)):
    `mtx config autoinstall yes|no|ask` (`$MTX_AUTOINSTALL` overrides), `ask` via terminal,
    dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;

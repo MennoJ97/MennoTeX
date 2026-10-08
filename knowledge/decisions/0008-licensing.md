@@ -4,7 +4,7 @@ title: Licensing
 description: Own code is MIT OR Apache-2.0; patches keep the license of the TeX Live file they change; binaries and packages keep theirs; README follows TeX Live's redistribution guidelines.
 tags: [decision, license, legal, redistribution]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:00:00Z }
 sources:
   - id: tl
     resource: https://tug.org/texlive/LICENSE.TL
@@ -58,8 +58,8 @@ in [licenses](/upstream/licenses.md).
   unpatched) plus `kpathsea-ondemand/`, `build/`, the license files and the workflow,
   listed in the same `SHA256SUMS`. `mtx install-binaries` ignores the extra files (it
   installs top-level Mach-O files only; a `cargo test` covers it), and
-  `--github --release` downloads only `mennotex-bin-*.tar.xz` and `SHA256SUMS`. Not
-  yet exercised in CI: the next run needs the user's OK.
+  `--github --release` downloads only `mennotex-bin-*.tar.xz` and `SHA256SUMS`. The first
+  Release (run 37750229150, 2026-10-08) was published this way and checked.
 - New code files default to MIT OR Apache-2.0; changes to TeX Live sources take that
   source's license.
 
