@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: `mtx list --auto|--explicit` (PLAN.md §5.10); `mtx update` rewrites `texmf-dist/ls-R` (PLAN.md §5.6: installs only append, so it gathers repeated blocks and entries for files upgrades dropped) ([mtx-core](/architecture/mtx-core.md)).
 * **Creation**: [Decision 0019](/decisions/0019-ctan-overlay.md): `mtx install --from-ctan` puts CTAN's TDS archive in `texmf-ctan` over TeX Live's package; format stamps include the overlay; `mtx update` drops it once tlnet catches up. CTAN often has no TDS archive (`nicematrix`), and kernel packages have no catalogue version in TeX Live ([package quirks](/upstream/package-quirks.md)).
 * **Update**: Settings `freshness_ttl`, `prefetch_depth` and `docs` (PLAN.md §5.9); documentation installs fail over like package installs ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: On-the-fly overhead measured (`tests/measure_overhead.py`): median 87 ms per package with cached archives, 457 ms from an empty cache (79% downloading); the tail is big font packages and `updmap` ([status](/project/status.md), [playbook](/playbooks/development.md)).

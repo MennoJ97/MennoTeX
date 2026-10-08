@@ -447,6 +447,16 @@ fn summarize(names: &[String]) -> String {
     }
 }
 
+/// Rewrite `texmf-dist/ls-R` from the tree, under the install lock (PLAN.md
+/// §5.6, for `mtx update`). Installs only append to it, so it collects
+/// repeated directory blocks and, after upgrades, entries for files a new
+/// revision no longer ships.
+pub fn compact_lsr(ctx: &Ctx) -> Result<()> {
+    let lock = fs::File::create(ctx.root.lock_path())?;
+    lock.lock()?;
+    lsr::rebuild(&ctx.root.texmf_dist())
+}
+
 /// Add newly installed `texmf-dist` files to its ls-R.
 fn append_lsr(ctx: &Ctx, files: &[String]) -> Result<()> {
     let rel: Vec<&str> = files.iter().filter_map(|f| f.strip_prefix("texmf-dist/")).collect();

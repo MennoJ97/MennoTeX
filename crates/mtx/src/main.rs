@@ -172,8 +172,15 @@ enum Cmd {
     },
     /// Show details about a package.
     Info { package: String },
-    /// List installed packages.
-    List,
+    /// List installed packages (name, revision, why it was installed).
+    List {
+        /// Only packages mtx installed by itself: on demand, or as dependencies.
+        #[arg(long, conflicts_with = "explicit")]
+        auto: bool,
+        /// Only packages installed by request (and the bootstrap set).
+        #[arg(long)]
+        explicit: bool,
+    },
     /// Check the mirror for a newer package database.
     Refresh,
     /// Upgrade all installed packages that have newer revisions.
@@ -487,9 +494,13 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 None => println!("installed: no"),
             }
         }
-        Cmd::List => {
+        Cmd::List { auto, explicit } => {
             let ctx = open(&root)?;
             for (name, i) in ctx.db.installed()? {
+                let by_mtx = matches!(i.reason.as_str(), "auto" | "dependency");
+                if (auto && !by_mtx) || (explicit && by_mtx) {
+                    continue;
+                }
                 println!("{name}\tr{}\t{}", i.revision, i.reason);
             }
         }
@@ -520,6 +531,9 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 let bases: Vec<&str> = docs.iter().filter_map(|d| mtx_core::docs::base(d)).collect();
                 let d = mtx_core::docs::install(&mut ctx, &bases, Reason::Upgrade)?;
                 eprintln!("mtx: upgraded {} package(s) and the documentation of {}", r.installed.len(), d.len());
+            }
+            if !dry_run {
+                install::compact_lsr(&ctx)?;
             }
             // CTAN overlays tlnet has caught up with (after the upgrade, so
             // TeX Live's new version is in place first).

@@ -593,3 +593,21 @@ fn ctan_refuses_bad_archives() {
     assert!(crate::ctan::overlays(&ctx).unwrap().is_empty());
     assert!(fs::read_dir(&root.dir).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().starts_with(".staging-ctan")));
 }
+
+/// Installs append to ls-R; `compact_lsr` (run by `mtx update`) rewrites it
+/// with one block per directory and without files that are gone.
+#[test]
+fn update_compacts_ls_r() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["bar"], Reason::Explicit).unwrap();
+    install::install(&mut ctx, &["baz"], Reason::Explicit).unwrap();
+    crate::lsr::append(&root.texmf_dist(), ["tex/latex/bar/gone.sty"]).unwrap();
+    let blocks = |s: &str| s.matches("\n./tex/latex/bar:\n").count();
+    let before = fs::read_to_string(root.texmf_dist().join("ls-R")).unwrap();
+    assert!(blocks(&before) == 2 && before.contains("gone.sty"), "{before}");
+    install::compact_lsr(&ctx).unwrap();
+    let after = fs::read_to_string(root.texmf_dist().join("ls-R")).unwrap();
+    assert_eq!(blocks(&after), 1, "{after}");
+    assert!(!after.contains("gone.sty") && after.contains("\n./tex/latex/baz:\nbaz.sty\n"));
+}

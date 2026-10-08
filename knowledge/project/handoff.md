@@ -18,10 +18,10 @@ verified:
   dependencies and the kernel upgraded outside compiles, deferred during them, caught up
   by prefetch); the on-the-fly overhead measured (median 87 ms per package with cached
   archives, 457 ms cold; [status](/project/status.md)); the settings `freshness_ttl`,
-  `prefetch_depth` and `docs`; and `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md)).
+  `prefetch_depth` and `docs`; and `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md)). Also `mtx list --auto|--explicit` and `ls-R` compaction in `mtx update`.
   All in mtx, no C changes, so a release run can reuse the programs (`9c5675bd`, about
   2½ minutes). The new `texmf.cnf` line (`texmf-ctan` in `TEXMFAUXTREES`) reaches an
-  installation through the `repair` that `self-update` runs. 99 `cargo test` tests.
+  installation through the `repair` that `self-update` runs. 100 `cargo test` tests.
 - **Released and installed (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
   programs `mennotex-bin-2026-6a3001880.9c5675bd`, reused from `cf6183267`'s run
   37791928013) carries PLAN.md items 1–5 the user asked for: probe installs measured, no
@@ -62,7 +62,7 @@ verified:
   on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
 - **Repository:** public `MennoJ97/MennoTeX` (the user, 2026-10-08), branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
-  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 99 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
+  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 100 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 

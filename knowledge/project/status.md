@@ -154,6 +154,7 @@ test document still makes 18 such calls.
   s to unpack) and font-map regeneration (`updmap`, about 0.8 s even for the 0.3 MiB
   `palatino`).
 - Settings (PLAN.md §5.9): `freshness_ttl`, `prefetch_depth`, `docs`.
+- `mtx list --auto|--explicit` (PLAN.md §5.10); `mtx update` compacts `ls-R` (§5.6).
 - CTAN overlay channel (PLAN.md §4.2, Phase 4, [decision 0019](/decisions/0019-ctan-overlay.md)):
   `mtx install --from-ctan`; checked on a scratch root with CTAN's `l3kernel` (format
   rebuilt with the overlay and again without it).

@@ -375,7 +375,7 @@ These fix the MiKTeX weaknesses listed in §2.1:
    2. Write the journal entry `txn-<id>: {packages, files}`.
    3. Extract into `texmf-dist/.staging/<id>/`, with sanitized paths: no absolute paths, no `..`, no symlinks escaping the root. Preserve the executable bit; MiKTeX loses it and has to `chmod` scripts afterwards.
    4. `rename()` each file into place. Files already owned by another package get shared ownership instead of being overwritten.
-   5. Append blocks to `ls-R`: write a temp file and rename it, or append with `O_APPEND` plus `fsync`. Compact `ls-R` during `mtx update`.
+   5. Append blocks to `ls-R`: write a temp file and rename it, or append with `O_APPEND` plus `fsync`. Compact `ls-R` during `mtx update`. *As built:* appended with `fsync`; `mtx update`, `mtx remove`, docs installs and `mtx repair` rewrite it.
    6. Update `installed.sqlite` (WAL), then delete the journal entry.
 4. **Post-actions** (§5.7), outside the main lock, each under its own lock.
 5. **Crash recovery.** At the start of any `mtx` command, replay or roll back leftover journal entries.
