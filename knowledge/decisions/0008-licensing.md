@@ -4,7 +4,7 @@ title: Licensing
 description: Own code is MIT OR Apache-2.0; patches keep the license of the TeX Live file they change; binaries and packages keep theirs; README follows TeX Live's redistribution guidelines.
 tags: [decision, license, legal, redistribution]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:00:00Z }
 sources:
   - id: tl
     resource: https://tug.org/texlive/LICENSE.TL
@@ -32,6 +32,10 @@ in [licenses](/upstream/licenses.md).
 - **README** carries what TeX Live's guidelines ask of a modified distribution: a
   different name ("MennoTeX, based on TeX Live 2026"), a list of changes, "report
   problems here", and links to the TeX user groups and the TeX Live home page.
+- **AI disclosure** (user's request, 2026-10-08): the README's "Use of AI" section says
+  the code, patches and documentation were largely written by Claude through Claude
+  Code under the maintainer's direction (every commit has a `Co-Authored-By` line) and
+  asks readers to report mistakes.
 - **MiKTeX:** no MiKTeX code, packages or repositories are used, so its terms do not
   apply; the README and `LICENSING.md` say so and credit the idea.
 - `LICENSING.md` (not `LICENSE`) holds the overview, so GitHub's license detection

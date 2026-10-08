@@ -113,6 +113,14 @@ The [development playbook](knowledge/playbooks/development.md) covers this, test
 roots, and the pitfalls (such as other TeX installations shadowing yours on `PATH`).
 Contributors, human or agent, start at [CLAUDE.md](CLAUDE.md).
 
+## Use of AI
+
+MennoTeX was written with an AI model: the code, patches and documentation (including
+`knowledge/`) were largely written by Anthropic's Claude through Claude Code, under the
+maintainer's direction, and every commit says so in a `Co-Authored-By` line. Changes are
+checked with the unit tests and the document corpus, but they can still contain
+mistakes; please report what you find.
+
 ## License
 
 MennoTeX's own code is licensed under either of [Apache License 2.0](LICENSE-APACHE)
