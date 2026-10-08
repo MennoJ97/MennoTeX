@@ -4,7 +4,7 @@ title: Signed releases and self-update
 description: Releases (mtx plus TeX Live's programs) are drafted by CI, signed with minisign on the maintainer's Mac and published; mtx self-update and upgrade-release install only releases whose SHA256SUMS signature and checksums verify, and a current symlink makes release upgrades a PATH-free switch.
 tags: [decision, release, signing, minisign, self-update, upgrade]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:40:00Z }
 sources:
   - id: minisign
     resource: https://jedisct1.github.io/minisign/
@@ -51,6 +51,12 @@ with the signed manifest, and chose to keep the signing key on their Mac.
   2026-10-08 before the first release was signed), swaps it atomically if it differs, then lets the **new** mtx install the programs (if `binaries_build`
   differs) and run `mtx repair`. Old versions therefore only need to download,
   verify and swap.
+- **"Newest" is by `published_at`.** GitHub's release list is not newest first: on
+  2026-10-08 the public API listed the three releases oldest first, and `self-update`
+  (which took the first matching tag) kept choosing the release already installed
+  after `mennotex-2026-cf6183267` was published. mtx sorts by `published_at` since
+  `release::newest_first`; versions before that (`f06b1506f`, `cf6183267`) need
+  `mtx self-update --release TAG` once.
 - **`mtx upgrade-release`** takes the newest release for a newer TeX Live, runs its
   mtx as `bootstrap --from <old root>` into `<parent>/<new release>`
   ([decision 0006](/decisions/0006-release-transitions.md)), installs its programs,

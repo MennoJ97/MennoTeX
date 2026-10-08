@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: GitHub lists releases oldest first (seen 2026-10-08), so `mtx self-update` chose the release already installed; it now sorts by `published_at`. Installed versions up to `cf6183267` need `--release TAG` once ([decision 0011](/decisions/0011-releases-and-self-update.md)).
 * **Update**: Release `mennotex-2026-cf6183267` drafted by CI (run 37791928013) with everything above; the incremental CI build from the cached tree works (5½ min) ([handoff](/project/handoff.md)).
 * **Creation**: [Decision 0017](/decisions/0017-mirror-faults.md): fault-injection tests over HTTP (PLAN.md §8) found that error statuses, broken-off transfers and unverifiable databases did not switch mirrors, and that a good mirror one revision ahead got avoided after a failover; all fixed ([playbook](/playbooks/development.md), [status](/project/status.md)).
 * **Update**: The first CI build from a partially matching build-tree cache failed: after the restore every file has a new inode, `git checkout -- .` then rewrote all tracked files (new mtimes, full rebuild, ICU "config.status has become stale"); the workflow refreshes git's index first ([playbook](/playbooks/development.md)).

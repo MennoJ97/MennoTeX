@@ -200,14 +200,29 @@ fn repo(ctx: &Ctx) -> Result<String> {
 }
 
 /// The `"tag_name"` values in a GitHub releases API response, in order.
-fn tag_names(json: &str) -> Vec<String> {
+/// `(published_at, tag_name)` of each release in the API's JSON. A
+/// release object has `published_at` after `tag_name` and before the next
+/// release's `tag_name` (its assets have no `published_at`).
+fn releases(json: &str) -> Vec<(String, String)> {
+    let value = |s: &str, key: &str| -> Option<String> {
+        let rest = s[s.find(key)? + key.len()..].trim_start().strip_prefix(':')?.trim_start().strip_prefix('"')?;
+        Some(rest[..rest.find('"')?].to_string())
+    };
     json.split("\"tag_name\"")
         .skip(1)
-        .filter_map(|rest| {
-            let rest = rest.trim_start().strip_prefix(':')?.trim_start().strip_prefix('"')?;
-            Some(rest[..rest.find('"')?].to_string())
+        .filter_map(|chunk| {
+            let tag = value(&format!("\"tag_name\"{chunk}"), "\"tag_name\"")?;
+            Some((value(chunk, "\"published_at\"").unwrap_or_default(), tag))
         })
         .collect()
+}
+
+/// Tags sorted newest first by publication time (ISO 8601 sorts as text).
+/// GitHub's list is not in that order: on 2026-10-08 it listed the oldest
+/// release first, and `mtx self-update` kept installing it.
+fn newest_first(mut releases: Vec<(String, String)>) -> Vec<String> {
+    releases.sort_by(|a, b| b.0.cmp(&a.0));
+    releases.into_iter().map(|(_, tag)| tag).collect()
 }
 
 /// Published MennoTeX release tags of `repo`, newest first: from GitHub's
@@ -215,17 +230,21 @@ fn tag_names(json: &str) -> Vec<String> {
 /// repository).
 pub fn list_tags(repo: &str) -> Result<Vec<String>> {
     let api = crate::repo::Repo::at(&format!("https://api.github.com/repos/{repo}"));
-    let tags = match api.get_bytes("releases?per_page=100") {
-        Ok(body) => tag_names(&String::from_utf8_lossy(&body)),
+    let releases = match api.get_bytes("releases?per_page=100") {
+        Ok(body) => releases(&String::from_utf8_lossy(&body)),
         Err(public) => crate::github::run_gh(&[
-            "api", "--paginate", &format!("repos/{repo}/releases"), "--jq", ".[] | select(.draft | not) | .tag_name",
+            "api",
+            "--paginate",
+            &format!("repos/{repo}/releases"),
+            "--jq",
+            ".[] | select(.draft | not) | \"\\(.published_at) \\(.tag_name)\"",
         ])
         .with_context(|| format!("listing {repo}'s releases failed ({public:#}); through gh too"))?
         .lines()
-        .map(String::from)
+        .filter_map(|l| l.split_once(' ').map(|(p, t)| (p.to_string(), t.to_string())))
         .collect(),
     };
-    Ok(tags.into_iter().filter(|t| parse_tag(t).is_some()).collect())
+    Ok(newest_first(releases).into_iter().filter(|t| parse_tag(t).is_some()).collect())
 }
 
 /// Download what mtx needs of release `tag` into `dir`: `SHA256SUMS`, its
@@ -521,9 +540,19 @@ mod tests {
     }
 
     #[test]
-    fn tag_names_from_the_api() {
-        let json = r#"[{"url":"x","tag_name": "mennotex-2026-7c496c5ab","draft":false},{"tag_name":"mennotex-bin-2026-6a3001880-arm64-darwin"}]"#;
-        assert_eq!(tag_names(json), vec!["mennotex-2026-7c496c5ab", "mennotex-bin-2026-6a3001880-arm64-darwin"]);
+    fn releases_newest_first_whatever_the_api_order() {
+        // As GitHub listed them on 2026-10-08: oldest first, assets with
+        // their own created_at.
+        let json = r#"[{"url":"x","author":{"login":"a"},"tag_name": "mennotex-2026-f06b1506f","draft":false,
+            "created_at":"2026-10-08T13:06:33Z","published_at": "2026-10-08T13:13:41Z","assets":[{"created_at":"2026-10-08T14:40:00Z"}]},
+            {"tag_name":"mennotex-bin-2026-6a3001880-arm64-darwin","published_at":"2026-10-08T08:45:42Z"},
+            {"tag_name":"mennotex-2026-cf6183267","created_at":"2026-10-08T14:32:01Z","published_at":"2026-10-08T14:34:19Z","assets":[]}]"#;
+        let got = releases(json);
+        assert_eq!(got[0], ("2026-10-08T13:13:41Z".to_string(), "mennotex-2026-f06b1506f".to_string()));
+        assert_eq!(
+            newest_first(got),
+            ["mennotex-2026-cf6183267", "mennotex-2026-f06b1506f", "mennotex-bin-2026-6a3001880-arm64-darwin"]
+        );
     }
 
     #[test]
