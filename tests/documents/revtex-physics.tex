@@ -1,0 +1,24 @@
+% engines: pdflatex xelatex lualatex
+% tools: bibtex
+% An arXiv-style physics letter: REVTeX 4.2 (aps, prl), with its bibtex style,
+% which also reads the \jobname Notes.bib that REVTeX writes.
+\begin{filecontents*}[overwrite]{\jobname.bib}
+@article{einstein, author={A. Einstein}, title={Zur Elektrodynamik bewegter K{\"o}rper},
+  journal={Ann. Phys.}, volume={322}, pages={891}, year={1905}}
+\end{filecontents*}
+\documentclass[aps,prl,twocolumn,superscriptaddress]{revtex4-2}
+\usepackage{amsmath,bm}
+\begin{document}
+\title{A test letter}
+\author{A. Author}
+\affiliation{Some University}
+\begin{abstract}
+A short abstract.
+\end{abstract}
+\maketitle
+Special relativity~\cite{einstein} gives
+\begin{equation}
+  E^2 = (pc)^2 + (mc^2)^2, \qquad \bm{F} = \frac{d\bm{p}}{dt}.
+\end{equation}
+\bibliography{\jobname}
+\end{document}

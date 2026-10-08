@@ -1,0 +1,13 @@
+% engines: xelatex
+% PSTricks: PostScript specials, which xdvipdfmx turns into PDF.
+\documentclass{article}
+\usepackage{pstricks,pst-plot,pst-node}
+\begin{document}
+\begin{pspicture}(-0.5,-1.5)(7,2)
+  \psaxes{->}(0,0)(0,-1.2)(6.6,1.5)
+  \psplot[linecolor=blue,plotpoints=100]{0}{6.28}{x 57.2958 mul sin}
+  \rput(3,1.6){\rnode{A}{\psframebox{Node}}}
+  \rput(5.5,1.6){\rnode{B}{Other}}
+  \ncline{->}{A}{B}
+\end{pspicture}
+\end{document}

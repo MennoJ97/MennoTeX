@@ -1,0 +1,12 @@
+% engines: xelatex lualatex
+% OpenType fonts by family name with features: EB Garamond (old-style
+% figures, small caps), Fira Sans, Source Code Pro.
+\documentclass{article}
+\usepackage{fontspec}
+\setmainfont{EB Garamond}[Numbers=OldStyle]
+\setsansfont{Fira Sans}
+\setmonofont{Source Code Pro}
+\begin{document}
+EB Garamond with figures 1234567890, \textsc{Small Caps}, \textit{italic} and \textbf{bold}.
+\textsf{Fira Sans, \textbf{bold}}. \texttt{Source Code Pro: x = 1;}
+\end{document}

@@ -1,0 +1,23 @@
+% engines: pdflatex xelatex lualatex
+% Commutative diagrams with Xy-pic (own Type 1 fonts and map) and amscd.
+% Xy-pic 3.8.9's PDF driver tests for pdfTeX's \pdfsave, which LuaTeX lacks
+% (an upstream limit, also in a full TeX Live); luatex85 defines it.
+\documentclass{article}
+\usepackage{iftex}
+\ifLuaTeX\usepackage{luatex85}\fi
+\usepackage{amsmath,amscd}
+\usepackage[all]{xy}
+\begin{document}
+\[
+\xymatrix{
+  A \ar[r]^{f} \ar[d]_{g} & B \ar[d]^{h} \\
+  C \ar[r]_{k} \ar@{-->}[ur] & D
+}
+\qquad
+\begin{CD}
+  A @>f>> B \\
+  @VgVV @VVhV \\
+  C @>>k> D
+\end{CD}
+\]
+\end{document}

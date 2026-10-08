@@ -1,0 +1,21 @@
+% engines: pdflatex
+% tools: mpost
+% The mpost program: the first run writes \jobname.mp, mpost turns it into
+% \jobname-1.mps, the second run includes it.
+\begin{filecontents*}[overwrite]{\jobname.mp}
+outputtemplate := "%j-%c.mps";
+prologues := 3;
+beginfig(1);
+  pickup pencircle scaled 1pt;
+  draw unitsquare scaled 2cm;
+  draw (0,0)--(2cm,2cm) dashed evenly;
+  label(btex $x^2$ etex, (1cm,1.5cm));
+endfig;
+end
+\end{filecontents*}
+\documentclass{article}
+\usepackage{graphicx}
+\begin{document}
+A MetaPost figure:
+\IfFileExists{\jobname-1.mps}{\includegraphics{\jobname-1.mps}}{(not made yet)}
+\end{document}

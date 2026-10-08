@@ -1,0 +1,13 @@
+% engines: pdflatex xelatex lualatex
+% Math font packages: newpx text and math, mathrsfs, esint, stmaryrd, and
+% bbm, whose fonts exist only as METAFONT sources (bitmaps made by mktexpk).
+\documentclass{article}
+\usepackage{iftex}
+\ifPDFTeX\usepackage[T1]{fontenc}\fi
+\usepackage{amsmath}
+\usepackage{newpxtext,newpxmath}
+\usepackage{mathrsfs,esint,stmaryrd,bbm}
+\begin{document}
+Palatino-like text. $\mathscr{L} = \oint_C f\,dz$, $a \llbracket b \rrbracket$,
+$\mathbbm{1}_A$, $\mathbb{R}$, $\mathcal{O}(n)$.
+\end{document}

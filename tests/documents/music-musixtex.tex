@@ -1,0 +1,21 @@
+% engines: pdflatex
+% tools: musixflx
+% Music notation: MusiXTeX writes \jobname.mx1, musixflx (a Lua script run
+% through a command shim) computes the spacing, the second run sets it.
+% The music fonts come with their own map file.
+\documentclass{article}
+\usepackage{musixtex}
+\begin{document}
+\begin{music}
+\instrumentnumber{1}
+\setstaffs1{1}
+\generalmeter{\meterfrac44}
+\startextract
+\Notes\qu{cdef}\en
+\bar
+\Notes\ql{gh}\hu i\en
+\bar
+\NOtes\zq{ceg}\wh j\en
+\zendextract
+\end{music}
+\end{document}

@@ -5,10 +5,10 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
-  - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
+  - { by: process:cargo-test, at: 2026-10-08T13:20:00Z }
+  - { by: process:tests/run_documents.sh, at: 2026-10-08T13:45:00Z }
 ---
 
 # Phase 0: spike on unmodified binaries (in progress)
@@ -53,7 +53,7 @@ Hook cost: a miss (file in no package, e.g. `hyperref.cfg`) costs 5.9 ms after w
 close to the 3.5 ms floor of spawning any process; a warm pdfLaTeX run of the
 test document still makes 18 such calls.
 
-# Phase 1: kpathsea patch and own arm64 build (exit criterion met; CI and binary channel open)
+# Phase 1: kpathsea patch and own arm64 build (exit criterion met with 51 documents; signed manifest open)
 
 | Item | State |
 |---|---|
@@ -61,6 +61,7 @@ test document still makes 18 such calls.
 | `mtx ensure --package/--path --siblings` | done |
 | `mtx install-binaries`, `mennotex-binaries` protection, kpathsea hook mode | done |
 | `build/build-texlive.sh` | release build of `tags/texlive-2026.1` with the patch: exit 0 in 20 min, 153 arm64 Mach-O programs (stripped), "TeX Live 2026" banners, minimum macOS 13.0, no non-system dylibs; kpathsea's own tests 10/10 ([build notes](/upstream/texlive-build.md)) |
+| Document corpus, 51 documents (2026-10-08, PLAN.md's Phase 1 exit) | **all pass on the first run from a fresh root per engine, and the second run installs nothing**, with the binaries of CI run 37750229150: pdfLaTeX 40/40 (11 are XeTeX/LuaTeX-only; 98 s, 331 packages), XeLaTeX 43/43 (124 s, 378 packages), LuaLaTeX 46/46 (196 s, 379 packages); second runs 42 s, 66 s, 103 s with 0 installs. The 25 new documents (Japanese, Arabic, Hebrew, Russian, Greek, REVTeX/IEEE/ACM/Elsevier, classicthesis, lecture notes, MusiXTeX, MetaPost, `bbm`, Xy-pic, CircuiTikZ, TikZ-Feynman, PSTricks, Lua packages, OpenType fonts, metropolis, PDF/A, CSV data, puzzles) found two MennoTeX bugs, both fixed: METAFONT's `mf.base` could not be built (so no bitmap fonts from `.mf` sources) and LuaLaTeX missed a second font installed in the same run ([TeX Live scripts](/upstream/texlive-scripts.md), [decision 0005](/decisions/0005-fonts-by-name.md)); Xy-pic needs `luatex85` under LuaLaTeX in any TeX Live ([package quirks](/upstream/package-quirks.md)) |
 | Document corpus, 26 documents (2026-10-08) | **all pass on the first run from a fresh root per engine with the CI-built binaries**: pdfLaTeX 23/23 (3 are XeTeX/LuaTeX-only; 157 s, 247 packages), XeLaTeX 26/26 (212 s, 312 packages), LuaLaTeX 26/26 (210 s, 311 packages); the three corpora ran in parallel with a shared cache. New: exam, KOMA letter, chess (xskak), linguistics (tipa, forest, gb4e), algorithms, song sheets, CJK (ctex + Fandol), tikzposter. `linguistics` and `tikzposter` fail with Phase 0 stock binaries (encoding file, virtual font aer17) and pass with the patch. `fontspec-by-name` no longer needs `% prefetch: lualatex`. Failover hid two bad mirrors during the run ([tlnet](/upstream/tlnet.md)) |
 | Document corpus (17 documents, 2026-10-07, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
 | CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×). **First run 2026-10-07 succeeded** (run 37694133534): 14 min 16 s, artifact `mennotex-bin-2026-6a3001880-arm64-darwin` (39 MB, 153 programs, `SHA256SUMS` verified); its binaries ran the 26-document corpus. **Second run 2026-10-08** (run 37750229150, `release: true`): 15 min 49 s, published the first Release with the license-complete binary archive (37 MB), the source archive (95 MB) and `SHA256SUMS` |

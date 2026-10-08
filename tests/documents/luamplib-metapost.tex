@@ -1,0 +1,14 @@
+% engines: lualatex
+% MetaPost inside LuaLaTeX: luamplib runs mplib in the engine, which looks
+% up plain.mp and friends through kpathsea from Lua.
+\documentclass{article}
+\usepackage{luamplib}
+\begin{document}
+\begin{mplibcode}
+beginfig(1);
+  draw fullcircle scaled 2cm withcolor red;
+  drawarrow (0,0)--(2cm,1cm) withpen pencircle scaled 1pt;
+  label.bot(btex $\alpha^2$ etex, (1cm,0));
+endfig;
+\end{mplibcode}
+\end{document}

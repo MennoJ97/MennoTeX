@@ -1,0 +1,12 @@
+% engines: pdflatex xelatex lualatex
+% Electrical circuits with CircuiTikZ.
+\documentclass{article}
+\usepackage[siunitx]{circuitikz}
+\begin{document}
+\begin{circuitikz}
+  \draw (0,0) to[battery1, l=$V_0$] (0,3)
+        to[R, l=\SI{1}{\kilo\ohm}] (4,3)
+        to[C, l=\SI{10}{\micro\farad}] (4,0)
+        to[L, l=$L$] (0,0);
+\end{circuitikz}
+\end{document}

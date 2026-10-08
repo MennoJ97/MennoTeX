@@ -1,0 +1,13 @@
+% engines: xelatex lualatex
+% Right-to-left Hebrew with polyglossia; FreeSerif (gnu-freefont) by name.
+\documentclass{article}
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+\setotherlanguage{hebrew}
+\newfontfamily\hebrewfont[Script=Hebrew]{FreeSerif}
+\begin{document}
+English text with Hebrew: \texthebrew{שלום עולם}.
+\begin{hebrew}
+זהו מסמך בדיקה בעברית.
+\end{hebrew}
+\end{document}

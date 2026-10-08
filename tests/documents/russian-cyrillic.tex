@@ -1,0 +1,19 @@
+% engines: pdflatex xelatex lualatex
+% Russian: T2A encoding with cm-super's Cyrillic Type 1 fonts on pdfLaTeX,
+% CMU Serif (cm-unicode) by name on XeLaTeX and LuaLaTeX.
+\documentclass{article}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T2A,T1]{fontenc}
+  \usepackage[russian,english]{babel}
+\else
+  \usepackage[russian,english]{babel}
+  \babelfont{rm}{CMU Serif}
+\fi
+\begin{document}
+\selectlanguage{russian}
+Съешь же ещё этих мягких французских булок, да выпей чаю.
+\textbf{Жирный} и \textit{курсив}.
+\selectlanguage{english}
+Back to English.
+\end{document}

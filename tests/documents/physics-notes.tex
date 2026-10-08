@@ -1,0 +1,22 @@
+% engines: pdflatex
+% Lecture notes in the style of the user's own: newtx fonts, geometry,
+% lineno, todonotes, lipsum, silence, physics/siunitx/braket/cancel/tensor.
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{silence}
+\WarningFilter{latex}{Marginpar on page}
+\usepackage{amsmath,physics,siunitx,braket,cancel,tensor,multirow}
+\usepackage{lineno,lipsum,todonotes}
+\usepackage{hyperref}
+\begin{document}
+\linenumbers
+\section{Quantum mechanics}
+\todo{Check signs}
+The state $\ket{\psi}$ obeys $i\hbar\pdv{t}\ket{\psi} = \hat H\ket{\psi}$, with
+$\braket{\phi|\psi}$ and $\expval{\hat x}$. A field of \SI{3.0}{\tesla},
+a tensor $\tensor{R}{^\mu_{\nu\rho\sigma}}$, and a cancellation $\cancel{a}+b$.
+\begin{tabular}{|c|c|}\hline\multirow{2}{*}{x} & 1\\ & 2\\\hline\end{tabular}
+\lipsum[1]
+\end{document}

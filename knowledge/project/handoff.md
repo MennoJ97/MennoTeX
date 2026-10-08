@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T12:15:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -13,10 +13,11 @@ verified:
 
 # Where things stand (2026-10-08)
 
-- **Phases 0 and 1 work.** A 30 MB bootstrap plus our patched TeX Live 2026.1 arm64
-  build compiles the 26-document corpus on the first run from a fresh root:
-  pdfLaTeX 23/23 (3 are XeTeX/LuaTeX-only), XeLaTeX 26/26, LuaLaTeX 26/26, using the
-  binaries from the **first GitHub CI build** (2026-10-08, 14 min, 39 MB artifact).
+- **Phases 0 and 1 work; Phase 1's exit criterion is met.** A 30 MB bootstrap plus our
+  patched TeX Live 2026.1 arm64 build compiles the **51-document corpus** on the first
+  run from a fresh root, and the second run installs nothing: pdfLaTeX 40/40 (11 are
+  XeTeX/LuaTeX-only), XeLaTeX 43/43, LuaLaTeX 46/46 (2026-10-08, binaries of CI run
+  37750229150).
   Details and numbers: [status](/project/status.md).
 - **Done beyond the plan's phase 1:** command shims, `mtx prefetch`/`doctor`/`repair`/
   `update`/`remove`, an install journal, a font-map index (`ec` → `cm-super`),
@@ -139,9 +140,11 @@ archives. See the [development playbook](/playbooks/development.md).
      bump `root::RELEASE`, rebuild with the patches, rerun the corpus.
    - A one-command upgrade from the old mtx needs release downloads (step 2);
      until then `mtx doctor` names the command.
-5. **Grow the corpus** from 26 toward the plan's 50 documents (e.g. arXiv sources, kept
-   locally; theses, posters with real fonts, Japanese with LuaTeX-ja, music with
-   musixtex (needs `musixflx` between runs), Arabic/Hebrew with bidi).
+5. **Corpus:** grown to 51 documents (2026-10-08). Two fixes came out of it (`mf.base`
+   for METAFONT-only fonts; LuaLaTeX's second new font per run); the real installation
+   gets them with the next `mtx repair` from a new build (the user runs it). Next for the
+   corpus: the Phase 2 check that it compiles identically to a full TeX Live 2026
+   (page counts, `pdftotext`), and real arXiv sources kept locally.
 6. **Known gaps** (each has a note in the knowledge bundle). The next substantial one is
    the pdfTeX map reload below: a C patch, so it needs a local build (~20 min) to develop
    and a CI run (user's OK) to reach the real installation.
@@ -152,6 +155,8 @@ archives. See the [development playbook](/playbooks/development.md).
      Anonymous requests (`\font\x="Name"`) are not wrapped.
    - Font packages first needed after pdfTeX's first `\shipout` are missing from that run's
      map (plan §5.7); a pdfTeX/LuaTeX map-reload patch would fix it.
+   - METAFONT-only fonts (`bbm`) work since 2026-10-08: `mktexfmt mf.base` installs
+     `metafont` and `modes`, and mktexpk makes the bitmap.
    - Roots made before the font-map rule need `mtx repair`; a `mktexpk` fallback could
      install map packages automatically.
    - Format staleness is handled by deletion (binary install, `fmttriggers`); no stamps.

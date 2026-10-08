@@ -1,6 +1,10 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: Corpus grown from 26 to 51 documents; all pass on fresh roots and the second run installs nothing, meeting Phase 1's exit ([status](/project/status.md), [playbook](/playbooks/development.md), [handoff](/project/handoff.md)).
+* **Update**: `mktexfmt` builds METAFONT's `mf.base` (installing `metafont`) so mktexpk works; fmtutil only acts as mktexfmt under that name ([TeX Live scripts](/upstream/texlive-scripts.md), [mtx-core](/architecture/mtx-core.md)).
+* **Update**: The luaotfload overlay rescans after an install, so a second font installed in one LuaLaTeX run is found ([decision 0005](/decisions/0005-fonts-by-name.md), [fonts by name](/upstream/fonts-by-name.md)).
+* **Creation**: [Package quirks](/upstream/package-quirks.md): Xy-pic needs `luatex85` under LuaLaTeX; PSTricks works on XeLaTeX without Ghostscript.
 * **Update**: The real installation runs the mtx with `ask` diagnostics (user ran `mtx repair`; auto mode blocks agents from changing it) ([handoff](/project/handoff.md)).
 * **Update**: First GitHub Release published by CI run 37750229150 (user-approved): binary and source archives verified against `SHA256SUMS` and installed with `--github --release latest` ([status](/project/status.md), [handoff](/project/handoff.md), [decision 0008](/decisions/0008-licensing.md), [playbook](/playbooks/development.md)).
 * **Update**: Every `ask` outcome is logged with why a prompt could not be shown (osascript exit status, stderr, run time) and the process chain the request came from; `mtx doctor` warns about unshown prompts ([decision 0007](/decisions/0007-install-consent.md), [mtx-core](/architecture/mtx-core.md), [handoff](/project/handoff.md)).

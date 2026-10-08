@@ -1,0 +1,31 @@
+% engines: pdflatex xelatex lualatex
+% A thesis skeleton: classicthesis on KOMA's scrreprt, front matter, lists
+% of figures and tables, parts, chapters and an appendix.
+\documentclass[11pt,a4paper,footinclude=true,headinclude=true]{scrreprt}
+\usepackage{iftex}
+\ifPDFTeX\usepackage[T1]{fontenc}\fi
+\usepackage[english]{babel}
+\usepackage{graphicx,booktabs}
+\usepackage{classicthesis}
+\begin{document}
+\frenchspacing
+\pagenumbering{roman}
+\begin{titlepage}
+\centering\spacedallcaps{A Test Thesis}\par\vspace{2em}A. Student\par
+\end{titlepage}
+\chapter*{Abstract}
+A short abstract.
+\tableofcontents
+\listoffigures
+\listoftables
+\cleardoublepage\pagenumbering{arabic}
+\part{Background}
+\chapter{Introduction}
+\section{Motivation}
+Some text with a figure (Figure~\ref{fig:box}) and a table (Table~\ref{tab:t}).
+\begin{figure}[h]\centering\fbox{\rule{0pt}{2em}\rule{4em}{0pt}}\caption{A box}\label{fig:box}\end{figure}
+\begin{table}[h]\centering\begin{tabular}{lr}\toprule a & 1\\ b & 2\\\bottomrule\end{tabular}\caption{A table}\label{tab:t}\end{table}
+\appendix
+\chapter{Extra material}
+More text.
+\end{document}

@@ -1,0 +1,23 @@
+% engines: pdflatex xelatex lualatex
+% Data from a CSV file: csvsimple, datatool and pgfplotstable, and a date
+% with datetime2.
+\begin{filecontents*}[overwrite]{\jobname.csv}
+name,score
+Alice,90
+Bob,85
+Carol,77
+\end{filecontents*}
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{csvsimple,datatool,pgfplotstable}
+\usepackage[en-GB]{datetime2}
+\begin{document}
+\DTMdate{2026-10-08}
+
+\csvautobooktabular{\jobname.csv}
+
+\DTLloaddb{scores}{\jobname.csv}
+\DTLforeach{scores}{\Name=name,\Score=score}{\Name: \Score.\par}
+
+\pgfplotstabletypeset[col sep=comma,columns/name/.style={string type}]{\jobname.csv}
+\end{document}

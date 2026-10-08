@@ -1,0 +1,24 @@
+% engines: pdflatex xelatex lualatex
+% tools: bibtex
+% An ACM paper: acmart loads many packages and fonts (Libertine, newtxmath,
+% Inconsolata) and has its own bibtex style.
+\begin{filecontents*}[overwrite]{\jobname.bib}
+@book{knuth, author={Donald E. Knuth}, title={The {\TeX}book}, publisher={Addison-Wesley}, year={1986}}
+\end{filecontents*}
+\documentclass[sigconf]{acmart}
+\setcopyright{none}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\begin{document}
+\title{An ACM Test Paper}
+\author{A. Author}
+\affiliation{\institution{Some University}\city{Somewhere}\country{Netherlands}}
+\begin{abstract}
+A short abstract.
+\end{abstract}
+\maketitle
+\section{Introduction}
+As \citet{knuth} explains, $\sum_{i=1}^n i = \frac{n(n+1)}{2}$; \texttt{monospace} too.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{\jobname}
+\end{document}

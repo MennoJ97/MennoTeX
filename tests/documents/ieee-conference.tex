@@ -1,0 +1,32 @@
+% engines: pdflatex xelatex lualatex
+% tools: bibtex
+% An IEEE conference paper: IEEEtran with its bibtex style and the usual
+% companions (cite, algorithmic, amsmath).
+\begin{filecontents*}[overwrite]{\jobname.bib}
+@inproceedings{shannon, author={C. E. Shannon}, title={A mathematical theory of communication},
+  booktitle={Bell System Technical Journal}, year={1948}, pages={379--423}}
+\end{filecontents*}
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithmic}
+\usepackage{xcolor}
+\begin{document}
+\title{A Conference Paper}
+\author{\IEEEauthorblockN{A. Author}\IEEEauthorblockA{Some University}}
+\maketitle
+\begin{abstract}
+A short abstract.
+\end{abstract}
+\begin{IEEEkeywords}
+testing, typesetting
+\end{IEEEkeywords}
+\section{Introduction}
+Information theory~\cite{shannon}: $H = -\sum_i p_i \log p_i$.
+\begin{algorithmic}
+\STATE $x \gets 0$
+\FOR{$i = 1$ to $n$} \STATE $x \gets x + i$ \ENDFOR
+\end{algorithmic}
+\bibliographystyle{IEEEtran}
+\bibliography{\jobname}
+\end{document}

@@ -1,0 +1,17 @@
+% engines: pdflatex xelatex lualatex
+% Beamer with the metropolis theme, which checks whether Fira Sans exists
+% (fontspec's \IfFontExistsTF) on XeLaTeX and LuaLaTeX.
+\documentclass{beamer}
+\usetheme{metropolis}
+\title{Metropolis}
+\author{A. Author}
+\begin{document}
+\maketitle
+\section{First}
+\begin{frame}{A frame}
+  \begin{itemize}
+    \item One \alert{alert}
+    \item Two $e^{i\pi} + 1 = 0$
+  \end{itemize}
+\end{frame}
+\end{document}

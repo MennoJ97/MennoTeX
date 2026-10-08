@@ -1,0 +1,33 @@
+% engines: pdflatex xelatex lualatex
+% Small packages drawn with TeX primitives: a crossword (cwpuzzle), a
+% sudoku and a QR code.
+\documentclass{article}
+\usepackage{cwpuzzle}
+\usepackage{sudoku}
+\usepackage{qrcode}
+\begin{document}
+\begin{Puzzle}{3}{2}
+|[1]T |O |[2]P |.
+|*    |* |I    |.
+\end{Puzzle}
+\begin{PuzzleClues}{\textbf{Across}}
+\Clue{1}{TOP}{Highest point}
+\end{PuzzleClues}
+\begin{PuzzleClues}{\textbf{Down}}
+\Clue{2}{PI}{A circle constant}
+\end{PuzzleClues}
+
+\begin{sudoku}
+|5|3| | |7| | | | |.
+|6| | |1|9|5| | | |.
+| |9|8| | | | |6| |.
+|8| | | |6| | | |3|.
+|4| | |8| |3| | |1|.
+|7| | | |2| | | |6|.
+| |6| | | | |2|8| |.
+| | | |4|1|9| | |5|.
+| | | | |8| | |7|9|.
+\end{sudoku}
+
+\qrcode{https://tug.org/texlive/}
+\end{document}

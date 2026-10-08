@@ -1,0 +1,25 @@
+% engines: pdflatex xelatex lualatex
+% An Elsevier journal preprint: elsarticle with frontmatter, keywords,
+% line numbers and an inline bibliography.
+\documentclass[preprint,12pt]{elsarticle}
+\usepackage{amsmath,amssymb,lineno}
+\journal{A Journal}
+\begin{document}
+\begin{frontmatter}
+\title{An Elsevier Test Article}
+\author{A. Author}
+\address{Some University}
+\begin{abstract}
+A short abstract.
+\end{abstract}
+\begin{keyword}
+testing \sep typesetting
+\end{keyword}
+\end{frontmatter}
+\linenumbers
+\section{Introduction}
+See~\cite{knuth}: $\int_0^1 x\,dx = \tfrac12$.
+\begin{thebibliography}{1}
+\bibitem{knuth} D. E. Knuth, The {\TeX}book, Addison-Wesley, 1986.
+\end{thebibliography}
+\end{document}

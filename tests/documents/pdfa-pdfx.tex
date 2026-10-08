@@ -1,0 +1,15 @@
+% engines: pdflatex
+% PDF/A-2b with pdfx: XMP metadata from \jobname.xmpdata, and an ICC colour
+% profile (colorprofiles) looked up through kpathsea.
+\begin{filecontents*}[overwrite]{\jobname.xmpdata}
+\Title{A PDF/A test}
+\Author{A. Author}
+\Language{en-GB}
+\end{filecontents*}
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a-2b]{pdfx}
+\begin{document}
+An archival document with a \href{https://tug.org}{link}.
+\end{document}

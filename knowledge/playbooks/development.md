@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -50,7 +50,13 @@ run follows), `% prefetch: <engines>` (run `mtx prefetch` first for those engine
 self-contained. The corpus covers beamer, biblatex/biber, natbib/bibtex,
 fontspec/unicode-math, babel, KOMA-Script, memoir + index, pgfplots/tikz-cd, tables,
 theorems, listings/algorithm2e, mhchem/chemfig, Libertinus + microtype,
-glossaries, standalone TikZ and moderncv. Logs stay in the printed temp
+glossaries, standalone TikZ and moderncv, and since 2026-10-08 (51 documents) also
+Japanese (LuaTeX-ja), Arabic and Hebrew (polyglossia), Russian and Greek (babel, legacy
+encodings and fonts by name), journal classes (REVTeX, IEEEtran, acmart, elsarticle),
+classicthesis, lecture notes with newtx, MusiXTeX with `musixflx`, MetaPost (`mpost` and
+luamplib), METAFONT-only fonts (`bbm`, bitmaps via mktexpk), Xy-pic, CircuiTikZ,
+TikZ-Feynman (Lua graph drawing), PSTricks on XeLaTeX, Lua packages, OpenType fonts by
+name, beamer metropolis, PDF/A (pdfx), CSV data and small puzzles/QR codes. Logs stay in the printed temp
 directory. Use a fresh root to measure first-run behaviour; set `MTX_CACHE` to
 an existing root's `tlpkg/mtx/cache` to skip re-downloading archives.
 

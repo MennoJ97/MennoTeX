@@ -1,0 +1,15 @@
+% engines: lualatex
+% LuaTeX-only packages: lua-ul (underline, highlight) with luacolor, and
+% Lua code run with luacode.
+\documentclass{article}
+\usepackage{luacolor}
+\usepackage{lua-ul}
+\usepackage{luacode}
+\begin{document}
+\underLine{Underlined}, \strikeThrough{struck through}, \highLight[yellow]{highlighted}.
+\begin{luacode*}
+  local t = {}
+  for i = 1, 5 do t[#t + 1] = tostring(i * i) end
+  tex.print("Squares: " .. table.concat(t, ", ") .. ".")
+\end{luacode*}
+\end{document}

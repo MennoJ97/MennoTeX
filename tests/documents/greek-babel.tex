@@ -1,0 +1,18 @@
+% engines: pdflatex xelatex lualatex
+% Greek: LGR encoding with the cbfonts Type 1 fonts on pdfLaTeX, FreeSerif
+% by name on XeLaTeX and LuaLaTeX.
+\documentclass{article}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[LGR,T1]{fontenc}
+  \usepackage[greek,english]{babel}
+\else
+  \usepackage[greek,english]{babel}
+  \babelfont{rm}{FreeSerif}
+\fi
+\begin{document}
+\selectlanguage{greek}
+Ξεσκεπάζω την ψυχοφθόρα βδελυγμία. \textbf{Έντονα} και \textit{πλάγια}.
+\selectlanguage{english}
+Back to English, $\alpha+\beta$.
+\end{document}

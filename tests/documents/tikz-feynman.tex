@@ -1,0 +1,12 @@
+% engines: lualatex
+% Feynman diagrams with automatic layout: TikZ-Feynman uses PGF's graph
+% drawing library, which loads Lua modules through require().
+\documentclass{article}
+\usepackage{tikz-feynman}
+\begin{document}
+\feynmandiagram [horizontal=a to b] {
+  i1 [particle=\(e^{-}\)] -- [fermion] a -- [fermion] i2 [particle=\(e^{+}\)],
+  a -- [photon, edge label=\(\gamma\)] b,
+  f1 [particle=\(\mu^{+}\)] -- [fermion] b -- [fermion] f2 [particle=\(\mu^{-}\)],
+};
+\end{document}
