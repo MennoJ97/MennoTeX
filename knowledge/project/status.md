@@ -126,6 +126,8 @@ test document still makes 18 such calls.
 - Map packages during the compile ([decision 0015](/decisions/0015-font-map-on-miss.md)):
   `cm-super` installed mid-run by pdfLaTeX and LuaLaTeX in a root without it.
 - Format stamps (PLAN.md §5.7, [decision 0016](/decisions/0016-format-stamps.md)).
+- Fault injection (PLAN.md §8, [decision 0017](/decisions/0017-mirror-faults.md)): 13 tests over HTTP;
+  they found four gaps in mirror failover, all fixed.
 - `mtx search` (PLAN.md §5.10); the install prompt lists every package with its
   dependencies (dialog checked by the user).
 - Corpus with this build on fresh roots (local build, 2026-10-08): pdfLaTeX 41/41, XeLaTeX

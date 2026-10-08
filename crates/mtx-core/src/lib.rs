@@ -34,3 +34,7 @@ pub mod tlpdb;
 
 #[cfg(test)]
 mod local_repo_tests;
+#[cfg(test)]
+mod fault_server;
+#[cfg(test)]
+mod fault_tests;

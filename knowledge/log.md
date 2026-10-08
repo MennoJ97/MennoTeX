@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Creation**: [Decision 0017](/decisions/0017-mirror-faults.md): fault-injection tests over HTTP (PLAN.md §8) found that error statuses, broken-off transfers and unverifiable databases did not switch mirrors, and that a good mirror one revision ahead got avoided after a failover; all fixed ([playbook](/playbooks/development.md), [status](/project/status.md)).
 * **Update**: The first CI build from a partially matching build-tree cache failed: after the restore every file has a new inode, `git checkout -- .` then rewrote all tracked files (new mtimes, full rebuild, ICU "config.status has become stale"); the workflow refreshes git's index first ([playbook](/playbooks/development.md)).
 * **Creation**: [Decision 0016](/decisions/0016-format-stamps.md): formats carry a stamp (engine, trigger revisions, hyphenation hash); every transaction deletes those whose stamp differs, `mtx doctor` reports them, and `mtx repair` no longer rebuilds every format ([mtx-core](/architecture/mtx-core.md), [on-demand install](/architecture/on-demand-install.md)).
 * **Creation**: [Decision 0015](/decisions/0015-font-map-on-miss.md): a font-map miss in pdfTeX or LuaTeX installs the package whose map covers the font (`tlpkg/mtx/fontmaps.tsv`, `mtx ensure --font-map`) and re-reads the map in the same run.

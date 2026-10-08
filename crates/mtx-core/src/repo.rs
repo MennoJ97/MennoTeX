@@ -72,6 +72,18 @@ pub struct NetworkError {
     pub source: ureq::Error,
 }
 
+/// The mirror answered, but not with the file: an HTTP error status (a
+/// mirror in the middle of a sync has deleted, or not yet received, a file
+/// its database names), or the connection broke off mid-transfer. Another
+/// mirror may do better. Unlike [`NetworkError`] this alone does not mean
+/// we are offline; `Ctx::failover` checks the redirector for that.
+#[derive(Debug, thiserror::Error)]
+#[error("{url}: {detail}")]
+pub struct MirrorError {
+    pub url: String,
+    pub detail: String,
+}
+
 fn agent(follow_redirects: bool) -> ureq::Agent {
     ureq::Agent::config_builder()
         .user_agent(concat!("mtx/", env!("CARGO_PKG_VERSION"), " (MennoTeX)"))
@@ -160,7 +172,7 @@ impl Repo {
                 let resp = agent.get(&url).call().map_err(|source| NetworkError { url: url.clone(), source })?;
                 let status = resp.status().as_u16();
                 if status != 200 {
-                    bail!("{url}: HTTP {status}");
+                    return Err(MirrorError { url, detail: format!("HTTP {status}") }.into());
                 }
                 Ok(Box::new(resp.into_body().into_reader()))
             }
@@ -169,8 +181,17 @@ impl Repo {
 
     pub fn get_bytes(&self, rel: &str) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        self.open(rel)?.read_to_end(&mut buf).with_context(|| format!("reading {}{rel}", self.base))?;
+        self.open(rel)?.read_to_end(&mut buf).map_err(|e| self.transfer_error(rel, e))?;
         Ok(buf)
+    }
+
+    /// A read error in the middle of a transfer: a [`MirrorError`] for
+    /// HTTP (the connection broke off), a plain error for local files.
+    fn transfer_error(&self, rel: &str, e: io::Error) -> anyhow::Error {
+        match self.transport {
+            Transport::Http(_) => MirrorError { url: format!("{}{rel}", self.base), detail: format!("transfer broke off: {e}") }.into(),
+            Transport::Local(_) => anyhow::Error::new(e).context(format!("reading {}{rel}", self.base)),
+        }
     }
 
     /// Download `rel` to `dest`, checking size and SHA-512 while streaming.
@@ -188,7 +209,7 @@ impl Repo {
                     Ok(0) => break,
                     Ok(n) => n,
                     Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(e) => return Err(e).with_context(|| format!("downloading {}{rel}", self.base)),
+                    Err(e) => return Err(self.transfer_error(rel, e)),
                 };
                 total += n as u64;
                 if size > 0 && total > size {
@@ -248,6 +269,15 @@ pub fn sha512_file(path: &Path) -> Result<String> {
 
 pub fn is_network_error(e: &anyhow::Error) -> bool {
     e.chain().any(|c| c.downcast_ref::<NetworkError>().is_some())
+}
+
+/// A network error or a [`MirrorError`]: worth trying another mirror.
+pub fn is_mirror_failure(e: &anyhow::Error) -> bool {
+    is_network_error(e) || e.chain().any(|c| c.downcast_ref::<MirrorError>().is_some())
+}
+
+pub fn is_checksum_mismatch(e: &anyhow::Error) -> bool {
+    e.chain().any(|c| c.downcast_ref::<ChecksumMismatch>().is_some())
 }
 
 #[cfg(test)]

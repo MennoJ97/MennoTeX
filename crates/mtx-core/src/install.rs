@@ -13,7 +13,7 @@ use crate::ctx::Ctx;
 use crate::db::Reason;
 use crate::extract;
 use crate::lsr;
-use crate::repo::{ChecksumMismatch, Repo, is_network_error, sha512_file};
+use crate::repo::{Repo, is_checksum_mismatch, is_mirror_failure, sha512_file};
 use crate::tlpdb::{Package, Tlpdb};
 
 /// Files mtx provides itself. tlnet's versions are never unpacked over them.
@@ -134,18 +134,21 @@ fn download(ctx: &mut Ctx, tlpdb: &Tlpdb, names: &[String]) -> Result<(HashMap<S
 /// Install `roots` and their dependencies, refreshing the package database
 /// and retrying when the mirror changed underneath us (PLAN.md §4.3).
 pub fn install(ctx: &mut Ctx, roots: &[&str], reason: Reason) -> Result<Report> {
-    let mut attempt = 0;
+    // Counted apart: after a failover the new mirror may simply be a
+    // revision ahead, and its first mismatch must refresh the database,
+    // not get it avoided (seen in fault_tests).
+    let (mut failovers, mut mismatches) = (0, 0);
     loop {
         let tlpdb = ctx.tlpdb()?;
         match install_once(ctx, &tlpdb, roots, reason) {
-            Err(e) if is_network_error(&e) && attempt < 2 => {
-                attempt += 1;
+            Err(e) if is_mirror_failure(&e) && failovers < 2 => {
+                failovers += 1;
                 ctx.failover(&e)?;
             }
-            Err(e) if e.chain().any(|c| c.downcast_ref::<ChecksumMismatch>().is_some()) && attempt < 2 => {
-                attempt += 1;
+            Err(e) if is_checksum_mismatch(&e) && mismatches < 2 => {
+                mismatches += 1;
                 ctx.log(format!("{e:#}; refreshing the package database and retrying"));
-                if attempt == 2 {
+                if mismatches == 2 {
                     ctx.reject_mirror()?;
                 }
                 ctx.refresh(true)?;

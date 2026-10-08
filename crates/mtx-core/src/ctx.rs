@@ -10,7 +10,8 @@ use sha2::{Digest, Sha512};
 use crate::db::{Db, now_secs};
 use crate::index;
 use crate::repo::{
-    DEFAULT_REPOSITORY, HISTORIC_MIRRORS, Repo, frozen_release, frozen_repository, historic_tlnet, is_network_error,
+    ChecksumMismatch, DEFAULT_REPOSITORY, HISTORIC_MIRRORS, Repo, frozen_release, frozen_repository, historic_tlnet,
+    is_checksum_mismatch, is_mirror_failure, is_network_error,
 };
 use crate::root::{RELEASE, Root};
 use crate::tlpdb::Tlpdb;
@@ -272,13 +273,20 @@ impl Ctx {
 
     fn refresh_with_failover(&mut self, have_local: bool) -> Result<Freshness> {
         match self.refresh_from_mirror(have_local) {
-            Err(e) if is_network_error(&e) => {
+            Err(e) if is_mirror_failure(&e) => {
                 self.failover(&e)?;
                 self.refresh_from_mirror(have_local).inspect_err(|e| {
                     if is_network_error(e) {
                         self.mark_offline();
                     }
                 })
+            }
+            // The database does not verify on this mirror (caught mid-sync,
+            // or broken): never use it; try another mirror once.
+            Err(e) if is_checksum_mismatch(&e) => {
+                self.log(format!("{e:#}; switching mirrors"));
+                self.reject_mirror()?;
+                self.refresh_from_mirror(have_local)
             }
             other => other,
         }
@@ -323,19 +331,22 @@ impl Ctx {
         };
         #[cfg(not(test))]
         let verifier = Verifier::new(Some(&keyring))?;
+        let mismatch = |detail: String| ChecksumMismatch { file: "tlpkg/texlive.tlpdb".into(), detail };
         let verified = verifier
             .verify_detached(&sha_file, &asc)
-            .with_context(|| format!("verifying the package database from {}", repo.base))?;
+            .map_err(|e| mismatch(format!("the signature of its checksum does not verify on {}: {e:#}", repo.base)))?;
         if verified.expired_key_warning {
             self.log("warning: the TeX Live signing subkey had expired at signing time; update texlive.infra");
         }
 
         let xz = repo.get_bytes("tlpkg/texlive.tlpdb.xz")?;
         let mut text = Vec::new();
-        liblzma::read::XzDecoder::new(&xz[..]).read_to_end(&mut text).context("decompressing texlive.tlpdb.xz")?;
+        if let Err(e) = liblzma::read::XzDecoder::new(&xz[..]).read_to_end(&mut text) {
+            return Err(mismatch(format!("texlive.tlpdb.xz from {} does not decompress: {e}", repo.base)).into());
+        }
         let got = hex::encode(Sha512::digest(&text));
         if got != expected {
-            bail!("texlive.tlpdb from {} does not match its signed checksum", repo.base);
+            return Err(mismatch(format!("it does not match its signed checksum on {}", repo.base)).into());
         }
         let text = String::from_utf8(text).context("texlive.tlpdb is not UTF-8")?;
         let tlpdb = Tlpdb::parse(&text)?;

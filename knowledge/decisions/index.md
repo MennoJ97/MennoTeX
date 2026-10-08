@@ -1,5 +1,6 @@
 # Decisions
 
+* [0017: What a broken mirror triggers](0017-mirror-faults.md) - HTTP error statuses, transfers that break off and package databases that do not verify now make mtx avoid the mirror and use another; failovers and checksum retries are counted apart; tested over real HTTP by fault_tests with a fault-injecting server.
 * [0016: Format staleness by stamps](0016-format-stamps.md) - Each format build writes a stamp (engine size and mtime, fmttriggers revisions, hyphenation hash); after every transaction mtx deletes formats whose stamp differs or is missing, and mtx doctor reports them.
 * [0015: Installing a missing map package during the compile](0015-font-map-on-miss.md) - On a font-map miss, pdfTeX and LuaTeX ask kpathsea's resolver, which binary-searches mtx's font-map table (tlpkg/mtx/fontmaps.tsv) and runs mtx ensure --font-map only for fonts a package's map covers; the map is then re-read in the same run.
 * [0014: Install problems as warnings in TeX's own log](0014-install-warnings-in-tex-log.md) - When a package that has a missing file is declined or fails to install, kpathsea's resolver queues a "Package mtx Warning" line and the engines print it to the terminal and the .log, where editors look; mtx ensure reports the reason by exit status.

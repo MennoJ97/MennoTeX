@@ -17,7 +17,8 @@ verified:
   items 1–5 before it):** probe installs measured, no deny list ([decision 0013](/decisions/0013-no-probe-deny-list.md));
   `Package mtx Warning` lines in TeX's log for declined/failed installs ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md),
   new patch 0004); map packages installed during the compile ([decision 0015](/decisions/0015-font-map-on-miss.md));
-  format stamps ([decision 0016](/decisions/0016-format-stamps.md)); `mtx search`; and, at the
+  format stamps ([decision 0016](/decisions/0016-format-stamps.md)); fault-injection tests and the
+  mirror-failover fixes they led to ([decision 0017](/decisions/0017-mirror-faults.md)); `mtx search`; and, at the
   user's request mid-session, the install prompt lists every package with its
   dependencies (an expandable, scrolling dialog the user clicked through). Plus the
   dialog-click fix `93d879f`. Patches 0001 and 0003 changed and 0004 is new, so the
@@ -54,7 +55,7 @@ verified:
   on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
 - **Repository:** public `MennoJ97/MennoTeX` (the user, 2026-10-08), branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
-  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 78 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
+  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 91 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 

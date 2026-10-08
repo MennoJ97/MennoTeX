@@ -17,8 +17,8 @@ verified:
 | `tlpdb` | Parse `texlive.tlpdb`; `RELOC/` → `texmf-dist/`; `depend` closure with `.ARCH` → `universal-darwin` | Collections/schemes are only followed when they are roots |
 | `index` | Build/read [files.idx](/architecture/files-idx.md) | Layout is shared with C; bump `VERSION` on any change |
 | `verify` | OpenPGP check of `texlive.tlpdb.sha512.asc` | Pins the primary fingerprint; accepts the newest valid subkey binding (see [tlnet](/upstream/tlnet.md)) |
-| `repo` | HTTP/`file://` repository access, verified streaming downloads; historic mirror list | Size or SHA-512 mismatch → `ChecksumMismatch` (triggers retry); `probe` checks the checksum file's content, not just HTTP 200 |
-| `ctx` | Root + DB + pinned mirror + logging + `refresh`; release transitions ([decision 0006](/decisions/0006-release-transitions.md)) | Logs never go to stdout; connect timeout 10 s; TTL 1 h; mirror pin 24 h; bad mirrors avoided 24 h; `failover` blames the mirror only if the redirector answers; the release is checked only after the signature; a newer release switches `repository` to `historic:<RELEASE>`, an older one rejects the mirror |
+| `repo` | HTTP/`file://` repository access, verified streaming downloads; historic mirror list | Size or SHA-512 mismatch → `ChecksumMismatch` (triggers retry); `probe` checks the checksum file's content, not just HTTP 200; HTTP error statuses and broken-off transfers are `MirrorError` (switch mirrors, not offline) ([decision 0017](/decisions/0017-mirror-faults.md)) |
+| `ctx` | Root + DB + pinned mirror + logging + `refresh`; release transitions ([decision 0006](/decisions/0006-release-transitions.md)) | Logs never go to stdout; connect timeout 10 s; TTL 1 h; mirror pin 24 h; bad mirrors avoided 24 h; `failover` blames the mirror only if the redirector answers; the release is checked only after the signature; a newer release switches `repository` to `historic:<RELEASE>`, an older one rejects the mirror; a database that does not verify avoids the mirror and tries another |
 | `consent` | `autoinstall` policy for automatic installs: `$MTX_AUTOINSTALL` / setting; `ask` via `/dev/tty`, `osascript` dialog, or `ask_fallback`; answers for a whole run keyed by the nearest latexmk ancestor, else the parent pid; logs each outcome, or why it could not ask, with the process chain above mtx ([decision 0007](/decisions/0007-install-consent.md)); the prompt lists every package with the dependencies it brings (terminal text; an `NSAlert` with a scrollable, expandable outline from `data/ask-dialog.js`, falling back to `display dialog`) | Only installs with `Ctx::ask_for` set are gated; the gate runs before downloading; `Ctx::prompter` is replaced in tests |
 | `config` | `mtx config`: `autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors` | Values are validated and normalized; changing a repository unpins the mirror |
 | `logview` | Read the end of `mtx.log` for `mtx log` and `mtx doctor` | `error:` and `declined:` lines are problems |
@@ -46,7 +46,7 @@ verified:
 
 # Tests
 
-`cargo test` runs 78 tests (2026-10-08):
+`cargo test` runs 91 tests (2026-10-08), 13 of them fault injection over HTTP (`fault_tests.rs`):
 
 - unit tests for every module above, including a real tlnet signature fixture
   (`testdata/texlive.tlpdb.sha512{,.asc}`);

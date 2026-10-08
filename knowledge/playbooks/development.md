@@ -125,6 +125,16 @@ stock TeX Live ([package quirks](/upstream/package-quirks.md)).
    takes a directory of release files instead of GitHub. Test fixtures for the
    verification: `tools/make_test_release.sh` (a throwaway key).
 
+# Fault injection
+
+`cargo test fault` runs `fault_tests.rs`: mirrors served over real HTTP by
+`fault_server.rs` (tests only) from the signed test repositories, with faults per file
+(truncated, corrupt, HTTP status, HTML page, dropped connection), a redirector handing out
+mirrors in turn, and a mirror that syncs to `testdata/tlnet-synced` mid-session
+([decision 0017](/decisions/0017-mirror-faults.md)). `tools/make_test_repo.sh` regenerates the
+repositories (needs gpg; makes a new throw-away key). Killing mtx mid-transaction is
+`tests/run_crash.sh` (below).
+
 # Probe-only installs
 
 After a corpus run with `DOCS_OUT` set, `tests/probe_installs.py ROOT LOGDIR [ROOT
