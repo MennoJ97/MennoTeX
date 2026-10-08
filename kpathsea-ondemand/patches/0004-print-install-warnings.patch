@@ -1,0 +1,170 @@
+diff --git a/texk/web2c/lib/texmfmp.c b/texk/web2c/lib/texmfmp.c
+index d7d4d254..ac8d8c1f 100644
+--- a/texk/web2c/lib/texmfmp.c
++++ b/texk/web2c/lib/texmfmp.c
+@@ -21,6 +21,7 @@
+ #include <kpathsea/absolute.h>
+ #ifdef WIN32
+ #include <kpathsea/concatn.h>
++#include <kpathsea/tex-make.h>
+ #endif
+ 
+ #if defined (HAVE_SYS_TIME_H)
+@@ -789,6 +790,10 @@ normalize_quotes (const_string name, const_string mesg);
+    The original TeX/MF code for handling first lines is still live, and
+    we set up for that in `topenin' (which is called from the .web).  */
+ 
++#if ENABLE_PIPES
++static void mtx_print_problems (void);  /* MennoTeX */
++#endif
++
+ void
+ maininit (int ac, string *av)
+ {
+@@ -895,6 +900,9 @@ maininit (int ac, string *av)
+ #else
+   kpse_set_program_name (argv[0], user_progname);
+ #endif
++#if ENABLE_PIPES
++  kpathsea_ondemand_set_printer (mtx_print_problems);  /* MennoTeX */
++#endif
+ 
+ #if defined(MF)
+ #if defined(MFLua)
+@@ -2213,6 +2221,29 @@ parse_first_line (const_string filename)
+ 
+ static FILE *pipes [NUM_PIPES];
+ 
++
++/* MennoTeX: when kpathsea's on-demand resolver could not install a package
++   that has a missing file (declined, or the install failed), it queues a
++   warning. Print it to the terminal and the log, where editors look; mtx's
++   own message goes to stderr only. Called by kpathsea when it queues one,
++   and after opening a file. Only while TeX prints to the terminal or the log
++   (selector term_only, log_only or term_and_log); otherwise later. */
++static void
++mtx_print_problems (void)
++{
++    string msg;
++    const char *c;
++    while (selector >= 17 && selector <= 19
++           && (msg = kpathsea_ondemand_problem ()) != NULL) {
++        if (termoffset > 0 || fileoffset > 0)
++            println ();
++        for (c = msg; *c; c++)
++            print ((unsigned char) *c);
++        println ();
++        free (msg);
++    }
++}
++
+ boolean
+ open_in_or_pipe (FILE **f_ptr, int filefmt, const_string fopen_mode)
+ {
+@@ -2249,7 +2280,11 @@ open_in_or_pipe (FILE **f_ptr, int filefmt, const_string fopen_mode)
+       return *f_ptr != NULL;
+     }
+ 
+-    return open_input(f_ptr,filefmt,fopen_mode) ;
++    {
++      boolean ok = open_input(f_ptr,filefmt,fopen_mode);
++      mtx_print_problems ();  /* MennoTeX */
++      return ok;
++    }
+ }
+ 
+ #ifdef XeTeX
+@@ -2294,7 +2329,11 @@ u_open_in_or_pipe(unicodefile* f, integer filefmt, const_string fopen_mode, inte
+       return (*f)->f != NULL;
+     }
+ 
+-    return u_open_in(f, filefmt, fopen_mode, mode, encodingData);
++    {
++      boolean ok = u_open_in(f, filefmt, fopen_mode, mode, encodingData);
++      mtx_print_problems ();  /* MennoTeX */
++      return ok;
++    }
+ }
+ #endif
+ 
+diff --git a/texk/web2c/luatexdir/lua/luainit.c b/texk/web2c/luatexdir/lua/luainit.c
+index 9f99cf58..8c00c16d 100644
+--- a/texk/web2c/luatexdir/lua/luainit.c
++++ b/texk/web2c/luatexdir/lua/luainit.c
+@@ -25,6 +25,7 @@ with LuaTeX; if not, see <http://www.gnu.org/licenses/>.
+ 
+ #include <kpathsea/c-stat.h>
+ #include <kpathsea/cnf.h>
++#include <kpathsea/tex-make.h>
+ 
+ #include "lua/luatex-api.h"
+ 
+@@ -639,6 +640,7 @@ static void init_kpse(void)
+     }
+     kpse_set_program_enabled(kpse_fmt_format, MAKE_TEX_FMT_BY_DEFAULT, kpse_src_compile);
+     kpse_set_program_name(argv[0], user_progname);
++    kpathsea_ondemand_set_printer(mtx_print_problems); /* MennoTeX */
+     /*tex set up 'restrictedshell' */
+     init_shell_escape();
+     init_start_time();
+diff --git a/texk/web2c/luatexdir/tex/texfileio.c b/texk/web2c/luatexdir/tex/texfileio.c
+index 76b4e979..57d1ae6f 100644
+--- a/texk/web2c/luatexdir/tex/texfileio.c
++++ b/texk/web2c/luatexdir/tex/texfileio.c
+@@ -23,6 +23,7 @@ with LuaTeX; if not, see <http://www.gnu.org/licenses/>.
+ 
+ #include <string.h>
+ #include <kpathsea/absolute.h>
++#include <kpathsea/tex-make.h>
+ 
+ /*tex
+ 
+@@ -278,6 +279,28 @@ boolean luatex_open_output(FILE ** f_ptr, const char *fn, const_string fopen_mod
+     return *f_ptr != NULL;
+ }
+ 
++/*tex
++
++    MennoTeX: when kpathsea's on-demand resolver could not install a package
++    that has a missing file (declined, or the install failed), it queues a
++    warning. Print it to the terminal and the log, where editors look; mtx's
++    own message goes to stderr only. Called by kpathsea when it queues one
++    (registered in |init_kpse|), and after opening a file. Only while \TEX\
++    prints to the terminal or the log; otherwise later.
++
++*/
++
++void mtx_print_problems(void)
++{
++    char *msg;
++    while ((selector == term_only || selector == log_only || selector == term_and_log)
++           && (msg = kpathsea_ondemand_problem()) != NULL) {
++        tprint_nl(msg);
++        print_ln();
++        free(msg);
++    }
++}
++
+ boolean lua_a_open_in(alpha_file * f, char *fn, int n)
+ {
+     int k;
+@@ -294,6 +317,7 @@ boolean lua_a_open_in(alpha_file * f, char *fn, int n)
+         fnam = fn;
+     else
+         fnam = luatex_find_read_file(fn, n, find_read_file_callback);
++    mtx_print_problems();
+     if (!fnam)
+         return false;
+     callback_id = callback_defined(open_read_file_callback);
+diff --git a/texk/web2c/luatexdir/tex/texfileio.h b/texk/web2c/luatexdir/tex/texfileio.h
+index c6366500..922d2916 100644
+--- a/texk/web2c/luatexdir/tex/texfileio.h
++++ b/texk/web2c/luatexdir/tex/texfileio.h
+@@ -30,6 +30,7 @@ extern boolean luatex_open_input(FILE ** f_ptr, const char *fn, int filefmt,
+ extern boolean luatex_open_output(FILE ** f_ptr, const char *fn,
+                                   const_string fopen_mode);
+ 
++extern void mtx_print_problems(void); /* MennoTeX */
+ extern boolean lua_a_open_in(alpha_file * f, char *fn, int n);
+ extern boolean lua_a_open_out(alpha_file * f, char *fn, int n);
+ extern boolean lua_b_open_out(alpha_file * f, char *fn);

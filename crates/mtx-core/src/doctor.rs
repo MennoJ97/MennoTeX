@@ -142,13 +142,21 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
     }
 
     // Fonts whose map package is missing (roots created before the
-    // font-map rule): pdfTeX falls back to bitmaps and fails.
+    // font-map rule): pdfTeX and LuaTeX install it when a document uses
+    // such a font (kpathsea_ondemand_font_map), a download in mid-compile.
     if let Ok(tlpdb) = ctx.tlpdb() {
         let names: Vec<String> = installed.keys().cloned().collect();
         let missing_maps = crate::fontmaps::map_packages_for(&tlpdb, &names, &|p| installed.contains_key(p));
         if !missing_maps.is_empty() {
             let list: Vec<&str> = missing_maps.iter().map(String::as_str).collect();
-            push(&mut out, Severity::Problem, format!("installed fonts lack their map packages: {} (run `mtx repair`)", list.join(", ")));
+            push(&mut out, Severity::Warning, format!("installed fonts lack their map packages: {} (run `mtx repair`)", list.join(", ")));
+        }
+        // Formats built from an older engine, trigger package or set of
+        // patterns: TeX would load them as they are.
+        let pkgs: Vec<&crate::tlpdb::Package> = installed.keys().filter_map(|n| tlpdb.get(n)).collect();
+        let stale: Vec<String> = crate::formats::stale(root, &pkgs, &installed).into_iter().map(|(n, _)| n).collect();
+        if !stale.is_empty() {
+            push(&mut out, Severity::Warning, format!("out-of-date formats: {} (`mtx repair` deletes them; they are rebuilt on next use)", stale.join(", ")));
         }
     }
 

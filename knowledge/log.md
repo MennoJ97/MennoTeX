@@ -1,6 +1,11 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Creation**: [Decision 0016](/decisions/0016-format-stamps.md): formats carry a stamp (engine, trigger revisions, hyphenation hash); every transaction deletes those whose stamp differs, `mtx doctor` reports them, and `mtx repair` no longer rebuilds every format ([mtx-core](/architecture/mtx-core.md), [on-demand install](/architecture/on-demand-install.md)).
+* **Creation**: [Decision 0015](/decisions/0015-font-map-on-miss.md): a font-map miss in pdfTeX or LuaTeX installs the package whose map covers the font (`tlpkg/mtx/fontmaps.tsv`, `mtx ensure --font-map`) and re-reads the map in the same run.
+* **Creation**: [Decision 0014](/decisions/0014-install-warnings-in-tex-log.md): declined or failed installs put a `Package mtx Warning` line in TeX's own log (exit statuses 3/4, a queue and printer callback in kpathsea, patch 0004 for the engines). LaTeX checks existence with `\pdffilesize`, so the first version, which only printed after file opens, printed nothing for `\usepackage` ([package quirks](/upstream/package-quirks.md)).
+* **Update**: The install prompt lists every package with the dependencies it brings: terminal text, and a Cocoa alert with an expandable, scrolling outline (JavaScript for Automation), at the user's request; shown to the user, who clicked Install All ([decision 0007](/decisions/0007-install-consent.md), [playbook](/playbooks/development.md)).
+* **Update**: `mtx search TEXT` and `mtx search --file TEXT` (PLAN.md §5.10) ([mtx-core](/architecture/mtx-core.md)).
 * **Creation**: [Decision 0013](/decisions/0013-no-probe-deny-list.md): probe-only installs measured with `tests/probe_installs.py` (6 of 418, all loaded for real elsewhere); no deny list. Facts about LaTeX's existence checks and kernel substitutions in [package quirks](/upstream/package-quirks.md).
 * **Update**: First signed release `mennotex-2026-f06b1506f` published by the user; the real installation self-updated to it and PATH now goes through `…/MennoTeX/current` ([handoff](/project/handoff.md)).
 * **Update**: The `ask` dialog lost every click (AppleScript's `result` was read after an `if` had replaced it, error -2753); found through the new diagnostics in a VS Code build, fixed with a variable and a unit test ([decision 0007](/decisions/0007-install-consent.md), [handoff](/project/handoff.md)).

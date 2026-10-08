@@ -77,6 +77,19 @@ fn phase0_ensure_resolves_by_name() {
 }
 
 #[test]
+fn offline_install_fails_with_its_own_status() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    ctx.mark_offline();
+    drop(ctx);
+    let e = ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap_err();
+    let why = e.downcast_ref::<ensure::NotInstalled>().expect("NotInstalled");
+    assert_eq!(why.exit_code(), ensure::NotInstalled::FAILED);
+    // A file nobody provides is still just "not found".
+    assert!(ensure::ensure(&root, ensure::kind("tex").unwrap(), "nonexistent.cfg").unwrap().is_none());
+}
+
+#[test]
 fn unreachable_pinned_mirror_fails_over() {
     let (_d, _root, mut ctx) = setup(&testdata_repo());
     let configured = ctx.repository_url().unwrap();
@@ -241,7 +254,9 @@ mod consent_tests {
         ctx.refresh(true).unwrap();
         ctx.db.set("autoinstall", "no").unwrap();
         drop(ctx);
-        assert!(ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap().is_none());
+        let e = ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap_err();
+        let why = e.downcast_ref::<ensure::NotInstalled>().expect("NotInstalled");
+        assert_eq!(why.exit_code(), ensure::NotInstalled::DECLINED);
         assert!(!root.texmf_dist().join("tex/latex/foo/foo.sty").exists());
         let problems: Vec<_> = crate::logview::tail(&root).into_iter().filter(|e| e.is_problem()).collect();
         assert_eq!(problems.len(), 1);
@@ -278,8 +293,13 @@ mod consent_tests {
         let (_d, _root, mut ctx) = setup(&testdata_repo());
         ctx.refresh(true).unwrap();
         ctx.db.set("autoinstall", "ask").unwrap();
-        ctx.prompter = |_, q| {
-            assert!(q.starts_with("foo.sty needs package foo and 1 more"), "{q}");
+        ctx.prompter = |_, req| {
+            assert!(req.describe().starts_with("foo.sty needs package foo and 1 more"), "{}", req.describe());
+            // foo, with bar as the dependency it brings along.
+            assert_eq!(req.items.len(), 1);
+            assert_eq!(req.items[0].name, "foo");
+            assert_eq!(req.items[0].deps.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), ["bar"]);
+            assert!(req.question().contains("\n  foo"), "{}", req.question());
             ASKED.fetch_add(1, Ordering::SeqCst);
             Ok((Answer::All, "test"))
         };

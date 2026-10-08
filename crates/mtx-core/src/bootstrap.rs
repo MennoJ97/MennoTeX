@@ -186,6 +186,9 @@ pub fn install_hooks(root: &Root, mode: HookMode) -> Result<()> {
     fs::create_dir_all(&bin)?;
     install_overlay(root)?;
     fs::write(root.dir.join("texmf.cnf"), root_texmf_cnf(mode))?;
+    // For kpathsea's resolver: which fonts a package's map covers.
+    fs::create_dir_all(root.mtx_dir())?;
+    crate::fontmaps::write_table(&root.mtx_dir().join("fontmaps.tsv"))?;
     let exe = std::env::current_exe().context("locating the mtx executable")?;
     let dest = bin.join("mtx");
     if fs::canonicalize(&exe).ok() != fs::canonicalize(&dest).ok() {
@@ -310,7 +313,7 @@ pub fn bootstrap(root: &Root, repository: Option<&str>, from: Option<&Root>) -> 
 
     lsr::rebuild(&root.texmf_dist())?;
     let tlpdb = ctx.tlpdb()?;
-    install::apply_regen(&ctx, &tlpdb, Regen::all(), &[])?;
+    install::apply_regen(&ctx, &tlpdb, Regen::all())?;
     crate::shims::sync(&ctx, &tlpdb)?;
     let shims = fs::read_dir(root.bin_dir())?.flatten().filter(|e| crate::shims::is_shim(&e.path())).count();
     ctx.log(format!("{shims} command shims for programs installed on first use"));

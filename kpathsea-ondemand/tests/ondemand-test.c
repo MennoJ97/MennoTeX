@@ -11,6 +11,9 @@
 
 #define kpathsea_ondemand_find test_ondemand_find
 #define kpathsea_ondemand_generation test_ondemand_generation
+#define kpathsea_ondemand_problem test_ondemand_problem
+#define kpathsea_ondemand_set_printer test_ondemand_set_printer
+#define kpathsea_ondemand_font_map test_ondemand_font_map
 
 /* The headers tex-make.c includes before it includes the resolver. */
 #include <kpathsea/config.h>
@@ -30,6 +33,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static int printed;               /* calls of the printer hook */
+
+static void
+count_printer (void)
+{
+  printed++;
+}
+
 static int failures, checks;
 static const char *root, *calls, *argv0;
 
@@ -42,6 +53,19 @@ static const char *root, *calls, *argv0;
       fprintf (stderr, __VA_ARGS__);                            \
       fputc ('\n', stderr);                                     \
     }                                                           \
+  } while (0)
+
+/* The next queued warning for TeX's log is WANT (NULL: none). */
+#define CHECK_PROBLEM(want)                                     \
+  do {                                                          \
+    const char *want_ = (want);                                 \
+    string got_ = test_ondemand_problem ();                     \
+    if (want_)                                                  \
+      CHECK (got_ && STREQ (got_, want_), "warning %s, want %s", \
+             got_ ? got_ : "(none)", want_);                    \
+    else                                                        \
+      CHECK (!got_, "unexpected warning %s", got_);             \
+    free (got_);                                                \
   } while (0)
 
 static kpathsea
@@ -190,13 +214,38 @@ main (int argc, char **argv)
   CHECK (test_ondemand_generation () == gen + 1, "generation not bumped after finishing");
   free (p);
 
-  /* A failing mtx: NULL, and asked once per run. With the file present
+  /* A failing mtx: NULL, and asked once per run, with one warning for
+     TeX's log, announced to the engine's printer. With the file present
      and journaled, the complete file is still returned. */
+  test_ondemand_set_printer (count_printer);
+  CHECK_PROBLEM (NULL);
   n = lines (calls);
   p = test_ondemand_find (latex, kpse_tex_format, "broken.sty");
   CHECK (!p, "broken.sty returned %s", p);
   p = test_ondemand_find (latex, kpse_tex_format, "broken.sty");
   CHECK (!p && lines (calls) == n + 1, "failed name asked %d times", lines (calls) - n);
+  CHECK (printed == 1, "printer called %d times, want 1", printed);
+  CHECK_PROBLEM ("Package mtx Warning: package broken (for broken.sty) could not be installed; see `mtx log'.");
+  CHECK_PROBLEM (NULL);
+  /* Declined (exit 3), and "no package has it after all" (exit 1). */
+  setenv ("MTX_TEST_EXIT", "3", 1);
+  mtx.failed.length = 0;
+  test_ondemand_find (latex, kpse_tex_format, "broken.sty");
+  CHECK_PROBLEM ("Package mtx Warning: package broken (for broken.sty) was not installed: declined; see `mtx log'.");
+  setenv ("MTX_TEST_EXIT", "1", 1);
+  mtx.failed.length = 0;
+  test_ondemand_find (latex, kpse_tex_format, "broken.sty");
+  CHECK_PROBLEM (NULL);
+  unsetenv ("MTX_TEST_EXIT");
+  mtx.failed.length = 0;
+  test_ondemand_find (latex, kpse_tex_format, "broken.sty");
+  CHECK_PROBLEM ("Package mtx Warning: package broken (for broken.sty) could not be installed; see `mtx log'.");
+  /* Warnings come out in order. */
+  mtx_problem (xstrdup ("first"), 4);
+  mtx_problem (xstrdup ("second"), 3);
+  CHECK_PROBLEM ("Package mtx Warning: first could not be installed; see `mtx log'.");
+  CHECK_PROBLEM ("Package mtx Warning: second was not installed: declined; see `mtx log'.");
+  CHECK_PROBLEM (NULL);
   p = concat3 (root, "/texmf-dist/tex/latex/broken/", "");
   mkdir (p, 0777);
   free (p);
@@ -221,6 +270,7 @@ main (int argc, char **argv)
   n = lines (calls);
   p = test_ondemand_find (latex, kpse_tfm_format, "fonty10.tfm");
   CHECK (!p && lines (calls) == n, "MTX_AUTOINSTALL=0 still ran mtx");
+  CHECK_PROBLEM ("Package mtx Warning: package fonty (for fonty10.tfm) was not installed: MTX_AUTOINSTALL is off.");
   unsetenv ("MTX_AUTOINSTALL");
   /* The miss is remembered for the rest of the process (a TeX run cannot
      change the setting midway); a new process asks again. */
@@ -230,6 +280,30 @@ main (int argc, char **argv)
   p = test_ondemand_find (latex, kpse_tfm_format, "fonty10.tfm");
   CHECK (p && lines (calls) == n + 1, "fonty10.tfm not installed (%s, %d calls)", p ? p : "NULL", lines (calls) - n);
   free (p);
+
+  /* Font maps: the table is binary-searched (first, last, a name that is
+     a prefix of another); mtx runs only for fonts in it, once per run. */
+  CHECK (mtx_maps_has ("a-first") && mtx_maps_has ("zz-last") && mtx_maps_has ("fonty10")
+         && mtx_maps_has ("fonty10x") && mtx_maps_has ("nothing-to-do"), "table entries not found");
+  CHECK (!mtx_maps_has ("fonty1") && !mtx_maps_has ("fonty100") && !mtx_maps_has ("a")
+         && !mtx_maps_has ("zzz") && !mtx_maps_has (""), "names not in the table found");
+  n = lines (calls);
+  gen = test_ondemand_generation ();
+  CHECK (!test_ondemand_font_map (latex, "cmr10") && lines (calls) == n, "a font in no map ran mtx");
+  CHECK (test_ondemand_font_map (latex, "fonty10"), "fonty10's map package not installed");
+  CHECK (lines (calls) == n + 1 && test_ondemand_generation () == gen + 1, "font map: %d calls, generation +%u",
+         lines (calls) - n, test_ondemand_generation () - gen);
+  {
+    FILE *f = fopen (calls, "r");
+    char line[512] = "", last[512] = "";
+    while (fgets (line, sizeof line, f))
+      strcpy (last, line);
+    fclose (f);
+    CHECK (STREQ (last, "ensure --font-map --siblings fonty10\n"), "font map call: %s", last);
+  }
+  CHECK (!test_ondemand_font_map (latex, "fonty10") && lines (calls) == n + 1, "font map asked twice");
+  CHECK (!test_ondemand_font_map (latex, "nothing-to-do") && lines (calls) == n + 2, "nothing-to-do not asked");
+  CHECK_PROBLEM (NULL); /* exit 1: nothing to install, no warning */
 
   /* Names refused before the index is consulted. */
   n = lines (calls);

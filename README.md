@@ -8,7 +8,7 @@ carries on. You get MiKTeX's convenience with TeX Live's engines, packages and
 results, built natively for arm64.
 
 **Status:** working, not yet released. pdfLaTeX, XeLaTeX and LuaLaTeX compile the
-51-document test corpus on the first run from an empty installation, with the same
+52-document test corpus on the first run from an empty installation, with the same
 output as a full TeX Live 2026 (XeLaTeX differs only where MennoTeX finds TeX fonts by
 name and a stock TeX Live on macOS does not).
 [knowledge/project/status.md](knowledge/project/status.md) has the measurements.
@@ -69,10 +69,11 @@ a throw-away root for testing.
 | `mtx upgrade-release` | Install MennoTeX for the next TeX Live release next to this one, with the same packages, and switch `current` to it |
 | `mtx install PKG…` / `mtx remove PKG…` | Install or remove packages by hand |
 | `mtx prefetch FILE.tex` | Install everything a document statically needs in one go |
+| `mtx search TEXT` / `mtx search --file TEXT` | Find packages by name or description, or by the files they ship, installed or not |
 | `mtx which FILE` / `mtx info PKG` / `mtx list` | Find a file's package, show a package, list what is installed |
 | `mtx update` / `mtx refresh` | Upgrade installed packages / check for a newer package database |
-| `mtx config autoinstall yes\|no\|ask` | Choose whether missing packages are installed silently, never, or after asking |
-| `mtx log [--problems]` | See what was installed, and why an install failed or was declined |
+| `mtx config autoinstall yes\|no\|ask` | Choose whether missing packages are installed silently, never, or after asking (the prompt lists every package and what it brings along) |
+| `mtx log [--problems]` | See what was installed, and why an install failed or was declined (TeX's log also gets a `Package mtx Warning` line) |
 | `mtx gc [--days N]` | Remove on-demand packages no document has used for N days |
 | `texdoc NAME` / `mtx docs PKG` | Documentation, also installed on demand |
 

@@ -4,7 +4,7 @@ title: Package quirks found by the corpus
 description: Behaviour of individual LaTeX packages and tools, seen while growing the document corpus, that looks like an on-demand problem but is not (or is), with the cause.
 tags: [corpus, packages, luatex, xypic, pstricks, musixtex, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:15:00Z }
 verified:
   - { by: process:tests/run_documents.sh, at: 2026-10-08T13:00:00Z }
 sources:
@@ -12,6 +12,14 @@ sources:
     resource: tlnet package xypic (Xy-pic 3.8.9), texmf-dist/tex/generic/xypic/xypdf.tex:92-95
     title: xypdf.tex, \xP@testpdfsave
     author: kristoffer-rose
+  - id: latexltx
+    resource: tlnet package latex (TeX Live 2026), texmf-dist/tex/latex/base/latex.ltx:9827-9856, 20153, 20604
+    title: latex.ltx, \IfFileExists and file substitutions
+    author: team:latex-project
+  - id: l3file
+    resource: tlnet package l3kernel (TeX Live 2026), texmf-dist/tex/latex/l3kernel/expl3-code.tex:12708-12730
+    title: l3file, \file_full_name:n
+    author: team:latex-project
 ---
 
 Facts from `tests/documents/` (51 documents since 2026-10-08), checked with the
@@ -53,3 +61,22 @@ MennoTeX binaries of CI run 37750229150.
 
 - `musixflx` (MusiXTeX's spacing pass) and `mpost` run through MennoTeX's command
   shims and binaries between TeX runs; corpus `music-musixtex` and `metapost-mpost`.
+
+# How LaTeX checks that a file exists
+
+- `\IfFileExists` (and so `\usepackage`, `\InputIfFileExists`) expands
+  `\IfFileExists@@` → `\file_full_name:n`, which tests existence with `\tex_filesize:D`
+  (`\pdffilesize`/`\filesize`), not `\openin`.[^latexltx][^l3file] The lookup reaches
+  kpathsea (and mtx) but no engine file-open routine; the recorder (`.fls`) still lists
+  the file, twice. A missing package therefore stops LaTeX ("File not found", fatal in
+  nonstopmode) without any further file being opened, which is why MennoTeX's warning for
+  TeX's log is printed from a kpathsea callback ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md)).
+- Building the LaTeX format looks up `atveryend.sty` and `atbegshi.sty` (around
+  `\declare@file@substitution`, `latex.ltx:20153,20604`[^latexltx]); documents then
+  load the kernel's `atveryend-ltx.sty`/`atbegshi-ltx.sty`. With the packages absent and
+  installs off, `\RequirePackage{atveryend}` works, so these two installs are only probes
+  ([decision 0013](/decisions/0013-no-probe-deny-list.md)).
+- Other probes seen in the corpus: KOMA-Script classes check `footmisc.sty`; standalone
+  checks `preview.sty`; acmart checks `zi4.sty` and `newtxmath.sty` under every engine
+  but loads them only under pdfTeX (`acmart.cls:776-805`).
+

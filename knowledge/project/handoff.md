@@ -5,13 +5,27 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T20:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:45:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
+  - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
 ---
 
 # Where things stand (2026-10-08)
+
+- **Ready for the next release, not in one yet (2026-10-08, the user asked for PLAN.md
+  items 1–5 before it):** probe installs measured, no deny list ([decision 0013](/decisions/0013-no-probe-deny-list.md));
+  `Package mtx Warning` lines in TeX's log for declined/failed installs ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md),
+  new patch 0004); map packages installed during the compile ([decision 0015](/decisions/0015-font-map-on-miss.md));
+  format stamps ([decision 0016](/decisions/0016-format-stamps.md)); `mtx search`; and, at the
+  user's request mid-session, the install prompt lists every package with its
+  dependencies (an expandable, scrolling dialog the user clicked through). Plus the
+  dialog-click fix `93d879f`. Patches 0001 and 0003 changed and 0004 is new, so the
+  release run rebuilds TeX Live's programs (incrementally from the cached build tree; a
+  local incremental build took about 2 minutes). Next: a CI run with `release: true`
+  (needs the user's OK), the user signs with `tools/sign_release.sh <tag>`, then
+  `mtx self-update` on the real installation. The first `repair` after that deletes the
+  real installation's formats once (they have no stamps) and they rebuild on next use.
 
 - **Phase 2's exit criteria are met (2026-10-08):** the corpus matches a full TeX Live
   2026 (pdfLaTeX, LuaLaTeX; XeLaTeX except TeX-tree fonts by name) and crashes
@@ -40,7 +54,7 @@ verified:
   on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
 - **Repository:** public `MennoJ97/MennoTeX` (the user, 2026-10-08), branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
-  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 60 `cargo test` tests; the OKF bundle checks clean.
+  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 78 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
@@ -98,7 +112,8 @@ archives. See the [development playbook](/playbooks/development.md).
    `self-update` and now updates with plain `mtx self-update`. The user's `~/.zprofile`
    PATH line points at `~/Library/MennoTeX/current/bin/universal-darwin` (changed at the
    user's request). A new release needs: a CI run with `release: true` (user's OK), then
-   the user signs. Next release should carry the dialog fix (`93d879f`). Earlier binary channel notes:
+   the user signs. The next release carries everything under "Ready for the next
+   release" above. Earlier binary channel notes:
    `mtx install-binaries --github` (TeX Live's programs only):
    `mtx install-binaries --github [--run ID | --release TAG|latest]` uses `gh` (private
    repository), checks the archive's release and `SHA256SUMS`, and skips an installed
@@ -134,8 +149,9 @@ archives. See the [development playbook](/playbooks/development.md).
      and probably the earlier "more dialogs after Install All". Fixed by storing the answer
      in a variable (commit after `f06b150`; a unit test runs the script through osascript
      without a window). Reaches the real installation with the next release.
-   - Getting the reason into TeX's own `.log` (what editors show) is not possible from
-     kpathsea; a C change could print a `! mtx: …` line to the terminal/log via the engine.
+   - Done 2026-10-08, in the next release: the reason in TeX's own `.log`
+     ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md)); the prompt lists
+     every package with its dependencies.
 4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
    commit `38c0bac`). When tlnet serves a newer release, `refresh` switches the
    repository to `historic:2026` (the frozen `tlnet-final`, resolved over the tug.org
@@ -159,10 +175,9 @@ archives. See the [development playbook](/playbooks/development.md).
    (`mtx_interrupted` in `mtx-ondemand.c`) needs a CI binary build (user's OK).
    Next: real arXiv sources kept locally; a Linux comparison for XeLaTeX fonts by name
    (fontconfig) would close the remaining gap.
-6. **Known gaps** (each has a note in the knowledge bundle). Two C changes of
-   2026-10-08 are tested with a local build but reach the real installation only with the
-   next CI release (user's OK): the map re-read ([decision 0012](/decisions/0012-map-reread.md))
-   and kpathsea's install counter; the CI run will be the first with the build-tree cache.
+6. **Known gaps** (each has a note in the knowledge bundle). The map re-read
+   ([decision 0012](/decisions/0012-map-reread.md)) shipped in release `f06b1506f`; the
+   C changes of decisions 0014 and 0015 ship with the next one.
    - LuaLaTeX fonts by name: **fixed** by the overlay `texmf-mtx/…/luaotfload-main.lua`
      ([decision 0005](/decisions/0005-fonts-by-name.md)). It assumes luaotfload's
      `resolvers.name` and `config.luaotfload.db.update_live` keep their shape; if a
@@ -173,9 +188,9 @@ archives. See the [development playbook](/playbooks/development.md).
      Before, the run failed fatally (not the warning PLAN.md §5.7 expected).
    - METAFONT-only fonts (`bbm`) work since 2026-10-08: `mktexfmt mf.base` installs
      `metafont` and `modes`, and mktexpk makes the bitmap.
-   - Roots made before the font-map rule need `mtx repair`; a `mktexpk` fallback could
-     install map packages automatically.
-   - Format staleness is handled by deletion (binary install, `fmttriggers`); no stamps.
+   - Roots that lack a map package: pdfTeX and LuaTeX install it during the compile
+     ([decision 0015](/decisions/0015-font-map-on-miss.md)); `mtx repair` still fixes them ahead.
+   - Format staleness: stamps ([decision 0016](/decisions/0016-format-stamps.md)).
    - `mtx gc` and docs on demand (`texdoc NAME`, `mtx docs PKG`) are done. texdoc's
      viewer path (opening a PDF) was not exercised, to avoid opening windows; only
      `texdoc -l -M`.

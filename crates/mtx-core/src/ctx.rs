@@ -50,7 +50,7 @@ pub struct Ctx {
     /// ([`crate::consent`]). Cleared once the user agreed.
     pub ask_for: Option<String>,
     /// How to ask the user under the `ask` policy (replaced in tests).
-    pub prompter: fn(&Ctx, &str) -> crate::consent::Asked,
+    pub prompter: fn(&Ctx, &crate::consent::Request) -> crate::consent::Asked,
     /// Tests trust the key of `testdata/tlnet` instead of TeX Live's.
     #[cfg(test)]
     pub test_key: Option<(&'static str, &'static str)>,

@@ -8,7 +8,7 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use crate::configfiles::{self, Regen, parse_add_format};
+use crate::configfiles::{self, Regen};
 use crate::ctx::Ctx;
 use crate::db::Reason;
 use crate::extract;
@@ -190,7 +190,8 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         // The requested packages first, for the prompt.
         let mut shown: Vec<String> = plan.iter().filter(|n| roots.contains(&n.as_str())).cloned().collect();
         shown.extend(plan.iter().filter(|n| !roots.contains(&n.as_str())).cloned());
-        let req = crate::consent::Request { trigger: &trigger, packages: &shown, bytes: size };
+        let items = prompt_items(tlpdb, &shown, roots);
+        let req = crate::consent::Request { trigger: &trigger, packages: &shown, bytes: size, items };
         let prompter = ctx.prompter;
         if !crate::consent::decide(ctx, &req, &mut |c, q| prompter(c, q))? {
             return Err(crate::consent::Declined { trigger, packages: summarize(&shown), why: "see mtx log".into() }.into());
@@ -262,7 +263,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     append_lsr(ctx, &dist_files)?;
     crash_point("listed");
     if regen.any() {
-        apply_regen(ctx, tlpdb, regen, &plan)?;
+        apply_regen(ctx, tlpdb, regen)?;
     }
     crash_point("regenerated");
     // A binary package replaced its shims with real programs.
@@ -274,6 +275,40 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     }
     drop(lock);
     Ok(report)
+}
+
+/// `plan` as a tree for the prompt: each package of `roots` (then each
+/// other package nothing above pulled in, such as font-map packages) with
+/// the planned packages its dependencies bring along, each listed once.
+fn prompt_items(tlpdb: &Tlpdb, plan: &[String], roots: &[&str]) -> Vec<crate::consent::Item> {
+    let item = |name: &str, deps| {
+        let p = tlpdb.get(name);
+        crate::consent::Item {
+            name: name.to_string(),
+            summary: p.map(|p| p.shortdesc.clone()).unwrap_or_default(),
+            bytes: p.map_or(0, |p| p.container_size),
+            deps,
+        }
+    };
+    let in_plan: BTreeSet<&str> = plan.iter().map(String::as_str).collect();
+    let mut shown: BTreeSet<&str> = BTreeSet::new();
+    let mut items = Vec::new();
+    let tops = roots.iter().copied().filter(|r| in_plan.contains(r)).chain(plan.iter().map(String::as_str));
+    for top in tops.collect::<Vec<_>>() {
+        if !shown.insert(top) {
+            continue;
+        }
+        let closure = tlpdb.closure([top]).unwrap_or_default();
+        let deps: Vec<crate::consent::Item> = closure
+            .iter()
+            .filter_map(|d| in_plan.get(d.as_str()).copied())
+            .filter(|d| !roots.contains(d))
+            .filter(|d| shown.insert(d))
+            .map(|d| item(d, Vec::new()))
+            .collect();
+        items.push(item(top, deps));
+    }
+    items
 }
 
 fn summarize(names: &[String]) -> String {
@@ -290,8 +325,8 @@ fn append_lsr(ctx: &Ctx, files: &[String]) -> Result<()> {
 }
 
 /// Regenerate configuration files, font maps and ls-R after a transaction,
-/// and invalidate formats whose `fmttriggers` packages changed.
-pub fn apply_regen(ctx: &Ctx, tlpdb: &Tlpdb, regen: Regen, changed: &[String]) -> Result<()> {
+/// and invalidate formats whose stamp no longer matches.
+pub fn apply_regen(ctx: &Ctx, tlpdb: &Tlpdb, regen: Regen) -> Result<()> {
     let installed = ctx.db.installed()?;
     let pkgs: Vec<&Package> = installed.keys().filter_map(|n| tlpdb.get(n)).collect();
     let written = configfiles::write(&ctx.root.dir, &pkgs, regen)?;
@@ -316,24 +351,19 @@ pub fn apply_regen(ctx: &Ctx, tlpdb: &Tlpdb, regen: Regen, changed: &[String]) -
             bail!("updmap-sys failed:\n{}", String::from_utf8_lossy(&out.stderr));
         }
     }
-    invalidate_formats(ctx, &pkgs, regen, changed)?;
+    invalidate_formats(ctx, &pkgs)?;
     lsr::rebuild(&ctx.root.texmf_var())?;
     Ok(())
 }
 
-/// Delete built formats that depend on changed packages; kpathsea's
-/// `mktexfmt` rebuilds them on next use.
-fn invalidate_formats(ctx: &Ctx, installed: &[&Package], regen: Regen, changed: &[String]) -> Result<()> {
-    let changed: BTreeSet<&str> = changed.iter().map(String::as_str).collect();
-    for p in installed {
-        for f in p.executes_of("AddFormat").filter_map(parse_add_format) {
-            let stale = regen.hyphen || f.fmttriggers.iter().any(|t| changed.contains(t.as_str()));
-            let fmt = ctx.root.texmf_var().join("web2c").join(&f.engine).join(crate::formats::format_file(&f.name, &f.engine));
-            if stale && fmt.exists() {
-                fs::remove_file(&fmt)?;
-                ctx.log(format!("format {} will be rebuilt on next use", f.name));
-            }
-        }
+/// Delete built formats whose stamp no longer matches (a `fmttriggers`
+/// package, the engine or the hyphenation patterns changed, or the format
+/// predates stamps); kpathsea's `mktexfmt` rebuilds them on next use.
+fn invalidate_formats(ctx: &Ctx, installed_pkgs: &[&Package]) -> Result<()> {
+    let installed = ctx.db.installed()?;
+    for (name, fmt) in crate::formats::stale(&ctx.root, installed_pkgs, &installed) {
+        crate::formats::remove(&fmt)?;
+        ctx.log(format!("format {name} will be rebuilt on next use"));
     }
     Ok(())
 }
@@ -388,7 +418,7 @@ pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>>
     lsr::rebuild(&ctx.root.texmf_dist())?;
     crate::shims::sync(ctx, &tlpdb)?;
     if regen.any() {
-        apply_regen(ctx, &tlpdb, regen, &removed)?;
+        apply_regen(ctx, &tlpdb, regen)?;
     }
     drop(lock);
     if !removed.is_empty() {
@@ -423,7 +453,7 @@ pub fn repair(ctx: &mut Ctx) -> Result<Vec<String>> {
     let mode = crate::bootstrap::HookMode::current(ctx)?;
     crate::bootstrap::install_hooks(&ctx.root, mode)?;
     lsr::rebuild(&ctx.root.texmf_dist())?;
-    apply_regen(ctx, &tlpdb, Regen::all(), &[])?;
+    apply_regen(ctx, &tlpdb, Regen::all())?;
     crate::shims::sync(ctx, &tlpdb)?;
     // Roots made before `…/MennoTeX/current` existed get it here.
     if let Some(link) = crate::release::current_link(&ctx.root) {

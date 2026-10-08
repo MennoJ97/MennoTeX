@@ -31,12 +31,23 @@ TEXINPUTS.pdflatex = .;$TEXMF/tex/{latex,generic,}//
 TEXINPUTS.xelatex = .;$TEXMF/tex/{xelatex,latex,xetex,generic,}//
 TFMFONTS = .;$TEXMF/fonts/tfm//
 EOF
+# mtx's font-map table: fonts a package's map covers, sorted bytewise.
+printf 'a-first\tx\nfonty10\tfonty\nfonty10x\tother\nnothing-to-do\tz\nzz-last\ty\n' \
+  > "$root/tlpkg/mtx/fontmaps.tsv"
 cat > "$work/bin/mtx" <<'EOF'
 #!/bin/sh
 # Fake mtx for `ensure --package P --path REL --siblings -- NAME`: makes the
 # file (and a sibling for alpha), prints the paths, finishes the package.
+# `broken` fails with $MTX_TEST_EXIT (default 4, the install failed). For
+# `ensure --font-map --siblings FONT`: fonty10's map package is installed
+# (prints a file), other fonts need nothing (exit 1).
 echo "$*" >> "$MTX_TEST_CALLS"
-[ "$3" = broken ] && exit 1
+if [ "$2" = --font-map ]; then
+  [ "$4" = fonty10 ] || exit 1
+  echo "$TEXMFROOT/texmf-dist/fonts/map/dvips/fonty/fonty.map"
+  exit 0
+fi
+[ "$3" = broken ] && exit "${MTX_TEST_EXIT:-4}"
 mkdir -p "$(dirname "$TEXMFROOT/$5")" && : > "$TEXMFROOT/$5"
 echo "$TEXMFROOT/$5"
 if [ "$3" = alpha ]; then

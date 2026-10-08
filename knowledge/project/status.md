@@ -5,10 +5,10 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:50:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-08T13:20:00Z }
-  - { by: process:tests/run_documents.sh, at: 2026-10-08T13:45:00Z }
+  - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
+  - { by: process:tests/run_documents.sh, at: 2026-10-08T14:10:00Z }
 ---
 
 # Phase 0: spike on unmodified binaries (in progress)
@@ -112,10 +112,26 @@ test document still makes 18 such calls.
 # Phase 1 and 4 items done 2026-10-08
 
 - C unit tests of the kpathsea patch (Phase 1, PLAN.md §8 "index round-trip"):
-  `tests/run_c_tests.sh`, 37 checks, also run in CI after every build.
+  `tests/run_c_tests.sh`, 57 checks (2026-10-08), also run in CI after every build.
 - In-run map reload (Phase 4, PLAN.md §5.7): [decision 0012](/decisions/0012-map-reread.md);
   corpus now 52 documents (`late-font-map`), on fresh roots with a local build:
   pdfLaTeX 41/41 (82 s), XeLaTeX 43/43 + 1 skipped (95 s), LuaLaTeX 47/47 (133 s).
+
+# Before the second release (2026-10-08, not released yet)
+
+- PLAN.md §6 probe deny list: measured, not built ([decision 0013](/decisions/0013-no-probe-deny-list.md)):
+  6 of 418 corpus installs were probe-only (~6.4 MB).
+- Install problems in TeX's log ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md)):
+  checked on pdfLaTeX, XeLaTeX and LuaLaTeX for `MTX_AUTOINSTALL=0`, declined and failed.
+- Map packages during the compile ([decision 0015](/decisions/0015-font-map-on-miss.md)):
+  `cm-super` installed mid-run by pdfLaTeX and LuaLaTeX in a root without it.
+- Format stamps (PLAN.md §5.7, [decision 0016](/decisions/0016-format-stamps.md)).
+- `mtx search` (PLAN.md §5.10); the install prompt lists every package with its
+  dependencies (dialog checked by the user).
+- Corpus with this build on fresh roots (local build, 2026-10-08): pdfLaTeX 41/41, XeLaTeX
+  43/43 (+1 skipped without Ghostscript), LuaLaTeX 47/47, no `mtx Warning` in any log; a
+  second pass after `mtx repair` with format stamps installed nothing and rebuilt the
+  stamp-less formats once.
 
 # Phases 2–4
 

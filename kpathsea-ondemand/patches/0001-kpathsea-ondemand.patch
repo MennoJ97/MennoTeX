@@ -70,10 +70,10 @@ index 7a964b48..897ba49f 100644
 +   build system needs no changes. */
 +#include "mtx-ondemand.c"
 diff --git a/texk/kpathsea/tex-make.h b/texk/kpathsea/tex-make.h
-index 00902f7f..27ad1685 100644
+index 00902f7f..19fa7e7a 100644
 --- a/texk/kpathsea/tex-make.h
 +++ b/texk/kpathsea/tex-make.h
-@@ -32,6 +32,16 @@ extern "C" {
+@@ -32,6 +32,31 @@ extern "C" {
     the file is passed through environment variables.  See the mktexpk
     stuff in `tex-make.c' for an example. */
  
@@ -86,6 +86,21 @@ index 00902f7f..27ad1685 100644
 +/* MennoTeX: how many times mtx made files available in this process; the
 +   engines re-read their font map when it changed (see mtx-ondemand.c). */
 +extern KPSEDLL unsigned kpathsea_ondemand_generation (void);
++
++/* MennoTeX: the oldest queued warning about a package that has a missing
++   file but was not installed (declined, or the install failed), or NULL.
++   The caller frees it. The engines print these in TeX's log. */
++extern KPSEDLL string kpathsea_ondemand_problem (void);
++
++/* MennoTeX: PRINTER is called whenever a warning is queued; it should print
++   the queued warnings with kpathsea_ondemand_problem when it can. */
++extern KPSEDLL void kpathsea_ondemand_set_printer (void (*printer) (void));
++
++/* MennoTeX: FONT (a TFM name) has no entry in the font map. If a package's
++   map covers it, install that package; true if it was installed and the
++   map should be read again. */
++extern KPSEDLL boolean kpathsea_ondemand_font_map (kpathsea kpse,
++                                                  const_string font);
 +
  extern KPSEDLL string kpathsea_make_tex (kpathsea kpse,
                                   kpse_file_format_type format,

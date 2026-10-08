@@ -24,8 +24,16 @@
    Set MTX_AUTOINSTALL=0 (environment or texmf.cnf, also per program as
    MTX_AUTOINSTALL.kpsewhich) to only return files that are already
    installed. mtx sets it for the tools it runs itself, which prevents
-   recursion while it holds its install lock.  */
+   recursion while it holds its install lock.
 
+   When a package that has the file is not installed (declined, the install
+   failed, or MTX_AUTOINSTALL is off), a one-line warning is queued for the
+   engine to print in TeX's log (kpathsea_ondemand_problem): mtx's own
+   message goes to stderr only, and editors read the log. Engines register
+   a printer (kpathsea_ondemand_set_printer) that prints it right away: a
+   missing package makes LaTeX stop before it opens another file.  */
+
+#include <kpathsea/concatn.h>
 #include <kpathsea/pathsearch.h>
 #include <kpathsea/str-list.h>
 #include <kpathsea/tex-file.h>
@@ -55,7 +63,64 @@ static struct {
   size_t off_hashes, off_entries, off_dirs, off_pkgs, off_strings, len_strings;
   string root;                  /* TEXMFROOT; index paths are relative to it */
   str_list_type failed;         /* names we could not install in this run */
+  str_list_type problems;       /* warnings not yet printed by the engine */
 } mtx;
+
+/* mtx ensure's exit status when it did not install (crates/mtx-core/src/
+   ensure.rs, NotInstalled); 1 means no package has the file, 2 an error. */
+#define MTX_EXIT_DECLINED 3
+#define MTX_EXIT_FAILED 4
+
+static void (*mtx_printer) (void);
+
+void
+kpathsea_ondemand_set_printer (void (*printer) (void))
+{
+  mtx_printer = printer;
+}
+
+/* Queue the warning that WHAT ("package foo (for foo.sty)", freed here)
+   was not installed. STATUS is mtx's exit status, or -1 when
+   MTX_AUTOINSTALL kept mtx from running. The format makes editors (LaTeX
+   Workshop, latexmk's summary) list it as a package warning. */
+static void
+mtx_problem (string what, int status)
+{
+  const_string why;
+  string msg;
+  if (status == 1) {
+    free (what);
+    return;                     /* nothing provides it after all */
+  }
+  if (status == -1)
+    why = "was not installed: MTX_AUTOINSTALL is off";
+  else if (status == MTX_EXIT_DECLINED)
+    why = "was not installed: declined; see `mtx log'";
+  else
+    why = "could not be installed; see `mtx log'";
+  msg = concatn ("Package mtx Warning: ", what, " ", why, ".", NULL);
+  str_list_add (&mtx.problems, msg);
+  free (what);
+  if (mtx_printer)
+    mtx_printer ();
+}
+
+/* The oldest queued warning (the caller frees it), or NULL. */
+string
+kpathsea_ondemand_problem (void)
+{
+  string msg;
+  unsigned i;
+  if (STR_LIST_LENGTH (mtx.problems) == 0)
+    return NULL;
+  msg = STR_LIST_ELT (mtx.problems, 0);
+  for (i = 1; i < STR_LIST_LENGTH (mtx.problems); i++)
+    STR_LIST_ELT (mtx.problems, i - 1) = STR_LIST_ELT (mtx.problems, i);
+  STR_LIST_LENGTH (mtx.problems)--;
+  if (STR_LIST_LENGTH (mtx.problems) == 0)
+    str_list_free (&mtx.problems);
+  return msg;
+}
 
 static uint32_t
 mtx_u32 (size_t off)
@@ -328,9 +393,10 @@ kpathsea_ondemand_generation (void)
 
 /* Run mtx with ARGV (ARGV[0] is replaced by $SELFAUTOLOC/mtx). Every line
    it prints is a file it made available; insert them all into the db.
-   Return the first, if readable. */
+   Return the first, if readable. Store mtx's exit status in *STATUS (2 if
+   it could not run). */
 static string
-mtx_run (kpathsea kpse, char **argv)
+mtx_run (kpathsea kpse, char **argv, int *status_out)
 {
   string loc = kpathsea_var_value (kpse, "SELFAUTOLOC");
   string prog = loc ? concat (loc, "/mtx") : NULL;
@@ -340,6 +406,7 @@ mtx_run (kpathsea kpse, char **argv)
   pid_t pid;
 
   free (loc);
+  *status_out = 2;
   if (!prog || pipe (pipefd) != 0) {
     free (prog);
     return NULL;
@@ -375,6 +442,8 @@ mtx_run (kpathsea kpse, char **argv)
     }
     while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
       ;
+    if (WIFEXITED (status))
+      *status_out = WEXITSTATUS (status);
     if (out && WIFEXITED (status) && WEXITSTATUS (status) == 0) {
       string line = out, nl;
       out[out_len] = 0;
@@ -434,18 +503,121 @@ mtx_find_font_name (kpathsea kpse, kpse_file_format_type format, const_string na
 {
   char *argv[6];
   string found;
+  int status;
   argv[0] = NULL;
   argv[1] = (char *) "ensure";
   argv[2] = (char *) "--font-name";
   argv[3] = (char *) "--siblings";
   argv[4] = (char *) name;
   argv[5] = NULL;
-  found = mtx_run (kpse, argv);
+  found = mtx_run (kpse, argv, &status);
+  if (!found)
+    mtx_problem (concat3 ("the font `", name, "'"), status);
   if (found && (format == kpse_tfm_format || format == kpse_ofm_format)) {
     free (found);
     return NULL;
   }
   return found;
+}
+
+/* Font maps. pdfTeX and LuaTeX find a font's outlines through the map
+   file (pdftex.map: ecrm1000 -> sfrm1000.pfb), not through a lookup that
+   names the outlines' package (cm-super). mtx installs that package with
+   the font's TFMs; for roots where that did not happen, the engines call
+   kpathsea_ondemand_font_map on a map miss. mtx's font-map table
+   ($TEXMFROOT/tlpkg/mtx/fontmaps.tsv, lines "FONT<TAB>PACKAGES" sorted
+   bytewise) is binary-searched, so virtual and METAFONT fonts, which no map
+   covers, cost no process. */
+static struct {
+  int state;                    /* 0 not loaded, 1 ready, -1 unavailable */
+  const char *base;
+  size_t len;
+  str_list_type tried;          /* fonts already asked about in this run */
+} mtx_maps;
+
+static boolean
+mtx_maps_has (const_string font)
+{
+  size_t lo = 0, hi, n = strlen (font);
+  const char *b;
+  if (mtx_maps.state == 0) {
+    string path = concat (mtx.root, "/tlpkg/mtx/fontmaps.tsv");
+    int fd = open (path, O_RDONLY);
+    struct stat st;
+    void *m;
+    free (path);
+    mtx_maps.state = -1;
+    if (fd >= 0) {
+      if (fstat (fd, &st) == 0 && st.st_size > 0) {
+        m = mmap (NULL, (size_t) st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+        if (m != MAP_FAILED) {
+          mtx_maps.base = (const char *) m;
+          mtx_maps.len = (size_t) st.st_size;
+          mtx_maps.state = 1;
+        }
+      }
+      close (fd);
+    }
+  }
+  if (mtx_maps.state < 0)
+    return false;
+  b = mtx_maps.base;
+  hi = mtx_maps.len;
+  /* Lines starting in [lo, hi) may match; lo is always a line start. */
+  while (lo < hi) {
+    size_t start = lo + (hi - lo) / 2, end;
+    int c;
+    while (start > lo && b[start - 1] != '\n')
+      start--;
+    for (end = start; end < mtx_maps.len && b[end] != '\t' && b[end] != '\n'; end++)
+      ;
+    c = memcmp (b + start, font, end - start < n ? end - start : n);
+    if (c == 0)
+      c = (end - start > n) - (end - start < n);
+    if (c == 0)
+      return true;
+    if (c < 0) {
+      while (end < mtx_maps.len && b[end] != '\n')
+        end++;
+      lo = end + 1;
+    } else
+      hi = start;
+  }
+  return false;
+}
+
+/* FONT (a TFM name) has no entry in the font map. If a package's map
+   covers it, have mtx install that package, which regenerates the maps;
+   true if it did, and the engine should read its map again. Once per font
+   per run. */
+boolean
+kpathsea_ondemand_font_map (kpathsea kpse, const_string font)
+{
+  string setting, found;
+  char *argv[6];
+  int status = -1;
+  unsigned i;
+  if (!font || !mtx_name_ok (font) || !mtx_load (kpse) || !mtx_maps_has (font))
+    return false;
+  for (i = 0; i < STR_LIST_LENGTH (mtx_maps.tried); i++)
+    if (STREQ (STR_LIST_ELT (mtx_maps.tried, i), font))
+      return false;
+  str_list_add (&mtx_maps.tried, xstrdup (font));
+  setting = kpathsea_var_value (kpse, "MTX_AUTOINSTALL");
+  if (!setting || (*setting != '0' && *setting != 'n' && *setting != 'f')) {
+    argv[0] = NULL;
+    argv[1] = (char *) "ensure";
+    argv[2] = (char *) "--font-map";
+    argv[3] = (char *) "--siblings";
+    argv[4] = (char *) font;
+    argv[5] = NULL;
+    found = mtx_run (kpse, argv, &status);
+    free (found);
+  }
+  free (setting);
+  if (status != 0)
+    mtx_problem (concat ("the font map for ", font), status);
+  return status == 0;
 }
 
 string
@@ -508,6 +680,7 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
       kpathsea_db_insert (kpse, best.path);
       ret = xstrdup (best.path);
     } else {
+      int status = -1;
       setting = kpathsea_var_value (kpse, "MTX_AUTOINSTALL");
       if (!setting || (*setting != '0' && *setting != 'n' && *setting != 'f')) {
         char *argv[10];
@@ -521,7 +694,7 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
         argv[7] = (char *) "--";
         argv[8] = (char *) name;
         argv[9] = NULL;
-        ret = mtx_run (kpse, argv);
+        ret = mtx_run (kpse, argv, &status);
       }
       free (setting);
       if (!ret && readable) {
@@ -530,8 +703,10 @@ kpathsea_ondemand_find (kpathsea kpse, kpse_file_format_type format,
         kpathsea_db_insert (kpse, best.path);
         ret = xstrdup (best.path);
       }
-      if (!ret)
+      if (!ret) {
         str_list_add (&mtx.failed, xstrdup (name));
+        mtx_problem (concatn ("package ", best.pkg, " (for ", name, ")", NULL), status);
+      }
     }
   } else if (mtx_font_format (format) && !slash) {
     /* One-word font names ("Inconsolata") look like file names but are in

@@ -27,7 +27,7 @@ fn is_macho(path: &Path) -> bool {
         && matches!(magic, [0xcf, 0xfa, 0xed, 0xfe] | [0xca, 0xfe, 0xba, 0xbe])
 }
 
-/// Delete every `*.fmt` (and its `.log`) under `dir`; returns how many.
+/// Delete every `*.fmt` (with its `.log` and stamp) under `dir`; returns how many.
 fn remove_formats(dir: &Path) -> Result<usize> {
     let mut n = 0;
     let Ok(entries) = fs::read_dir(dir) else { return Ok(0) };
@@ -36,8 +36,7 @@ fn remove_formats(dir: &Path) -> Result<usize> {
         if e.file_type()?.is_dir() {
             n += remove_formats(&p)?;
         } else if p.extension().is_some_and(|x| x == "fmt") {
-            fs::remove_file(&p)?;
-            let _ = fs::remove_file(p.with_extension("log"));
+            crate::formats::remove(&p)?;
             n += 1;
         }
     }

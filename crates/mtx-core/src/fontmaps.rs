@@ -7,8 +7,12 @@
 //! `tools/build_fontmap_index.py` (font maps of all of tlnet, 2026-10).
 
 use std::collections::{BTreeSet, HashMap};
+use std::fs;
 use std::io::Read;
+use std::path::Path;
 use std::sync::OnceLock;
+
+use anyhow::Result;
 
 use crate::tlpdb::Tlpdb;
 
@@ -35,6 +39,31 @@ fn parse(text: &str) -> HashMap<String, Vec<String>> {
 /// Packages (not in `have`) whose maps cover TFMs shipped by `packages`.
 pub fn map_packages_for(tlpdb: &Tlpdb, packages: &[String], have: &dyn Fn(&str) -> bool) -> BTreeSet<String> {
     map_packages_with(table(), tlpdb, packages, have)
+}
+
+/// The package (not in `have`) whose map covers the TeX font `font`, or
+/// `None` if no map does or one that does is installed.
+pub fn map_package_for_font(tlpdb: &Tlpdb, font: &str, have: &dyn Fn(&str) -> bool) -> Option<String> {
+    let providers = table().get(font)?;
+    if providers.iter().any(|m| have(m)) {
+        return None;
+    }
+    providers.iter().find(|m| tlpdb.get(m).is_some()).cloned()
+}
+
+/// Write the table as lines `FONT<TAB>PACKAGES`, sorted bytewise, for
+/// kpathsea's resolver (`mtx-ondemand.c`): when pdfTeX or LuaTeX finds no
+/// map entry for a font, it binary-searches this file and runs
+/// `mtx ensure --font-map` only for fonts listed here.
+pub fn write_table(path: &Path) -> Result<()> {
+    let mut lines: Vec<String> = table().iter().map(|(f, p)| format!("{f}\t{}\n", p.join(","))).collect();
+    // '\t' sorts before every character of a font name, so sorting whole
+    // lines sorts by font name.
+    lines.sort_unstable();
+    let tmp = path.with_extension("tsv.tmp");
+    fs::write(&tmp, lines.concat())?;
+    fs::rename(&tmp, path)?;
+    Ok(())
 }
 
 fn map_packages_with(
@@ -69,6 +98,22 @@ mod tests {
     fn embedded_table_knows_cm_super() {
         assert_eq!(table().get("ecrm1000").map(|v| v.as_slice()), Some(&["cm-super".to_string()][..]));
         assert!(table().len() > 40_000);
+    }
+
+    #[test]
+    fn one_fonts_map_package_and_the_written_table() {
+        let db = Tlpdb::parse("name cm-super\ncategory Package\nrevision 1\n").unwrap();
+        assert_eq!(map_package_for_font(&db, "ecrm1000", &|_| false).as_deref(), Some("cm-super"));
+        assert_eq!(map_package_for_font(&db, "ecrm1000", &|p| p == "cm-super"), None);
+        assert_eq!(map_package_for_font(&db, "no-such-font", &|_| false), None);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fontmaps.tsv");
+        write_table(&path).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        let keys: Vec<&str> = text.lines().map(|l| l.split('\t').next().unwrap()).collect();
+        assert!(keys.windows(2).all(|w| w[0].as_bytes() < w[1].as_bytes()), "sorted, no duplicates");
+        assert!(text.contains("\necrm1000\tcm-super\n"));
     }
 
     #[test]

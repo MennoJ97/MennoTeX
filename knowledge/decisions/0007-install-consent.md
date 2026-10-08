@@ -4,9 +4,10 @@ title: Asking before automatic installs
 description: An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.
 tags: [decision, policy, ask, logging, ux]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T20:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:05:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-08T00:30:00Z }
+  - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
+  - { by: human:MennoJ97, at: 2026-10-08T14:30:00Z }
 ---
 
 # Context
@@ -36,6 +37,21 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
   else `ask_fallback` (default yes). The script stores the dialog's answer in a
   variable: until 2026-10-08 it read AppleScript's `result` after an `if` statement had
   replaced it, so every click failed with error -2753 and fell back silently.
+- **What the prompt shows** (the user, 2026-10-08: list the packages instead of "and N
+  more", with collapsible dependencies and scrolling): the prompt gets the request as a
+  tree, each package the request is for with the planned packages its dependencies bring
+  along (`install::prompt_items`). The terminal lists every package with its size and
+  summary and a `+ dep, dep` line. The dialog is an `NSAlert` built in JavaScript for
+  Automation (`data/ask-dialog.js`, `osascript -l JavaScript`) with a scrollable
+  `NSOutlineView` (Package, Size, Description; a package expands to its dependencies),
+  the same three buttons (Escape = Don't Install) and a 30 s timer that aborts the modal
+  run. If that script fails, the plain `display dialog` is used. The log line keeps the
+  one-line form (`mtx log` parses it). A headless mode (`check`) prints the outline's
+  expanded rows for the unit test; rendering an alert that was never shown does not draw
+  its contents (tried with `dataWithPDFInsideRect` and `cacheDisplayInRect`). Shown to
+  the user on 2026-10-08 with sample packages: it appears in front, rows expand and
+  scroll, it gives up after 30 s (`timeout`), and a click on Install All returns
+  `Install All`.
 - **One answer per build:** "all" and "none" are stored as `ask_run:<id>` for an hour,
   where the id is the nearest latexmk ancestor (found with `ps`), else mtx's parent (the
   TeX engine, which kpathsea forks mtx from). The first version used the parent only;
@@ -63,6 +79,7 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
   failed with "File `epigraph.sty' not found", and `mtx log --problems` and `mtx doctor`
   explained why. The dialog's AppleScript compiles (`osacompile`), but a dialog has not
   been clicked through yet.
-- Writing a note into TeX's own log is still not possible (kpathsea cannot see that file).
+- TeX's own log gets a `Package mtx Warning` line since 2026-10-08
+  ([decision 0014](0014-install-warnings-in-tex-log.md)).
 - Shims written by older mtx versions are rewritten on the next shim sync (any install
   or `mtx repair`), which gives them `--for`.

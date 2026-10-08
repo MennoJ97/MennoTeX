@@ -4,7 +4,7 @@ title: On-demand installation
 description: How a missing file becomes an installed package, in Phase 0 (stock hooks) and Phase 1 (kpathsea patch).
 tags: [architecture, kpathsea, mtx, hooks]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T11:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:10:00Z }
 sources:
   - id: kpse
     resource: /upstream/kpathsea.md
@@ -31,7 +31,8 @@ sources:
 5. Otherwise it refreshes the package database if the TTL expired, then runs the
    installer (`install.rs`): download and verify without a lock, then commit under
    `flock(tlpkg/mtx/lock)`, append `ls-R`, regenerate config, run `updmap-sys` if
-   maps changed, and delete formats whose `fmttriggers` changed.
+   maps changed, and delete formats whose stamp no longer matches
+   ([decision 0016](/decisions/0016-format-stamps.md)).
 6. It prints the absolute path on stdout. kpathsea checks it is readable and
    inserts it into its in-memory hash (`tex-make.c` `kpathsea_db_insert`).[^kpse]
 
@@ -52,7 +53,13 @@ and renames the result into place.
 # Protocol rules for `mtx ensure`
 
 - stdout carries only the path; all messages go to stderr and `tlpkg/mtx/mtx.log`.
-- Exit 0 means found or installed; exit 1 means not available (TeX then reports the missing file).
+- Exit 0 means found or installed; 1 that no package has the file; 2 an error; 3 that
+  the install was declined; 4 that it failed (offline, no working mirror). For 2–4
+  kpathsea queues a `Package mtx Warning` line that the engines print to the terminal
+  and TeX's `.log` ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md)).
+- `mtx ensure --font-map FONT`: pdfTeX and LuaTeX found no map entry for a font that
+  mtx's table (`tlpkg/mtx/fontmaps.tsv`) says a package's map covers; install that
+  package, and the engine re-reads its map ([decision 0015](/decisions/0015-font-map-on-miss.md)).
 - `MTX_AUTOINSTALL=0` disables installation (lookups still succeed for installed files).
 - After a network failure an `offline_until` marker makes further misses fail fast for 60 s.
 

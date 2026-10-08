@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:20:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -30,14 +30,17 @@ tests/run_c_tests.sh /tmp/tl2026
 
 They compile `kpathsea-ondemand/tests/ondemand-test.c` (which `#include`s the resolver,
 so its static functions are reachable) against the build's `libkpathsea.a` with
-`-DMAKE_KPSE_DLL`, and run 37 checks: index loading, exact and case-insensitive lookup,
+`-DMAKE_KPSE_DLL`, and run 57 checks: index loading, exact and case-insensitive lookup,
 search-path ranking (`pstricks.con` under XeLaTeX and pdfLaTeX), the `-dev` and size
 tie-breaks, name and format filters, and the whole install path with a fake `mtx`
 (arguments, siblings, journaled packages, `MTX_AUTOINSTALL=0`, remembered misses, the
-install counter). The index they read, `kpathsea-ondemand/tests/fixture.idx`, is written
+install counter), the warnings queued for TeX's log (per exit status, in order, the
+printer callback) and the font-map table (binary search at both ends and for prefixes,
+no process for fonts no map covers, once per run). The index they read, `kpathsea-ondemand/tests/fixture.idx`, is written
 by mtx's Rust code from `fixture.tlpdb`; `cargo test` fails while it is stale
-(regenerate: `MTX_REGEN_C_FIXTURE=1 cargo test`). Checked 2026-10-08 that two planted
-bugs (reversed ranking, journal check off) make them fail. Pitfall: creating a kpathsea
+(regenerate: `MTX_REGEN_C_FIXTURE=1 cargo test`). Checked 2026-10-08 that planted
+bugs (reversed ranking, journal check off, prefix matches in the table search, printer
+never called) make them fail. Pitfall: creating a kpathsea
 instance resets `SELFAUTOLOC` (where the resolver finds mtx).
 
 # Throw-away installation
@@ -121,6 +124,21 @@ stock TeX Live ([package quirks](/upstream/package-quirks.md)).
 4. Installations update with `mtx self-update` (`--check` only reports); `--from DIR`
    takes a directory of release files instead of GitHub. Test fixtures for the
    verification: `tools/make_test_release.sh` (a throwaway key).
+
+# Probe-only installs
+
+After a corpus run with `DOCS_OUT` set, `tests/probe_installs.py ROOT LOGDIR [ROOT
+LOGDIR …]` lists the on-demand installs whose trigger file no TeX log shows as read
+(installed for an existence check only). 2026-10-08: 6 of 418, see
+[decision 0013](/decisions/0013-no-probe-deny-list.md).
+
+# The install prompt without a window
+
+`osascript -l JavaScript -e "$(cat crates/mtx-core/data/ask-dialog.js)" TITLE INFO
+ITEMS-JSON check` prints the dialog's outline rows, all expanded, without showing it
+(the unit test `outline_dialog_lists_the_tree` does this). Showing the real dialog
+pops a window on the user's screen: ask first. Rendering an alert that was never shown
+(`dataWithPDFInsideRect`, `cacheDisplayInRect`) draws only the table header.
 
 # Crash-recovery test
 

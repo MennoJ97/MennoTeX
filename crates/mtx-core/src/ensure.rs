@@ -94,6 +94,41 @@ pub fn resolve<'a>(idx: &'a Index, kind: &Kind, name: &str) -> Option<Hit<'a>> {
     None
 }
 
+/// Why a file that a package provides was not made available. `mtx ensure`
+/// exits with [`NotInstalled::exit_code`], and kpathsea's resolver
+/// (`mtx-ondemand.c`) turns that into a warning in TeX's own log, where
+/// editors look; the details are in `mtx.log`.
+#[derive(Debug, thiserror::Error)]
+pub enum NotInstalled {
+    /// Refused by the `autoinstall` policy, `$MTX_AUTOINSTALL` or the user.
+    #[error("package {0} was not installed: declined")]
+    Declined(String),
+    /// The download or the install failed (offline, no working mirror).
+    #[error("package {0} could not be installed")]
+    Failed(String),
+}
+
+impl NotInstalled {
+    pub const DECLINED: u8 = 3;
+    pub const FAILED: u8 = 4;
+
+    pub fn exit_code(&self) -> u8 {
+        match self {
+            NotInstalled::Declined(_) => Self::DECLINED,
+            NotInstalled::Failed(_) => Self::FAILED,
+        }
+    }
+}
+
+/// `present` if the file exists after all (its package's install was
+/// interrupted, but files are renamed into place whole), otherwise `why`.
+fn or_not_installed<T>(present: Option<T>, why: NotInstalled) -> Result<Option<T>> {
+    match present {
+        Some(p) => Ok(Some(p)),
+        None => Err(why.into()),
+    }
+}
+
 fn is_declined(e: &anyhow::Error) -> bool {
     e.chain().any(|c| c.downcast_ref::<crate::consent::Declined>().is_some())
 }
@@ -122,13 +157,13 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
         return Ok(present); // installed, just not in this process's ls-R view
     }
     if !autoinstall_enabled() {
-        return Ok(present);
+        return or_not_installed(present, NotInstalled::Declined(pkg));
     }
 
     let mut ctx = Ctx::open(root.clone())?;
     if ctx.offline()? {
         ctx.log(format!("error: cannot install {pkg} for {name}: the network was unreachable a moment ago (mtx retries after a minute)"));
-        return Ok(present);
+        return or_not_installed(present, NotInstalled::Failed(pkg));
     }
     // A newer database may move the file to another package.
     let target = match ctx.refresh(false) {
@@ -139,7 +174,7 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
         Ok(_) => Some((pkg, rel)),
         Err(e) if is_network_error(&e) => {
             ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
-            return Ok(present);
+            return or_not_installed(present, NotInstalled::Failed(pkg));
         }
         Err(e) => return Err(e),
     };
@@ -153,11 +188,11 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
     }
     if let Err(e) = install::install(&mut ctx, &[&pkg], Reason::Auto) {
         if is_declined(&e) {
-            return Ok(present);
+            return or_not_installed(present, NotInstalled::Declined(pkg));
         }
         if is_network_error(&e) {
             ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
-            return Ok(present);
+            return or_not_installed(present, NotInstalled::Failed(pkg));
         }
         return Err(e);
     }
@@ -174,6 +209,13 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
     if rel.starts_with('/') || rel.split('/').any(|c| c == "..") || !rel.starts_with("texmf-dist/") {
         return Ok(None);
     }
+    let file = rel.rsplit('/').next().unwrap_or(rel);
+    install_for(root, pkg, rel, file, siblings)
+}
+
+/// Install `pkg` so that `rel` exists; `trigger` names what needed it (in
+/// the log and the consent prompt). See [`ensure_path`].
+fn install_for(root: &Root, pkg: &str, rel: &str, trigger: &str, siblings: bool) -> Result<Option<Vec<PathBuf>>> {
     let target = root.dir.join(rel);
     let redo = install::interrupted(root, pkg);
     // A file that exists is complete (see `ensure`).
@@ -182,34 +224,33 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
         return Ok(present);
     }
     if !autoinstall_enabled() {
-        return Ok(present);
+        return or_not_installed(present, NotInstalled::Declined(pkg.to_string()));
     }
     let mut ctx = Ctx::open(root.clone())?;
     if ctx.offline()? {
         ctx.log(format!("error: cannot install {pkg} for {rel}: the network was unreachable a moment ago (mtx retries after a minute)"));
-        return Ok(present);
+        return or_not_installed(present, NotInstalled::Failed(pkg.to_string()));
     }
     if let Err(e) = ctx.refresh(false) {
         if is_network_error(&e) {
             ctx.log(format!("error: cannot install {pkg}: {e:#}"));
-            return Ok(present);
+            return or_not_installed(present, NotInstalled::Failed(pkg.to_string()));
         }
         return Err(e);
     }
-    let file = rel.rsplit('/').next().unwrap_or(rel);
     // Finishing an interrupted install needs no new consent.
     if redo {
-        ctx.log(format!("{file}: finishing the interrupted install of {pkg}"));
+        ctx.log(format!("{trigger}: finishing the interrupted install of {pkg}"));
     } else {
-        ctx.log(format!("{file} → package {pkg}"));
-        ctx.ask_for = Some(file.to_string());
+        ctx.log(format!("{trigger} → package {pkg}"));
+        ctx.ask_for = Some(trigger.to_string());
     }
     let report = match install::install(&mut ctx, &[pkg], Reason::Auto) {
         Ok(r) => r,
-        Err(e) if is_declined(&e) => return Ok(present),
+        Err(e) if is_declined(&e) => return or_not_installed(present, NotInstalled::Declined(pkg.to_string())),
         Err(e) if is_network_error(&e) => {
             ctx.log(format!("error: cannot install {pkg}: {e:#}"));
-            return Ok(present);
+            return or_not_installed(present, NotInstalled::Failed(pkg.to_string()));
         }
         Err(e) => return Err(e),
     };
@@ -227,6 +268,25 @@ pub fn ensure_path(root: &Root, pkg: &str, rel: &str, siblings: bool) -> Result<
         }
     }
     Ok(Some(out))
+}
+
+/// A TeX font that pdfTeX or LuaTeX found no map entry for: install the
+/// package whose map covers it (which regenerates the maps) and return its
+/// map file, followed (with `siblings`) by its other files, so the engine
+/// finds the outlines. The engine then reads the map again (patch 0003).
+/// Normally the font-map rule installed that package with the font's TFMs;
+/// this repairs roots where it did not, during the compile.
+pub fn ensure_font_map(root: &Root, font: &str, siblings: bool) -> Result<Option<Vec<PathBuf>>> {
+    let ctx = Ctx::open(root.clone())?;
+    let tlpdb = ctx.tlpdb()?;
+    let installed = ctx.db.installed()?;
+    let Some(pkg) = crate::fontmaps::map_package_for_font(&tlpdb, font, &|p| installed.contains_key(p)) else {
+        return Ok(None);
+    };
+    let files = &tlpdb.get(&pkg).expect("map package is in the database").runfiles;
+    let Some(rel) = files.iter().find(|f| f.ends_with(".map")).or(files.first()).cloned() else { return Ok(None) };
+    drop(ctx);
+    install_for(root, &pkg, &rel, &format!("{font} (font map)"), siblings)
 }
 
 /// A font requested by name (fontspec, XeTeX, luaotfload): install the

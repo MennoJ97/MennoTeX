@@ -390,12 +390,13 @@ These fix the MiKTeX weaknesses listed in §2.1:
 - **Building.** A missing `.fmt` makes kpathsea run `mktexfmt` (enabled by default, `MKTEXFMT=1`). Our `mktexfmt` is `mtx mkfmt <name>`. It makes sure the defining package and its `depend` closure are installed, then runs `engine -ini -jobname=… -progname=… <options>` under a per-format lock.
 - **No deadlock.** That `-ini` run itself triggers on-the-fly installs (`latex.ltx`, `l3kernel`, …), so **the install lock must not be held while formats build**.
 - **Staleness.** Store a stamp next to each format: engine build id, revisions of its `fmttriggers=` packages, and a hash of the hyphenation set. When any of these changes (`mtx update`, a binary update), delete the format and it rebuilds lazily. MiKTeX's equivalent compares timestamps (`findfile.cpp:357-379`).
+  *As built* ([decision 0016](knowledge/decisions/0016-format-stamps.md)): `<format>.stamp` holds the engine's size and mtime, the trigger revisions and a hash of `language.*`; every transaction deletes formats whose stamp differs or is missing.
 
 **Fonts first used after page 1 (known edge case).** pdfTeX and LuaTeX load `pdftex.map` lazily, at the first font they need for output.
 - A font package installed while the preamble loads is therefore picked up.
 - A font package first installed **after** the first `\shipout` is missing from that run's map. pdfTeX then warns and falls back.
 - v1 accepts that the next run is correct (latexmk reruns anyway). v2 adds a ~30-line pdfTeX/LuaTeX patch that reads newly added map files (the internal equivalent of `\pdfmapfile{+x.map}`) when `ondemand.c` reports that maps changed.
-- *As built* (2026-10-08, [decision 0012](knowledge/decisions/0012-map-reread.md)): the failure was fatal, not a fallback. pdfTeX and LuaTeX re-read the default map on a lookup miss when kpathsea's install counter has moved.
+- *As built* (2026-10-08, [decision 0012](knowledge/decisions/0012-map-reread.md)): the failure was fatal, not a fallback. pdfTeX and LuaTeX re-read the default map on a lookup miss when kpathsea's install counter has moved. A miss for a font whose map package is not installed installs it first ([decision 0015](knowledge/decisions/0015-font-map-on-miss.md)).
 
 ### 5.8 Binaries
 
@@ -409,7 +410,7 @@ These fix the MiKTeX weaknesses listed in §2.1:
   - The linker ad-hoc signs arm64 output. To distribute to others, sign with a Developer ID and notarize the `.pkg`.
 - **CI:** GitHub Actions `macos-15` arm64 runners build on every patch change.
   *As built:* the workflow is manual only (private repository, macOS minutes billed at 10×).
-- *As built:* binaries are built from the TeX Live **release branch** matching tlnet (`build/texlive-source.rev`, `tags/texlive-2026.1`), not trunk, which is already next year's development version. `mtx install-binaries` takes a directory or a release archive with `SHA256SUMS`; the signed manifest and `mtx self-update` are not done.
+- *As built:* binaries are built from the TeX Live **release branch** matching tlnet (`build/texlive-source.rev`, `tags/texlive-2026.1`), not trunk, which is already next year's development version. `mtx install-binaries` takes a directory or a release archive with `SHA256SUMS`; the signed manifest is a minisign-signed `SHA256SUMS`, consumed by `mtx self-update` and `mtx upgrade-release` ([decision 0011](knowledge/decisions/0011-releases-and-self-update.md)).
 - **Publishing:** a GitHub Release with `bin-<release>-<rev>.tar.xz` and a **minisign/Ed25519-signed** manifest (sizes, SHA-256). This is the "MennoTeX binary channel"; `mtx self-update` and `mtx upgrade-release` consume it.
 - **Binaries that are not in texlive-source** (`biber`, and anything else in tlnet's `*.universal-darwin` packages that we don't build) are installed from tlnet like any other package. They are already universal, so native arm64.
   - `mtx` keeps a list of the filenames our own channel provides, and **never** lets a tlnet binary package overwrite them.
@@ -430,7 +431,7 @@ These go in `texmf.cnf` (readable by C) or `~/Library/MennoTeX/mtx.toml` (CLI-on
 | `prefetch` | `none` / `depends` / `requires` | `requires` |
 | `docs` | `never` / `on-texdoc` / `always` | `on-texdoc`: `texdoc foo` → `mtx` fetches `foo.doc` |
 
-*As built* ([decision 0007](knowledge/decisions/0007-install-consent.md)): settings live in the installed database and are changed with `mtx config` (`autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors`); `$MTX_AUTOINSTALL` overrides `autoinstall`. There is no `mtx.toml`. `ask` offers "all"/"none" for the rest of a compile. `mtx log` shows failed and declined installs.
+*As built* ([decision 0007](knowledge/decisions/0007-install-consent.md)): settings live in the installed database and are changed with `mtx config` (`autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors`); `$MTX_AUTOINSTALL` overrides `autoinstall`. There is no `mtx.toml`. `ask` offers "all"/"none" for the rest of a compile and lists every package with the dependencies it brings (the dialog in an expandable, scrolling outline). `mtx log` shows failed and declined installs, and TeX's own log gets a `Package mtx Warning` line ([decision 0014](knowledge/decisions/0014-install-warnings-in-tex-log.md)).
 
 ### 5.10 CLI (first version)
 
@@ -462,6 +463,7 @@ Fine-tune this from measurements (§8).
 **Lookup and engines**
 - [ ] `must_exist=false` lookups must trigger installs (§2.2); the patch ignores the flag on purpose.
 - [ ] `\IfFileExists` probes for files that really exist in *optional* packages trigger installs. MiKTeX has the same behavior. Keep a small deny-list in `pkgs.idx` (flag `no_autoinstall`) for known probe-only names, built from corpus measurements.
+  *As built:* measured, not built: 6 of 418 corpus installs were probe-only, and each of those files is loaded for real elsewhere ([decision 0013](knowledge/decisions/0013-no-probe-deny-list.md)).
 - [ ] Case-insensitive APFS versus case-sensitive `ls-R`: index lookups use exact-then-casefold, matching `texmf_casefold_search=1`.
 - [ ] Recursion: never resolve `cnf`/`ls-R`/`fmt` lookups; set `MTX_IN_ENSURE=1` in `mtx`'s environment so tools it runs (`updmap`, `-ini` builds) only resolve when intended.
 - [ ] XeTeX font lookup *by name* bypasses kpathsea (CoreText). See Phase 4.

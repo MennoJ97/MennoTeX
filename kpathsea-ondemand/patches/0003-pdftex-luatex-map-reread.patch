@@ -1,5 +1,5 @@
 diff --git a/texk/web2c/luatexdir/font/mapfile.c b/texk/web2c/luatexdir/font/mapfile.c
-index 7b661640..4944e79e 100644
+index 7b661640..dc09d3d4 100644
 --- a/texk/web2c/luatexdir/font/mapfile.c
 +++ b/texk/web2c/luatexdir/font/mapfile.c
 @@ -24,6 +24,7 @@ with LuaTeX; if not, see <http://www.gnu.org/licenses/>.
@@ -52,16 +52,21 @@ index 7b661640..4944e79e 100644
          xfree(fm_buffer);
          fm_curbyte = 0;
          fm_size = 0;
-@@ -567,6 +587,22 @@ recorder_record_input(cur_file_name);
+@@ -567,6 +587,27 @@ recorder_record_input(cur_file_name);
      return;
  }
  
 +
 +/* MennoTeX: see mtx_default_map above. True if the map was read again. */
-+static int mtx_reread_default_map(void)
++static int mtx_reread_default_map(const char *tfm)
 +{
-+    if (!mtx_default_read || mitem->line != NULL
-+        || kpathsea_ondemand_generation() == mtx_map_generation)
++    if (!mtx_default_read || mitem->line != NULL)
++        return 0;
++    /* Nothing installed since the map was read: maybe the package whose
++       map covers TFM is missing (a root made before mtx installed map
++       packages with the fonts). */
++    if (kpathsea_ondemand_generation() == mtx_map_generation
++        && !kpathsea_ondemand_font_map(kpse_def, tfm))
 +        return 0;
 +    mitem->mode = FM_DUPIGNORE;
 +    mitem->type = MAPFILE;
@@ -75,16 +80,16 @@ index 7b661640..4944e79e 100644
  fm_entry *getfontmap(char *tfm_name)
  {
      fm_entry *fm;
-@@ -582,6 +618,8 @@ fm_entry *getfontmap(char *tfm_name)
+@@ -582,6 +623,8 @@ fm_entry *getfontmap(char *tfm_name)
      /*tex Look up the name. */
      tmp.tfm_name = tfm_name;
      fm = (fm_entry *) avl_find(tfm_tree, &tmp);
-+    if (fm == NULL && mtx_reread_default_map())        /* MennoTeX */
++    if (fm == NULL && mtx_reread_default_map(tfm_name))        /* MennoTeX */
 +        fm = (fm_entry *) avl_find(tfm_tree, &tmp);
      if (fm == NULL)
          return NULL;
      set_inuse(fm);
-@@ -678,6 +716,7 @@ void pdf_init_map_file(const char *map_name)
+@@ -678,6 +721,7 @@ void pdf_init_map_file(const char *map_name)
      mitem->mode = FM_DUPIGNORE;
      mitem->type = MAPFILE;
      mitem->line = xstrdup(map_name);
@@ -93,7 +98,7 @@ index 7b661640..4944e79e 100644
  
  /*tex
 diff --git a/texk/web2c/pdftexdir/mapfile.c b/texk/web2c/pdftexdir/mapfile.c
-index 514bc032..a859503d 100644
+index 514bc032..9dfe0ca5 100644
 --- a/texk/web2c/pdftexdir/mapfile.c
 +++ b/texk/web2c/pdftexdir/mapfile.c
 @@ -21,6 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
@@ -145,15 +150,20 @@ index 514bc032..a859503d 100644
          set_cur_file_name(mitem->line);
          if (!fm_open()) {
              pdftex_warn("cannot open font map file");
-@@ -626,6 +645,21 @@ void fm_read_info(void)
+@@ -626,6 +645,26 @@ void fm_read_info(void)
  
  /**********************************************************************/
  
 +/* MennoTeX: see mtx_default_map above. True if the map was read again. */
-+static boolean mtx_reread_default_map(void)
++static boolean mtx_reread_default_map(const char *tfm)
 +{
-+    if (!mtx_default_read || mitem->line != NULL
-+        || kpathsea_ondemand_generation() == mtx_map_generation)
++    if (!mtx_default_read || mitem->line != NULL)
++        return false;
++    /* Nothing installed since the map was read: maybe the package whose
++       map covers TFM is missing (a root made before mtx installed map
++       packages with the fonts). */
++    if (kpathsea_ondemand_generation() == mtx_map_generation
++        && !kpathsea_ondemand_font_map(kpse_def, tfm))
 +        return false;
 +    mitem->mode = FM_DUPIGNORE;
 +    mitem->type = MAPFILE;
@@ -167,16 +177,16 @@ index 514bc032..a859503d 100644
  static fmentryptr fmlookup(internalfontnumber f)
  {
      char *tfm;
-@@ -639,6 +673,8 @@ static fmentryptr fmlookup(internalfontnumber f)
+@@ -639,6 +678,8 @@ static fmentryptr fmlookup(internalfontnumber f)
      /* Look up for full <tfmname>[+-]<expand> */
      tmp.tfm_name = tfm;
      fm = (fm_entry *) avl_find(tfm_tree, &tmp);
-+    if (fm == NULL && mtx_reread_default_map())        /* MennoTeX */
++    if (fm == NULL && mtx_reread_default_map(tfm))        /* MennoTeX */
 +        fm = (fm_entry *) avl_find(tfm_tree, &tmp);
      if (fm != NULL) {
          fm->in_use = true;
          return (fmentryptr) fm;
-@@ -870,6 +906,7 @@ void pdfinitmapfile(const_string map_name)
+@@ -870,6 +911,7 @@ void pdfinitmapfile(const_string map_name)
      mitem->mode = FM_DUPIGNORE;
      mitem->type = MAPFILE;
      mitem->line = xstrdup(map_name);

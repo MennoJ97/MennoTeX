@@ -36,11 +36,12 @@ enum Cmd {
         from: Option<PathBuf>,
     },
     /// Install the package providing a missing file and print its path
-    /// (the kpathsea hook protocol: path on stdout, exit 1 if not found).
+    /// (the kpathsea hook protocol: path on stdout; exit 1 if no package
+    /// has it, 3 if its install was declined, 4 if it failed).
     Ensure {
         /// kpathsea format name, e.g. `tex`, `tfm`, `type1 fonts`
         /// (Phase 0 hooks: mtx chooses the file itself).
-        #[arg(long, required_unless_present_any = ["package", "font_name"])]
+        #[arg(long, required_unless_present_any = ["package", "font_name", "font_map"])]
         format: Option<String>,
         /// Package kpathsea chose (Phase 1 patch); requires --path.
         #[arg(long, requires = "path")]
@@ -51,6 +52,10 @@ enum Cmd {
         /// Also print every other file this call installed.
         #[arg(long)]
         siblings: bool,
+        /// NAME is a TeX font with no map entry (`ecrm1000`): install the
+        /// package whose map covers it (pdfTeX/LuaTeX, through kpathsea).
+        #[arg(long, conflicts_with_all = ["format", "package", "font_name"])]
+        font_map: bool,
         /// NAME is a font name ("TeX Gyre Pagella"), not a file name.
         #[arg(long, conflicts_with_all = ["format", "package"])]
         font_name: bool,
@@ -149,6 +154,13 @@ enum Cmd {
         #[arg(long, default_value = "tex")]
         format: String,
     },
+    /// Find packages whose name or summary contains TEXT, installed or not
+    /// (with --file: packages with a file whose path contains TEXT).
+    Search {
+        text: String,
+        #[arg(long)]
+        file: bool,
+    },
     /// Show details about a package.
     Info { package: String },
     /// List installed packages.
@@ -243,15 +255,25 @@ fn run(cli: Cli) -> Result<ExitCode> {
             );
             eprintln!("mtx: add {} to your PATH", root.bin_dir().display());
         }
-        Cmd::Ensure { format, package, path, siblings, font_name, name } => {
+        Cmd::Ensure { format, package, path, siblings, font_map, font_name, name } => {
             let found = match (package, path, format) {
-                _ if font_name => ensure::ensure_font_name(&root, &name, siblings)?,
-                (Some(pkg), Some(rel), _) => ensure::ensure_path(&root, &pkg, &rel, siblings)?,
+                _ if font_map => ensure::ensure_font_map(&root, &name, siblings),
+                _ if font_name => ensure::ensure_font_name(&root, &name, siblings),
+                (Some(pkg), Some(rel), _) => ensure::ensure_path(&root, &pkg, &rel, siblings),
                 (_, _, Some(format)) => {
                     let Some(kind) = ensure::kind(&format) else { return Ok(ExitCode::from(1)) };
-                    ensure::ensure(&root, kind, &name)?.map(|p| vec![p])
+                    ensure::ensure(&root, kind, &name).map(|p| p.map(|p| vec![p]))
                 }
-                _ => None,
+                _ => Ok(None),
+            };
+            // Declined or failed: already in mtx.log and on stderr. The exit
+            // status tells kpathsea which, for a warning in TeX's log.
+            let found = match found {
+                Err(e) => match e.downcast_ref::<ensure::NotInstalled>() {
+                    Some(why) => return Ok(ExitCode::from(why.exit_code())),
+                    None => return Err(e),
+                },
+                Ok(found) => found,
             };
             return Ok(match found {
                 Some(paths) => {
@@ -393,6 +415,33 @@ fn run(cli: Cli) -> Result<ExitCode> {
             };
             let installed = root.dir.join(hit.path()).exists();
             println!("{}\t{}\t{}", idx.package(hit.pkg).name, hit.path(), if installed { "installed" } else { "available" });
+        }
+        Cmd::Search { text, file } => {
+            let ctx = open(&root)?;
+            let tlpdb = ctx.tlpdb()?;
+            let installed = ctx.db.installed()?;
+            let state = |name: &str| if installed.contains_key(name) { "installed" } else { "available" };
+            let mut out = std::io::stdout().lock();
+            use std::io::Write;
+            let found = if file {
+                let hits = mtx_core::search::files(&tlpdb, &text);
+                for (p, files) in &hits {
+                    for f in files {
+                        writeln!(out, "{}\t{}\t{f}", p.name, state(&p.name))?;
+                    }
+                }
+                !hits.is_empty()
+            } else {
+                let hits = mtx_core::search::packages(&tlpdb, &text);
+                for p in &hits {
+                    writeln!(out, "{}\t{}\t{}", p.name, state(&p.name), p.shortdesc)?;
+                }
+                !hits.is_empty()
+            };
+            if !found {
+                eprintln!("mtx: nothing matches `{text}`");
+                return Ok(ExitCode::from(1));
+            }
         }
         Cmd::Info { package } => {
             let ctx = open(&root)?;
@@ -551,7 +600,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
         Cmd::Regen => {
             let ctx = open(&root)?;
             let tlpdb = ctx.tlpdb()?;
-            install::apply_regen(&ctx, &tlpdb, Regen::all(), &[])?;
+            install::apply_regen(&ctx, &tlpdb, Regen::all())?;
         }
     }
     Ok(ExitCode::SUCCESS)
@@ -628,6 +677,7 @@ fn hook(prog: &str) -> ExitCode {
             }
             None => ExitCode::from(1),
         },
+        Err(e) if e.downcast_ref::<ensure::NotInstalled>().is_some() => ExitCode::from(1),
         Err(e) => {
             eprintln!("mtx: {prog} {name}: {e:#}");
             if let Ok(root) = Root::discover(None) {

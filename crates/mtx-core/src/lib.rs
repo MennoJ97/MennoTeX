@@ -26,6 +26,7 @@ pub mod prefetch;
 pub mod release;
 pub mod repo;
 pub mod root;
+pub mod search;
 pub mod shadows;
 pub mod shims;
 pub mod verify;

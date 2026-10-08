@@ -100,9 +100,23 @@ pub struct Request<'a> {
     /// Packages in the install plan, dependencies included.
     pub packages: &'a [String],
     pub bytes: u64,
+    /// The same packages as a tree: those the request is for, each with
+    /// the dependencies it brings along.
+    pub items: Vec<Item>,
+}
+
+/// A package in the prompt.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Item {
+    pub name: String,
+    pub summary: String,
+    pub bytes: u64,
+    /// Dependencies installed with it (empty for a dependency itself).
+    pub deps: Vec<Item>,
 }
 
 impl Request<'_> {
+    /// One line, for the log (`mtx log` reads it back).
     pub fn describe(&self) -> String {
         let first = self.packages.first().map(String::as_str).unwrap_or("?");
         let more = match self.packages.len() {
@@ -111,6 +125,74 @@ impl Request<'_> {
         };
         format!("{} needs package {first}{more} ({:.1} MiB)", self.trigger, self.bytes as f64 / 1048576.0)
     }
+
+    /// The terminal prompt's question: one line for one package, else every
+    /// package, with the dependencies each brings along.
+    pub fn question(&self) -> String {
+        if self.packages.len() <= 1 {
+            return self.describe();
+        }
+        let mut q = format!("{} needs {} packages ({})", self.trigger, self.packages.len(), size(self.bytes));
+        let width = self.items.iter().map(|i| i.name.len()).max().unwrap_or(0);
+        for it in &self.items {
+            let total = it.bytes + it.deps.iter().map(|d| d.bytes).sum::<u64>();
+            q.push_str(&format!("\n  {:width$}  {:>9}  {}", it.name, size(total), it.summary));
+            if !it.deps.is_empty() {
+                let deps: Vec<&str> = it.deps.iter().map(|d| d.name.as_str()).collect();
+                q.push_str(&format!("\n  {:width$}  {:>9}  + {}", "", "", deps.join(", ")));
+            }
+        }
+        q.push('\n');
+        q
+    }
+
+    /// The dialog's title.
+    fn title(&self) -> String {
+        match self.packages {
+            [one] => format!("Install {one} for {}?", self.trigger),
+            all => format!("Install {} packages for {}?", all.len(), self.trigger),
+        }
+    }
+
+    /// The items as JSON for the dialog script (`data/ask-dialog.js`).
+    fn items_json(&self) -> String {
+        fn item(it: &Item, total: u64) -> String {
+            let deps: Vec<String> = it.deps.iter().map(|d| item(d, d.bytes)).collect();
+            format!(
+                "{{\"n\":{},\"s\":{},\"d\":{},\"c\":[{}]}}",
+                json_string(&it.name),
+                json_string(&size(total)),
+                json_string(&it.summary),
+                deps.join(",")
+            )
+        }
+        let items: Vec<String> =
+            self.items.iter().map(|it| item(it, it.bytes + it.deps.iter().map(|d| d.bytes).sum::<u64>())).collect();
+        format!("[{}]", items.join(","))
+    }
+}
+
+/// A download size for people: `850 KiB`, `12.3 MiB`.
+fn size(bytes: u64) -> String {
+    if bytes < 1024 * 1024 {
+        format!("{} KiB", bytes.div_ceil(1024).max(1))
+    } else {
+        format!("{:.1} MiB", bytes as f64 / 1048576.0)
+    }
+}
+
+fn json_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Running processes from `ps -o pid=,ppid=,command=`: pid → (ppid, command).
@@ -226,7 +308,7 @@ pub type Asked = std::result::Result<(Answer, &'static str), String>;
 /// `prompt` under the `ask` policy. When `prompt` could not ask (no
 /// terminal, no dialog, timeout) the fallback applies. Every outcome is
 /// logged with the processes above mtx, to tell where a build came from.
-pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> Asked) -> Result<bool> {
+pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &Request) -> Asked) -> Result<bool> {
     let decline = |why: &str| -> Result<bool> {
         ctx.log(format!("declined: {} ({why})", req.describe()));
         Ok(false)
@@ -244,7 +326,7 @@ pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> As
             }
         }
     }
-    let answer = match prompt(ctx, &req.describe()) {
+    let answer = match prompt(ctx, req) {
         Ok((answer, via)) => {
             ctx.log(format!("asked about {} by {via}: {} (from {from})", req.describe(), answer.as_str()));
             answer
@@ -277,8 +359,8 @@ pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &str) -> As
 
 /// Ask the user: terminal first, then a dialog (unless `ask_dialog` is
 /// off or this is an SSH session). The error says why neither worked.
-pub fn ask_user(ctx: &Ctx, question: &str) -> Asked {
-    let tty = match ask_tty(question) {
+pub fn ask_user(ctx: &Ctx, req: &Request) -> Asked {
+    let tty = match ask_tty(&req.question()) {
         Ok(a) => return Ok((a, "terminal")),
         Err(why) => why,
     };
@@ -289,7 +371,7 @@ pub fn ask_user(ctx: &Ctx, question: &str) -> Asked {
     if std::env::var_os("SSH_CONNECTION").is_some() {
         return Err(format!("{tty}; no dialog in an SSH session"));
     }
-    match ask_dialog(question) {
+    match ask_dialog(req) {
         Ok(a) => Ok((a, "dialog")),
         Err(why) => Err(format!("{tty}; dialog: {why}")),
     }
@@ -301,7 +383,8 @@ fn ask_tty(question: &str) -> std::result::Result<Answer, String> {
     let mut out = tty.try_clone().map_err(io_err)?;
     let mut input = BufReader::new(tty);
     for _ in 0..3 {
-        write!(out, "mtx: {question}. Install? [Y]es, [a]ll for this run, [n]o, n[o]ne for this run: ").map_err(io_err)?;
+        let end = if question.ends_with('\n') { "" } else { ". " };
+        write!(out, "mtx: {question}{end}Install? [Y]es, [a]ll for this run, [n]o, n[o]ne for this run: ").map_err(io_err)?;
         out.flush().map_err(io_err)?;
         let mut line = String::new();
         if input.read_line(&mut line).map_err(io_err)? == 0 {
@@ -334,14 +417,39 @@ const DIALOG: &[&str] = &[
     "end run",
 ];
 
-fn ask_dialog(question: &str) -> std::result::Result<Answer, String> {
+/// The alert with the packages in a scrollable outline, each package
+/// expandable to its dependencies (`data/ask-dialog.js`, JavaScript for
+/// Automation with Cocoa).
+const OUTLINE_DIALOG: &str = include_str!("../data/ask-dialog.js");
+
+const ALL_NOTE: &str = "\"Install All\" also installs what the rest of this run needs.";
+
+/// Ask with the outline alert; if it cannot run (it needs Cocoa through
+/// osascript), with the plain `display dialog`.
+fn ask_dialog(req: &Request) -> std::result::Result<Answer, String> {
+    let started = std::time::Instant::now();
+    let info = format!("{}. {ALL_NOTE}", size(req.bytes));
+    let out = Command::new("/usr/bin/osascript")
+        .args(["-l", "JavaScript", "-e", OUTLINE_DIALOG, &req.title(), &info, &req.items_json()])
+        .output()
+        .map_err(|e| format!("cannot run osascript: {e}"))?;
+    let secs = started.elapsed().as_secs_f64();
+    match parse_dialog(out.status.code(), &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr)) {
+        Err(why) if !why.starts_with("no answer") => {
+            ask_plain_dialog(&req.describe()).map_err(|plain| format!("{why} after {secs:.1} s; then {plain}"))
+        }
+        r => r.map_err(|why| format!("{why} after {secs:.1} s")),
+    }
+}
+
+fn ask_plain_dialog(question: &str) -> std::result::Result<Answer, String> {
     let mut cmd = Command::new("/usr/bin/osascript");
     for line in DIALOG {
         cmd.args(["-e", line]);
     }
     let started = std::time::Instant::now();
     let out = cmd
-        .arg(format!("{question}.\n\n\"Install All\" also installs what the rest of this run needs."))
+        .arg(format!("{question}.\n\n{ALL_NOTE}"))
         .output()
         .map_err(|e| format!("cannot run osascript: {e}"))?;
     let secs = started.elapsed().as_secs_f64();
@@ -369,6 +477,7 @@ fn parse_dialog(code: Option<i32>, stdout: &str, stderr: &str) -> std::result::R
     match stdout.trim() {
         "Install" => Ok(Answer::Yes),
         "Install All" => Ok(Answer::All),
+        "Don't Install" => Ok(Answer::No),
         "timeout" => Err("no answer within 30 s".into()),
         other => Err(format!("osascript returned {other:?}")),
     }
@@ -454,10 +563,66 @@ mod tests {
         assert_eq!(run(r#"{button returned:"", gave up:true}"#), Err("no answer within 30 s".into()));
     }
 
+    fn request(packages: &[String]) -> Request<'_> {
+        let it = |name: &str, bytes, deps| Item { name: name.into(), summary: format!("About {name}"), bytes, deps };
+        Request {
+            trigger: "paper.tex",
+            packages,
+            bytes: 3 * 1048576,
+            items: vec![
+                it("tcolorbox", 1048576, vec![it("pgf", 2 * 1048576, vec![]), it("environ", 4000, vec![])]),
+                it("booktabs", 8000, vec![]),
+            ],
+        }
+    }
+
+    #[test]
+    fn prompts_list_every_package_with_its_dependencies() {
+        let names: Vec<String> = ["tcolorbox", "booktabs", "pgf", "environ"].map(String::from).into();
+        let req = request(&names);
+        assert_eq!(
+            req.question(),
+            [
+                "paper.tex needs 4 packages (3.0 MiB)",
+                "  tcolorbox    3.0 MiB  About tcolorbox",
+                "                        + pgf, environ",
+                "  booktabs       8 KiB  About booktabs",
+                "",
+            ]
+            .join("\n")
+        );
+        assert_eq!(req.title(), "Install 4 packages for paper.tex?");
+        assert!(req.describe().starts_with("paper.tex needs package tcolorbox and 3 more"));
+        let one = ["booktabs".to_string()];
+        assert_eq!(request(&one).title(), "Install booktabs for paper.tex?");
+        assert_eq!(json_string("a \"b\"\\\n"), r#""a \"b\"\\\u000a""#);
+    }
+
+    /// The outline alert's script, run without a window: its rows, all
+    /// expanded, show each package with its dependencies one level down.
+    #[test]
+    fn outline_dialog_lists_the_tree() {
+        if !std::path::Path::new("/usr/bin/osascript").exists() {
+            return;
+        }
+        let names: Vec<String> = ["tcolorbox", "booktabs", "pgf", "environ"].map(String::from).into();
+        let req = request(&names);
+        let out = Command::new("/usr/bin/osascript")
+            .args(["-l", "JavaScript", "-e", OUTLINE_DIALOG, &req.title(), "info", &req.items_json(), "check"])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            "tcolorbox 3.0 MiB\n  pgf 2.0 MiB\n  environ 4 KiB\nbooktabs 8 KiB\n"
+        );
+    }
+
     #[test]
     fn dialog_results() {
         assert_eq!(parse_dialog(Some(0), "Install\n", ""), Ok(Answer::Yes));
         assert_eq!(parse_dialog(Some(0), "Install All\n", ""), Ok(Answer::All));
+        assert_eq!(parse_dialog(Some(0), "Don't Install\n", ""), Ok(Answer::No));
         assert_eq!(parse_dialog(Some(0), "timeout\n", ""), Err("no answer within 30 s".into()));
         assert_eq!(parse_dialog(Some(1), "", "execution error: User canceled. (-128)"), Ok(Answer::No));
         assert_eq!(

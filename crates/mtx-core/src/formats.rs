@@ -11,16 +11,23 @@
 //! result is renamed into place atomically. A format no installed package
 //! defines (`mf.base` before `metafont` is installed) has its package
 //! installed first, subject to the `autoinstall` policy.
+//!
+//! A format bakes in its engine, the files of its `fmttriggers` packages
+//! and the hyphenation patterns. Each build writes a stamp of those next to
+//! the format (`pdflatex.fmt.stamp`); after every transaction mtx deletes
+//! the formats whose stamp no longer matches ([`stale`]), and kpathsea
+//! rebuilds them on next use (PLAN.md §5.7).
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
 
-use crate::configfiles::parse_add_format;
+use crate::configfiles::{Format, parse_add_format};
 use crate::ctx::Ctx;
-use crate::db::Reason;
+use crate::db::{Installed, Reason};
 use crate::lsr;
 use crate::root::Root;
 use crate::tlpdb::Package;
@@ -149,6 +156,9 @@ pub fn mkfmt(root: &Root, request: &str) -> Result<PathBuf> {
         }
         let rel = format!("web2c/{}/{file}", engine_dir.to_string_lossy());
         lsr::append(&root.texmf_var(), [rel.as_str()])?;
+        if let Some(stamp) = current_stamp(root, name) {
+            fs::write(stamp_path(&dest), stamp)?;
+        }
         Ok(dest)
     })();
     let _ = fs::remove_dir_all(&staging);
@@ -156,6 +166,75 @@ pub fn mkfmt(root: &Root, request: &str) -> Result<PathBuf> {
 }
 
 use std::os::fd::AsFd;
+
+/// Where the stamp of the format file `fmt` is kept.
+pub fn stamp_path(fmt: &Path) -> PathBuf {
+    let mut s = fmt.as_os_str().to_owned();
+    s.push(".stamp");
+    PathBuf::from(s)
+}
+
+/// What format `f` depends on, as text: the engine program (size and
+/// modification time: `install-binaries` replaces it), the installed
+/// revision of each `fmttriggers` package, and a hash of the hyphenation
+/// configuration (`language.dat`, `.def`, `.dat.lua`).
+pub fn stamp(root: &Root, f: &Format, installed: &BTreeMap<String, Installed>) -> String {
+    use sha2::{Digest, Sha256};
+    let engine = fs::metadata(root.bin_dir().join(&f.engine))
+        .ok()
+        .and_then(|m| Some(format!("{} {}", m.len(), m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos())))
+        .unwrap_or_else(|| "missing".into());
+    let mut out = format!("engine {} {engine}\n", f.engine);
+    for t in &f.fmttriggers {
+        let rev = installed.get(t).map_or("-".to_string(), |i| format!("r{}", i.revision));
+        out.push_str(&format!("trigger {t} {rev}\n"));
+    }
+    let mut h = Sha256::new();
+    for name in ["language.dat", "language.def", "language.dat.lua"] {
+        h.update(fs::read(root.texmf_var().join("tex/generic/config").join(name)).unwrap_or_default());
+        h.update([0]);
+    }
+    out.push_str(&format!("hyphenation {}\n", &hex::encode(h.finalize())[..16]));
+    out
+}
+
+/// The stamp format `name` would get if it were built now, or `None` if
+/// no installed package defines it.
+fn current_stamp(root: &Root, name: &str) -> Option<String> {
+    let ctx = Ctx::open(root.clone()).ok()?;
+    let tlpdb = ctx.tlpdb().ok()?;
+    let installed = ctx.db.installed().ok()?;
+    let f = installed
+        .keys()
+        .filter_map(|p| tlpdb.get(p))
+        .flat_map(|p| p.executes_of("AddFormat").filter_map(parse_add_format))
+        .find(|f| f.name == name)?;
+    Some(stamp(root, &f, &installed))
+}
+
+/// Built formats of the `installed` packages whose stamp is missing or no
+/// longer matches: (format name, path).
+pub fn stale(root: &Root, installed_pkgs: &[&Package], installed: &BTreeMap<String, Installed>) -> Vec<(String, PathBuf)> {
+    let web2c = root.texmf_var().join("web2c");
+    let mut out = Vec::new();
+    for p in installed_pkgs {
+        for f in p.executes_of("AddFormat").filter_map(parse_add_format) {
+            let fmt = web2c.join(&f.engine).join(format_file(&f.name, &f.engine));
+            if fmt.exists() && fs::read_to_string(stamp_path(&fmt)).ok().as_deref() != Some(&stamp(root, &f, installed)) {
+                out.push((f.name, fmt));
+            }
+        }
+    }
+    out
+}
+
+/// Delete a format with its log and stamp; kpathsea rebuilds it on next use.
+pub fn remove(fmt: &Path) -> Result<()> {
+    fs::remove_file(fmt)?;
+    let _ = fs::remove_file(fmt.with_extension("log"));
+    let _ = fs::remove_file(stamp_path(fmt));
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
@@ -190,5 +269,47 @@ mod tests {
         let root = Root::new("/nonexistent");
         assert!(mkfmt(&root, "../evil.fmt").is_err());
         assert!(mkfmt(&root, "-x").is_err());
+    }
+
+    #[test]
+    fn stale_formats_are_found_by_their_stamp() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = Root::new(dir.path());
+        fs::create_dir_all(root.bin_dir()).unwrap();
+        fs::write(root.bin_dir().join("pdftex"), "engine v1").unwrap();
+        let config = root.texmf_var().join("tex/generic/config");
+        fs::create_dir_all(&config).unwrap();
+        fs::write(config.join("language.dat"), "english hyphen.tex\n").unwrap();
+        let db = crate::tlpdb::Tlpdb::parse(
+            "name latex-bin\ncategory Package\nrevision 1\n\
+             execute AddFormat name=pdflatex engine=pdftex patterns=language.dat options=\"*pdflatex.ini\" fmttriggers=latex\n",
+        )
+        .unwrap();
+        let pkgs = [db.get("latex-bin").unwrap()];
+        let installed = |rev| {
+            BTreeMap::from([("latex".to_string(), Installed { name: "latex".into(), revision: rev, reason: "auto".into(), installed_at: 0 })])
+        };
+        let fmt = root.texmf_var().join("web2c/pdftex/pdflatex.fmt");
+        fs::create_dir_all(fmt.parent().unwrap()).unwrap();
+        fs::write(&fmt, "dump").unwrap();
+        // No stamp (built before stamps, or by hand): stale.
+        assert_eq!(stale(&root, &pkgs, &installed(5)), vec![("pdflatex".to_string(), fmt.clone())]);
+        let f = pkgs[0].executes_of("AddFormat").find_map(parse_add_format).unwrap();
+        let fresh = stamp(&root, &f, &installed(5));
+        assert!(fresh.contains("trigger latex r5\n"), "{fresh}");
+        fs::write(stamp_path(&fmt), &fresh).unwrap();
+        assert!(stale(&root, &pkgs, &installed(5)).is_empty());
+        // Rewriting the same hyphenation file keeps it; any change does not.
+        fs::write(config.join("language.dat"), "english hyphen.tex\n").unwrap();
+        assert!(stale(&root, &pkgs, &installed(5)).is_empty());
+        assert_eq!(stale(&root, &pkgs, &installed(6)).len(), 1, "trigger updated");
+        fs::write(config.join("language.dat"), "english hyphen.tex\ngerman dehyph.tex\n").unwrap();
+        assert_eq!(stale(&root, &pkgs, &installed(5)).len(), 1, "patterns changed");
+        fs::write(config.join("language.dat"), "english hyphen.tex\n").unwrap();
+        fs::write(root.bin_dir().join("pdftex"), "engine v2, longer").unwrap();
+        assert_eq!(stale(&root, &pkgs, &installed(5)).len(), 1, "engine replaced");
+        remove(&fmt).unwrap();
+        assert!(!fmt.exists() && !stamp_path(&fmt).exists());
+        assert!(stale(&root, &pkgs, &installed(5)).is_empty(), "nothing built, nothing stale");
     }
 }
