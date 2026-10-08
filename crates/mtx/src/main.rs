@@ -495,8 +495,11 @@ fn run(cli: Cli) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// `mktexfmt NAME.fmt`: build the format (serialized, atomic) and print
-/// its path; other requests (`.base`, `.mem`, options) go to TeX Live's.
+/// `mktexfmt NAME.fmt` (or `NAME.base`, `NAME.mem`): install the package
+/// that defines the format if needed, build the format (serialized, atomic)
+/// and print its path; other requests (options) go to TeX Live's, which
+/// would not see its own name: perl sets `$0` to the script's path, and
+/// fmtutil only acts as mktexfmt when called by that name.
 fn mktexfmt() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let root = match Root::discover(None) {
@@ -507,7 +510,14 @@ fn mktexfmt() -> ExitCode {
         }
     };
     match args.as_slice() {
-        [name] if !name.starts_with('-') && (name.ends_with(".fmt") || !name.contains('.')) => {
+        [name] if mtx_core::formats::is_format_request(name) => {
+            if let Err(e) = mtx_core::formats::ensure_format_package(&root, name) {
+                eprintln!("mtx: mktexfmt {name}: {e:#}");
+                // A refusal is logged as `declined:` already.
+                if e.downcast_ref::<mtx_core::consent::Declined>().is_none() {
+                    mtx_core::ctx::append_log(&root, &format!("error: mktexfmt {name}: {e:#}"));
+                }
+            }
             match mtx_core::formats::mkfmt(&root, name) {
                 Ok(path) => {
                     println!("{}", path.display());

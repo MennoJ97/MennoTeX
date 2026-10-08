@@ -282,7 +282,7 @@ fn invalidate_formats(ctx: &Ctx, installed: &[&Package], regen: Regen, changed: 
     for p in installed {
         for f in p.executes_of("AddFormat").filter_map(parse_add_format) {
             let stale = regen.hyphen || f.fmttriggers.iter().any(|t| changed.contains(t.as_str()));
-            let fmt = ctx.root.texmf_var().join("web2c").join(&f.engine).join(format!("{}.fmt", f.name));
+            let fmt = ctx.root.texmf_var().join("web2c").join(&f.engine).join(crate::formats::format_file(&f.name, &f.engine));
             if stale && fmt.exists() {
                 fs::remove_file(&fmt)?;
                 ctx.log(format!("format {} will be rebuilt on next use", f.name));

@@ -4,7 +4,7 @@ title: "TeX Live scripts: mktexfmt, fmtutil, updmap, texdoc, latexmk"
 description: Behaviour of the TeX Live scripts mtx relies on, including the TEXMFVAR constraint, how texdoc finds its database and documents, and latexmk's rc files and hooks.
 tags: [texlive, fmtutil, mktexfmt, updmap, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:30:00Z }
 sources:
@@ -48,6 +48,18 @@ sources:
   item(s) from …/pdflatex.fmt` (1 of 8 runs in `tests/run_concurrent.sh`). MennoTeX's
   `mktexfmt` therefore locks per format, re-checks, builds with `--fmtdir` into a
   staging directory and renames.
+- **fmtutil only acts as mktexfmt when its own name is `mktexfmt`:** `$prg` is
+  `basename($0)` (`fmtutil.pl:87`), and for a script started through its `#!` line
+  perl sets `$0` to the script's path, so `exec` with a different `argv[0]` does not
+  change it. MennoTeX's mktexfmt once handed `mf.base` to `fmtutil.pl` that way and
+  got `Unexpected non-option argument(s): mf.base` (seen 2026-10-08); it now builds
+  `.base`/`.mem` formats itself.[^fmtutil]
+- **METAFONT fonts need `mf.base`:** for a font with only METAFONT sources (`bbm10`),
+  `mktexpk` runs `mf-nowin -progname=mf`, kpathsea misses `mf.base` and runs
+  `mktexfmt mf.base`. The format is `AddFormat name=mf engine=mf-nowin` in package
+  `metafont` (which depends on `modes`, whose `modes.mf` mktexpk needs);
+  fmtutil writes it to `web2c/metafont/mf.base`, and the bitmap lands in
+  `TEXMFVAR/fonts/pk/ljfour/public/bbm/bbm10.600pk` (checked 2026-10-08).
 
 # updmap
 

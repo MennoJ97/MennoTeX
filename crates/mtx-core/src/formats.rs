@@ -1,13 +1,16 @@
 //! `mktexfmt`: build a missing format, safely under concurrency.
 //!
-//! kpathsea runs `mktexfmt NAME.fmt` when a format is missing. TeX Live's
+//! kpathsea runs `mktexfmt NAME.fmt` when a format is missing (`NAME.base`
+//! for METAFONT, which mktexpk runs to make bitmap fonts). TeX Live's
 //! own mktexfmt (fmtutil) builds in a temporary directory and then *copies*
 //! the result over the destination. When several TeX runs miss the same
 //! format at once, each rebuilds and overwrites it while others are already
 //! reading it ("Could not undump … pdflatex.fmt", seen in
 //! tests/run_concurrent.sh). Here a per-format lock serializes builds, a
 //! re-check skips rebuilding what another process just built, and the
-//! result is renamed into place atomically.
+//! result is renamed into place atomically. A format no installed package
+//! defines (`mf.base` before `metafont` is installed) has its package
+//! installed first, subject to the `autoinstall` policy.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,8 +18,64 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
 
+use crate::configfiles::parse_add_format;
+use crate::ctx::Ctx;
+use crate::db::Reason;
 use crate::lsr;
 use crate::root::Root;
+use crate::tlpdb::Package;
+
+/// Format file extensions: TeX engines dump `.fmt`, METAFONT `.base`,
+/// MetaPost before 1.5 `.mem`.
+const EXTENSIONS: [&str; 3] = ["fmt", "base", "mem"];
+
+/// The file `engine` dumps format `name` to (`pdflatex.fmt`, `mf.base`).
+pub fn format_file(name: &str, engine: &str) -> String {
+    let ext = if engine.starts_with("mf") {
+        "base"
+    } else if engine.starts_with("mpost") {
+        "mem"
+    } else {
+        "fmt"
+    };
+    format!("{name}.{ext}")
+}
+
+/// Split a request (`pdflatex.fmt`, `mf.base`, `pdflatex`) into the format
+/// name and the file's extension (`fmt` if none was given).
+fn split_request(request: &str) -> (&str, &str) {
+    match request.rsplit_once('.') {
+        Some((name, ext)) if EXTENSIONS.contains(&ext) => (name, ext),
+        _ => (request, "fmt"),
+    }
+}
+
+/// Whether `request` names a format file `mktexfmt` builds itself.
+pub fn is_format_request(request: &str) -> bool {
+    !request.starts_with('-') && (!request.contains('.') || split_request(request).0 != request)
+}
+
+/// Install the package whose `AddFormat` defines the requested format when
+/// no installed package does: `metafont` for `mf.base`, which mktexpk needs
+/// for fonts that exist only as METAFONT sources (`bbm10`).
+pub fn ensure_format_package(root: &Root, request: &str) -> Result<()> {
+    let (name, _) = split_request(request);
+    let mut ctx = Ctx::open(root.clone())?;
+    let tlpdb = ctx.tlpdb()?;
+    let defines = |p: &Package| p.executes_of("AddFormat").filter_map(parse_add_format).any(|f| f.enabled && f.name == name);
+    if ctx.db.installed()?.keys().filter_map(|n| tlpdb.get(n)).any(defines) {
+        return Ok(());
+    }
+    let Some(pkg) = tlpdb.content_packages().find(|p| defines(p)).map(|p| p.name.clone()) else {
+        return Ok(()); // fmtutil reports the unknown format
+    };
+    drop(tlpdb);
+    ctx.log(format!("{request} → package {pkg}"));
+    ctx.ask_for = Some(request.to_string());
+    ctx.refresh(false)?;
+    crate::install::install(&mut ctx, &[&pkg], Reason::Auto)?;
+    Ok(())
+}
 
 /// The format file `name` in any engine directory under `web2c`.
 fn find_format(web2c: &Path, file: &str) -> Option<PathBuf> {
@@ -42,14 +101,14 @@ fn find_below(dir: &Path, file: &str) -> Option<PathBuf> {
     None
 }
 
-/// Build (or find) the format requested as `request` (`pdflatex.fmt` or
-/// `pdflatex`) and return its path.
+/// Build (or find) the format requested as `request` (`pdflatex.fmt`,
+/// `mf.base` or `pdflatex`) and return its path.
 pub fn mkfmt(root: &Root, request: &str) -> Result<PathBuf> {
-    let name = request.strip_suffix(".fmt").unwrap_or(request);
+    let (name, ext) = split_request(request);
     if name.is_empty() || name.contains(['/', '\0']) || name.starts_with('-') || name.starts_with('.') {
         bail!("invalid format name {request:?}");
     }
-    let file = format!("{name}.fmt");
+    let file = format!("{name}.{ext}");
     let web2c = root.texmf_var().join("web2c");
     fs::create_dir_all(&web2c)?;
 
@@ -101,6 +160,17 @@ use std::os::fd::AsFd;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_requests_and_files() {
+        assert_eq!(split_request("pdflatex.fmt"), ("pdflatex", "fmt"));
+        assert_eq!(split_request("mf.base"), ("mf", "base"));
+        assert_eq!(split_request("pdflatex"), ("pdflatex", "fmt"));
+        assert!(is_format_request("mf.base") && is_format_request("lualatex") && is_format_request("x.mem"));
+        assert!(!is_format_request("--byfmt") && !is_format_request("foo.tex"));
+        assert_eq!(format_file("mf", "mf-nowin"), "mf.base");
+        assert_eq!(format_file("pdflatex", "pdftex"), "pdflatex.fmt");
+    }
 
     #[test]
     fn finds_existing_formats_in_engine_dirs() {
