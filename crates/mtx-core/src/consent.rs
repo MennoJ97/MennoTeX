@@ -319,13 +319,18 @@ fn ask_tty(question: &str) -> std::result::Result<Answer, String> {
 }
 
 /// The AppleScript for the dialog; the question is passed as an argument,
-/// so it needs no quoting.
+/// so it needs no quoting. The answer goes into a variable: AppleScript's
+/// `result` is the value of the last statement, so after the `if` line it
+/// no longer holds the dialog's record, and every click failed with "The
+/// variable result is not defined. (-2753)" (seen 2026-10-08 in builds from
+/// VS Code; mtx then fell back to `ask_fallback`).
 const DIALOG: &[&str] = &[
     "on run argv",
-    "display dialog (item 1 of argv) with title \"MennoTeX\" buttons {\"Don't Install\", \"Install All\", \"Install\"} \
+    "set answer to display dialog (item 1 of argv) with title \"MennoTeX\" \
+     buttons {\"Don't Install\", \"Install All\", \"Install\"} \
      default button \"Install\" cancel button \"Don't Install\" giving up after 30",
-    "if gave up of result then return \"timeout\"",
-    "return button returned of result",
+    "if gave up of answer then return \"timeout\"",
+    "return button returned of answer",
     "end run",
 ];
 
@@ -425,6 +430,28 @@ mod tests {
             Some("no terminal; dialog: osascript exit 1: No user interaction allowed. (-1713) after 2.1 s; from pdflatex < latexmk.pl")
         );
         assert_eq!(unasked_reason("installing 1 package(s), 0.0 MiB: x"), None);
+    }
+
+    /// The script after the dialog, run by osascript with a record in place
+    /// of `display dialog` (no window): a click and a timeout both come back.
+    #[test]
+    fn dialog_script_returns_the_answer() {
+        let run = |record: &str| {
+            let mut cmd = Command::new("/usr/bin/osascript");
+            for (i, line) in DIALOG.iter().enumerate() {
+                let line = if i == 1 { format!("set answer to {record}") } else { line.to_string() };
+                cmd.args(["-e", &line]);
+            }
+            let out = cmd.arg("question").output().unwrap();
+            parse_dialog(out.status.code(), &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr))
+        };
+        if !std::path::Path::new("/usr/bin/osascript").exists() {
+            return;
+        }
+        assert!(DIALOG[1].starts_with("set answer to display dialog"));
+        assert_eq!(run(r#"{button returned:"Install All", gave up:false}"#), Ok(Answer::All));
+        assert_eq!(run(r#"{button returned:"Install", gave up:false}"#), Ok(Answer::Yes));
+        assert_eq!(run(r#"{button returned:"", gave up:true}"#), Err("no answer within 30 s".into()));
     }
 
     #[test]

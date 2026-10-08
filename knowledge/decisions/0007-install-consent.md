@@ -4,7 +4,7 @@ title: Asking before automatic installs
 description: An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.
 tags: [decision, policy, ask, logging, ux]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T11:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T20:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T00:30:00Z }
 ---
@@ -33,7 +33,9 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
 - **How it asks:** `/dev/tty` if the process has a terminal (`[Y]es, [a]ll for this
   run, [n]o, n[o]ne for this run`), else (not over SSH, and unless `ask_dialog no`) an
   `osascript` dialog with Don't Install / Install All / Install, giving up after 30 s,
-  else `ask_fallback` (default yes).
+  else `ask_fallback` (default yes). The script stores the dialog's answer in a
+  variable: until 2026-10-08 it read AppleScript's `result` after an `if` statement had
+  replaced it, so every click failed with error -2753 and fell back silently.
 - **One answer per build:** "all" and "none" are stored as `ask_run:<id>` for an hour,
   where the id is the nearest latexmk ancestor (found with `ps`), else mtx's parent (the
   TeX engine, which kpathsea forks mtx from). The first version used the parent only;

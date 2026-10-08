@@ -128,20 +128,15 @@ archives. See the [development playbook](/playbooks/development.md).
    dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;
    failures and refusals in `mtx.log`, shown by `mtx log --problems` and `mtx doctor`.
    Still open:
-   - **The dialog did not show for one real build.** On the real root (autoinstall
-     `ask`), a build of the user's lecture notes on 2026-10-08 10:23–10:25 logged 18
-     times "no terminal or dialog to ask …; ask_fallback is yes", 3–11 s after the
-     lookup: `osascript` failed fast (a 30 s give-up or a click would look different).
-     The cause is still unknown. **Diagnostics are in** (2026-10-08): every `ask`
-     outcome is now logged with osascript's exit status, stderr and run time, and the
-     process chain above mtx (`from pdflatex < latexmk.pl < … < Visual Studio Code`);
-     `mtx doctor` warns when prompts could not be shown and quotes the last reason.
-     The user ran `mtx repair` with this build on the real installation (2026-10-08,
-     commit `788edd9`; Claude Code's auto mode blocks agents from doing it). Next: after
-     the user's next VS Code build, read its `asked about` / `could not ask` lines in
-     `~/Library/MennoTeX/2026/tlpkg/mtx/mtx.log`. A dialog test from an agent session on
-     a scratch root was also blocked by auto mode; it needs the user's permission.
-     Ask the user before popping dialogs.
+   - **Lost dialog clicks: found and fixed 2026-10-08.** The diagnostics caught a VS
+     Code build (`from pdflatex < latexmk.pl < Visual Studio Code`): `osascript exit 1:
+     … The variable result is not defined. (-2753) after 2.7 s`. The dialog did show;
+     after a click, the script's `return button returned of result` failed because the
+     preceding `if` statement had replaced AppleScript's `result`. Every click was lost
+     and the install fell back to `ask_fallback` (yes): this morning's 18 silent installs,
+     and probably the earlier "more dialogs after Install All". Fixed by storing the answer
+     in a variable (commit after `f06b150`; a unit test runs the script through osascript
+     without a window). Reaches the real installation with the next release.
    - Getting the reason into TeX's own `.log` (what editors show) is not possible from
      kpathsea; a C change could print a `! mtx: …` line to the terminal/log via the engine.
 4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
