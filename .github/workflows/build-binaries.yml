@@ -106,7 +106,12 @@ jobs:
           elif [ -n "${{ steps.tlcache.outputs.cache-matched-key }}" ]; then
             # An earlier build of this revision with other patches: undo them
             # (tracked files only; Work/ keeps its objects), apply ours and
-            # rebuild what they touch.
+            # rebuild what they touch. The restored files have new inodes, so
+            # git's index no longer matches their stat data and a plain
+            # checkout rewrites every tracked file (new mtimes: a full
+            # rebuild, and ICU's "config.status has become stale"). Refresh
+            # the index first, so only files that really differ are restored.
+            git -C "$TL_SRC" update-index -q --refresh || true
             git -C "$TL_SRC" checkout -q -- .
             build/build-texlive.sh "$TL_SRC" --incremental
           else

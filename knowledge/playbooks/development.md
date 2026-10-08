@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -170,7 +170,10 @@ mtx --root /tmp/mtxroot install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darw
 
 In CI the configured and built tree (2.0 GiB: source, `Work/` 1.1 GiB, `inst/`) is kept
 with `actions/cache`, keyed by the texlive-source revision, `build/` and the patches;
-with only the patches changed, the job restores the newest tree of that revision and
+with only the patches changed (first exercised 2026-10-08, run 37789950282, which failed:
+restored files have new inodes, so `git checkout -- .` rewrote every tracked file and
+ICU's build stopped with "config.status has become stale"; the job now runs
+`git update-index --refresh` first), the job restores the newest tree of that revision and
 build script, resets the tracked files and builds incrementally. The kpathsea unit tests
 run after every build. Rust's dependencies are cached with `Swatinem/rust-cache`
 (pinned to a commit; no token is passed to it).
