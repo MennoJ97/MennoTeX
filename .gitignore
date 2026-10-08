@@ -7,3 +7,5 @@
 *.tlpdb.xz
 # ...but the signed test repositories need theirs
 !crates/mtx-core/testdata/**/*.tlpdb.xz
+# ...and the kpathsea unit tests their fixture
+!kpathsea-ondemand/tests/*.tlpdb

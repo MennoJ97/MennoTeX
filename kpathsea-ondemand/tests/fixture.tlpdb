@@ -1,0 +1,83 @@
+name alpha
+category Package
+revision 1
+relocated 1
+containersize 1000
+runfiles size=3
+ RELOC/tex/latex/alpha/alpha.sty
+ RELOC/tex/latex/alpha/alpha.lua
+ RELOC/tex/latex/alpha/MixedCase.cfg
+
+name mixedlower
+category Package
+revision 1
+relocated 1
+containersize 1000
+runfiles size=1
+ RELOC/tex/latex/mixedlower/mixedcase.cfg
+
+name pstricks
+category Package
+revision 1
+relocated 1
+containersize 5000
+runfiles size=1
+ RELOC/tex/generic/pstricks/pstricks.con
+
+name xetex-pstricks
+category Package
+revision 1
+relocated 1
+containersize 500
+runfiles size=1
+ RELOC/tex/xelatex/xetex-pstricks/pstricks.con
+
+name big
+category Package
+revision 1
+relocated 1
+containersize 9000
+runfiles size=1
+ RELOC/tex/latex/big/same.sty
+
+name small
+category Package
+revision 1
+relocated 1
+containersize 100
+runfiles size=1
+ RELOC/tex/latex/small/same.sty
+
+name twin
+category Package
+revision 1
+relocated 1
+containersize 9000
+runfiles size=1
+ RELOC/tex/latex/twin/twin.sty
+
+name twin-dev
+category Package
+revision 1
+relocated 1
+containersize 10
+runfiles size=1
+ RELOC/tex/latex/twin-dev/twin.sty
+
+name fonty
+category Package
+revision 1
+relocated 1
+containersize 2000
+execute addMap fonty.map
+runfiles size=2
+ RELOC/fonts/tfm/public/fonty/fonty10.tfm
+ RELOC/fonts/map/dvips/fonty/fonty.map
+
+name broken
+category Package
+revision 1
+relocated 1
+containersize 100
+runfiles size=1
+ RELOC/tex/latex/broken/broken.sty
