@@ -5,7 +5,7 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T08:45:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -65,7 +65,7 @@ test document still makes 18 such calls.
 | Document corpus (17 documents, 2026-10-07, [playbook](/playbooks/development.md)) | **all pass on the first run from a fresh root with the 2026.1 release binaries**: pdfLaTeX 16/16 (42 s for the corpus), XeLaTeX 17/17 (47 s, starting from the `xelatex` shim), LuaLaTeX 17/17 (74 s); archives from a warm cache |
 | CI build on GitHub Actions | `.github/workflows/build-binaries.yml`, **manual trigger only** (decided by the user: macOS minutes on a private repo are billed at 10×). **First run 2026-10-07 succeeded** (run 37694133534): 14 min 16 s, artifact `mennotex-bin-2026-6a3001880-arm64-darwin` (39 MB, 153 programs, `SHA256SUMS` verified); its binaries ran the 26-document corpus |
 | Binary channel | `mtx install-binaries` takes a directory, a release archive (`--sums SHA256SUMS`), or `--github` (newest successful workflow run's artifact, `--run ID`, or `--release TAG`, through the `gh` CLI). Checked 2026-10-08: a fresh root fetched and installed run 37694133534's artifact in 72 s; a second call skipped it as installed; `--release latest` fails cleanly (no Release published yet). Authenticity rests on GitHub access to the private repository; `SHA256SUMS` only guards integrity. No signed manifest; the artifact does not contain mtx itself |
-| Real installation on this Mac | **installed 2026-10-08** at `~/Library/MennoTeX/2026` with the CI binaries (user's choice: no PATH edit). With its bin directory first on PATH, `mtx doctor` is clean and pdfLaTeX, XeLaTeX and LuaLaTeX each compiled a corpus document on the first run; in the user's normal PATH, MiKTeX still shadows it. Testing stays in scratch roots |
+| Real installation on this Mac | **installed 2026-10-08** at `~/Library/MennoTeX/2026` with the CI binaries (user's choice: no PATH edit at first). With its bin directory first on PATH, `mtx doctor` is clean and pdfLaTeX, XeLaTeX and LuaLaTeX each compiled a corpus document on the first run. **In use** since 2026-10-08: the user added it to PATH in `~/.zprofile` and compiles from VS Code LaTeX Workshop (244 packages installed by then). Testing stays in scratch roots |
 
 ## Phase 1 measurements (2026-10-07, trunk build + patch, fresh root per engine, cached archives)
 

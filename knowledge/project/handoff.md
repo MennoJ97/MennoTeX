@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T07:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T08:45:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -29,8 +29,11 @@ verified:
   rc files pointing at another TeX).
 - **Real installation exists** at `~/Library/MennoTeX/2026` (CI binaries recorded as
   `mennotex-bin-2026-6a3001880-arm64-darwin`, kpathsea hook mode, overlay, texdoc; kept
-  current with `mtx repair` from the newest build of mtx); `mtx doctor` is clean with its bin directory first on PATH. PATH was
-  **not** changed: in a normal shell MiKTeX's `/usr/local/bin` links still win.
+  current with `mtx repair` from the newest build of mtx) and **in daily use**: the user
+  put its bin directory first on PATH (`~/.zprofile` line 7, 2026-10-08) and compiles
+  with it from VS Code LaTeX Workshop. In a login shell `which -a pdflatex` lists
+  MennoTeX before MiKTeX's `/usr/local/bin` links; `mtx doctor` reports the bin directory
+  on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
 - **Repository:** private `MennoJ97/MennoTeX`, branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
   2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 57 `cargo test` tests; the OKF bundle checks clean.
@@ -61,11 +64,12 @@ archives. See the [development playbook](/playbooks/development.md).
   **manual only** (private repo; macOS minutes billed at 10×). The user approved one
   run on 2026-10-08 (done, without publishing a Release); ask before any further run. No other workflows were added (a cheap Linux
   `cargo test` + OKF check on push would also need the user's OK).
-- **Real installation on this Mac:** on 2026-10-08 one session recorded "not yet", while
-  in another the user chose **"install, no PATH edit"** and, asked about the conflict,
-  **"finish the install"**. So `~/Library/MennoTeX/2026` is installed, and the user
-  switches PATH themselves: do not edit `~/.zprofile` or other shell files unless asked.
-  Keep running tests in scratch roots; the real root is for the user's own use.
+- **Real installation on this Mac:** installed 2026-10-08 (the user chose "install, no
+  PATH edit", then "finish the install"); the user then added it to PATH themselves in
+  `~/.zprofile` and uses it in VS Code. Do not edit `~/.zprofile` or other shell files
+  unless asked. Keep running tests in scratch roots; the real root is the user's own
+  working TeX, so changes to it (repair, binaries, config) need care and, if not
+  routine, the user's OK.
 - **`~/.latexmkrc`:** at the user's request (2026-10-08) its MiKTeX biber override only
   applies when the first `kpsewhich` on PATH has no `mtx` next to it (i.e. MiKTeX).
   Do not touch other user dotfiles without asking.
@@ -73,11 +77,11 @@ archives. See the [development playbook](/playbooks/development.md).
 
 # Next steps, in priority order
 
-1. **Editors with the real installation.** Once the user has put
-   `~/Library/MennoTeX/2026/bin/universal-darwin` first on PATH (or asks for help with
-   it), smoke-test TeXShop, VS Code LaTeX Workshop and TeXstudio. GUI apps do not read
-   `~/.zprofile`; they look in `/Library/TeX/texbin` (plan §5.2: TeXDist registration
-   needs admin once, so ask first).
+1. **Editors with the real installation.** VS Code LaTeX Workshop works (the user,
+   2026-10-08: it picks up the login shell's PATH, so the `~/.zprofile` line suffices;
+   a build at 09:55 is the one behind commit `f334f3b`). Still to smoke-test: TeXShop
+   and TeXstudio, which look in `/Library/TeX/texbin` rather than the shell's PATH
+   (plan §5.2: TeXDist registration needs admin once, so ask first).
 2. **Release downloads:** done 2026-10-08 for TeX Live's programs:
    `mtx install-binaries --github [--run ID | --release TAG|latest]` uses `gh` (private
    repository), checks the archive's release and `SHA256SUMS`, and skips an installed
@@ -102,8 +106,15 @@ archives. See the [development playbook](/playbooks/development.md).
    dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;
    failures and refusals in `mtx.log`, shown by `mtx log --problems` and `mtx doctor`.
    Still open:
-   - Click through the `osascript` dialog once (only its syntax was checked; a GUI
-     editor without a terminal triggers it). Ask the user before popping dialogs.
+   - **The dialog did not show for one real build.** On the real root (autoinstall
+     `ask`), a build of the user's lecture notes on 2026-10-08 10:23–10:25 logged 18
+     times "no terminal or dialog to ask …; ask_fallback is yes", each 2–3 s after the
+     lookup: `osascript` failed fast (a 30 s give-up or a click would look different).
+     Whether that build ran from VS Code or from a session without GUI access is not
+     recorded; the user did see dialogs in VS Code earlier (commit `405ec3f`). Next:
+     log osascript's exit status and stderr on failure (today `ask_dialog` drops them),
+     and log the latexmk/parent process so the source of a build is known. Ask the
+     user before popping dialogs.
    - Getting the reason into TeX's own `.log` (what editors show) is not possible from
      kpathsea; a C change could print a `! mtx: …` line to the terminal/log via the engine.
 4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
