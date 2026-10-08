@@ -5,7 +5,7 @@ description: A TeX Live based distribution for Apple Silicon that installs packa
 resource: https://github.com/MennoJ97/MennoTeX
 tags: [overview, texlive, macos, arm64, on-demand]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T10:00:00Z }
 sources:
   - id: plan
     resource: https://github.com/MennoJ97/MennoTeX/blob/main/PLAN.md
@@ -33,6 +33,8 @@ unmodified binaries; Phase 1 replaces them with a small kpathsea patch. See
 
 | Path | Contents |
 |---|---|
+| `README.md` | What MennoTeX is, getting started, how it differs from TeX Live. |
+| `LICENSING.md`, `LICENSE-*` | Licensing: own code MIT OR Apache-2.0, patches under upstream licenses. See [decision 0008](/decisions/0008-licensing.md). |
 | `PLAN.md` | The design study and phased roadmap. |
 | `crates/mtx-core/` | Library: tlpdb parser, index, repository client, verification, installer, config generation. See [mtx-core](/architecture/mtx-core.md). |
 | `crates/mtx/` | The `mtx` command-line tool. |

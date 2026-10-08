@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T02:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T10:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -30,7 +30,8 @@ verified:
   current with `mtx repair` from the newest build of mtx); `mtx doctor` is clean with its bin directory first on PATH. PATH was
   **not** changed: in a normal shell MiKTeX's `/usr/local/bin` links still win.
 - **Repository:** private `MennoJ97/MennoTeX`, branch `main`, all work committed and
-  pushed. 55 `cargo test` tests; the OKF bundle checks clean.
+  pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
+  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 55 `cargo test` tests; the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
@@ -83,6 +84,12 @@ archives. See the [development playbook](/playbooks/development.md).
      user's OK). Artifacts expire after GitHub's retention period (90 days by default), so
      publish a Release before relying on `--github` long term.
    - A signed manifest (plan §5.8) matters once the repository or releases are public.
+   - **Licensing before publishing a Release** ([decision 0008](/decisions/0008-licensing.md)):
+     the archive holds only the binaries and `texlive-source.rev`. Add the license texts
+     (`COPYING*` from texlive-source, `LICENSING.md`) and the patches to it, and attach
+     a source archive (texlive-source at the pinned revision + `kpathsea-ondemand/`)
+     to the Release, as the GPL requires for redistributed binaries. Workflow change;
+     a test run needs the user's OK.
 3. **Install feedback:** done 2026-10-08 ([decision 0007](/decisions/0007-install-consent.md)):
    `mtx config autoinstall yes|no|ask` (`$MTX_AUTOINSTALL` overrides), `ask` via terminal,
    dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;
