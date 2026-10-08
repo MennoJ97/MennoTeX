@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:10:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -21,6 +21,24 @@ Rust comes from Homebrew (`brew install rust`); there is no rustup toolchain fil
 Offline tests use the signed fake repository in `crates/mtx-core/testdata/tlnet`;
 regenerate it with `tools/make_test_repo.sh` (needs Homebrew `gpg`) after changing its
 contents, and commit the result.
+
+**C unit tests of the kpathsea patch** need a texlive-source build (see below):
+
+```bash
+tests/run_c_tests.sh /tmp/tl2026
+```
+
+They compile `kpathsea-ondemand/tests/ondemand-test.c` (which `#include`s the resolver,
+so its static functions are reachable) against the build's `libkpathsea.a` with
+`-DMAKE_KPSE_DLL`, and run 37 checks: index loading, exact and case-insensitive lookup,
+search-path ranking (`pstricks.con` under XeLaTeX and pdfLaTeX), the `-dev` and size
+tie-breaks, name and format filters, and the whole install path with a fake `mtx`
+(arguments, siblings, journaled packages, `MTX_AUTOINSTALL=0`, remembered misses, the
+install counter). The index they read, `kpathsea-ondemand/tests/fixture.idx`, is written
+by mtx's Rust code from `fixture.tlpdb`; `cargo test` fails while it is stale
+(regenerate: `MTX_REGEN_C_FIXTURE=1 cargo test`). Checked 2026-10-08 that two planted
+bugs (reversed ranking, journal check off) make them fail. Pitfall: creating a kpathsea
+instance resets `SELFAUTOLOC` (where the resolver finds mtx).
 
 # Throw-away installation
 
@@ -122,13 +140,22 @@ next install instead of the lookup.
 
 # Building the TeX Live binaries
 
-Locally (about 20 minutes on 12 cores):
+Locally (about 20 minutes on 12 cores; after a patch change, reset the tracked files
+with `git -C /tmp/tl2026 checkout -- .` and rerun with `--incremental`: 117 s for the
+map re-read patch on 2026-10-08):
 
 ```bash
 git clone --depth 1 --branch tags/texlive-2026.1 https://github.com/TeX-Live/texlive-source.git /tmp/tl2026
 build/build-texlive.sh /tmp/tl2026
 mtx --root /tmp/mtxroot install-binaries /tmp/tl2026/inst/bin/aarch64-apple-darwin*/
 ```
+
+In CI the configured and built tree (2.0 GiB: source, `Work/` 1.1 GiB, `inst/`) is kept
+with `actions/cache`, keyed by the texlive-source revision, `build/` and the patches;
+with only the patches changed, the job restores the newest tree of that revision and
+build script, resets the tracked files and builds incrementally. The kpathsea unit tests
+run after every build. Rust's dependencies are cached with `Swatinem/rust-cache`
+(pinned to a commit; no token is passed to it).
 
 Or let mtx fetch the newest successful CI build itself (needs `gh`; checks the
 archive's release and `SHA256SUMS`, skips a build that is installed already). For a

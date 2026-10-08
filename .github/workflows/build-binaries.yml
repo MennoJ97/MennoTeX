@@ -1,10 +1,14 @@
 # Builds a MennoTeX release for Apple Silicon: mtx, and TeX Live's programs
 # (texlive-source + kpathsea on-demand patch). Manual only (decided while
-# the repository was private and macOS minutes were billed at 10x). The programs take about 15
-# minutes and are rebuilt only when texlive-source's revision, the patches
-# (kpathsea-ondemand/) or the build script (build/) changed; otherwise the
-# archive of an earlier release with the same id is reused, and the run
-# takes a few minutes.
+# the repository was private and macOS minutes were billed at 10x).
+#
+# Reuse, from cheapest to dearest:
+# - unchanged texlive-source revision, patches and build script: the
+#   programs archive of an earlier release with the same name;
+# - else the build tree of an earlier run (actions/cache): exact sources,
+#   nothing to build; same revision and build script but other patches,
+#   an incremental build (minutes); otherwise a full build (~20 minutes);
+# - Rust's dependencies (rust-cache).
 #
 # With `release`, the run creates a *draft* release tagged
 # mennotex-<TeX Live release>-<commit>. It is signed on the maintainer's
@@ -31,8 +35,6 @@ jobs:
   build:
     runs-on: macos-15  # arm64
     timeout-minutes: 150
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +45,7 @@ jobs:
           rev=$(cut -c1-9 build/texlive-source.rev)
           # The programs depend on texlive-source's revision, the patches and
           # the build script, so their archive is named after all three.
-          patches=$(git rev-parse HEAD:kpathsea-ondemand HEAD:build | shasum | cut -c1-8)
+          patches=$(git rev-parse HEAD:kpathsea-ondemand/mtx-ondemand.c HEAD:kpathsea-ondemand/patches HEAD:build | shasum | cut -c1-8)
           commit=$(git rev-parse --short=9 HEAD)
           {
             echo "RELEASE=$release"
@@ -53,11 +55,15 @@ jobs:
             echo "TAG=mennotex-$release-$commit"
             echo "MTX_COMMIT=$commit"
             echo "MTX_COMMIT_TIME=$(git log -1 --format=%ct)"
+            echo "TL_REV=$rev"
+            echo "TL_SRC=$RUNNER_TEMP/texlive-source"
           } >> "$GITHUB_ENV"
           mkdir dist
 
       - name: Reuse TeX Live's programs from an earlier release
         if: ${{ !inputs.rebuild }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           from=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
@@ -70,20 +76,53 @@ jobs:
           if [ -f "reuse/$SRC.tar.xz" ]; then mv "reuse/$SRC.tar.xz" dist/; fi
           echo "REUSED=$from" >> "$GITHUB_ENV"
 
-      - name: Fetch texlive-source at the pinned revision
+      # The configured and built tree (source, Work/, inst/), keyed by what
+      # the programs are made from. The restore key falls back to the newest
+      # tree of the same revision and build script.
+      - name: Restore TeX Live's build tree
+        id: tlcache
         if: ${{ !env.REUSED }}
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/texlive-source
+          key: tl-${{ env.TL_REV }}-${{ hashFiles('build/**') }}-${{ hashFiles('kpathsea-ondemand/mtx-ondemand.c', 'kpathsea-ondemand/patches/**') }}
+          restore-keys: tl-${{ env.TL_REV }}-${{ hashFiles('build/**') }}-
+
+      - name: Fetch texlive-source at the pinned revision
+        if: ${{ !env.REUSED && !steps.tlcache.outputs.cache-matched-key }}
         run: |
-          rev=$(cat build/texlive-source.rev)
-          git init -q "$RUNNER_TEMP/texlive-source"
-          cd "$RUNNER_TEMP/texlive-source"
+          git init -q "$TL_SRC"
+          cd "$TL_SRC"
           git remote add origin https://github.com/TeX-Live/texlive-source.git
-          git fetch -q --depth 1 origin "$rev"
+          git fetch -q --depth 1 origin "$(cat "$GITHUB_WORKSPACE/build/texlive-source.rev")"
           git checkout -q FETCH_HEAD
-          echo "TL_SRC=$RUNNER_TEMP/texlive-source" >> "$GITHUB_ENV"
 
       - name: Build TeX Live's programs
         if: ${{ !env.REUSED }}
-        run: build/build-texlive.sh "$TL_SRC"
+        run: |
+          set -eu
+          if [ "${{ steps.tlcache.outputs.cache-hit }}" = true ]; then
+            echo "build tree of exactly these sources restored; nothing to build"
+          elif [ -n "${{ steps.tlcache.outputs.cache-matched-key }}" ]; then
+            # An earlier build of this revision with other patches: undo them
+            # (tracked files only; Work/ keeps its objects), apply ours and
+            # rebuild what they touch.
+            git -C "$TL_SRC" checkout -q -- .
+            build/build-texlive.sh "$TL_SRC" --incremental
+          else
+            build/build-texlive.sh "$TL_SRC"
+          fi
+
+      - name: Save TeX Live's build tree
+        if: ${{ !env.REUSED && steps.tlcache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/texlive-source
+          key: ${{ steps.tlcache.outputs.cache-primary-key }}
+
+      - name: Unit tests of the kpathsea patch
+        if: ${{ !env.REUSED }}
+        run: tests/run_c_tests.sh "$TL_SRC"
 
       - name: Check the programs
         if: ${{ !env.REUSED }}
@@ -138,10 +177,16 @@ jobs:
           tar -cJf "dist/$SRC.tar.xz" @dist/tl.tar @dist/mtx.tar
           rm dist/tl.tar dist/mtx.tar
 
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # Third-party: pinned to a commit (v2.9.2). It gets no token: GH_TOKEN
+      # is set only on the steps that run gh.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
       - name: Build and test mtx
         run: |
           set -eu
-          rustup toolchain install stable --profile minimal
           cargo build --release --locked
           cargo test --release --locked
           ./target/release/mtx --version | grep -q "$MTX_COMMIT"
@@ -167,6 +212,8 @@ jobs:
 
       - name: Create a draft release
         if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           test -f "dist/$SRC.tar.xz" || { echo "no corresponding source for $BIN (reused from ${REUSED:-?} without one); rerun with rebuild"; exit 1; }

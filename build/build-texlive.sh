@@ -34,7 +34,9 @@ have=$(git -C "$src" rev-parse HEAD 2>/dev/null || echo unknown)
 if [ $patch = yes ]; then
   # The resolver lives in its own file, included by the patched tex-make.c,
   # so TeX Live's automake files need no changes.
-  cp "$here/kpathsea-ondemand/mtx-ondemand.c" "$src/texk/kpathsea/mtx-ondemand.c"
+  # Copy only on change: a new timestamp alone relinks every program.
+  cmp -s "$here/kpathsea-ondemand/mtx-ondemand.c" "$src/texk/kpathsea/mtx-ondemand.c" \
+    || cp "$here/kpathsea-ondemand/mtx-ondemand.c" "$src/texk/kpathsea/mtx-ondemand.c"
   for p in "$here"/kpathsea-ondemand/patches/*.patch; do
     [ -e "$p" ] || continue
     if git -C "$src" apply --reverse --check "$p" 2>/dev/null; then
