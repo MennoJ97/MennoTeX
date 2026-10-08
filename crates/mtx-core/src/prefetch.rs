@@ -164,7 +164,10 @@ pub fn prefetch(ctx: &mut Ctx, doc: &Path) -> Result<Report> {
         }
     }
 
-    let mut total = Report::default();
+    // TeX has not started yet: the moment for upgrades on-demand installs
+    // put off during earlier compiles (decision 0018).
+    let mut total = install::catch_up(ctx);
+    let follow = crate::config::prefetch_follows_requires(ctx)?;
     let mut scanned_files: BTreeSet<String> = BTreeSet::new();
     // Each round installs what is known so far, then reads the installed
     // .sty/.cls files for further \RequirePackage lines.
@@ -196,7 +199,7 @@ pub fn prefetch(ctx: &mut Ctx, doc: &Path) -> Result<Report> {
             total.bytes_downloaded += r.bytes_downloaded;
         }
         let before = wanted.len();
-        for rel in to_scan {
+        for rel in to_scan.into_iter().filter(|_| follow) {
             if let Ok(text) = fs::read_to_string(ctx.root.dir.join(&rel)) {
                 wanted.extend(scan(&text));
             }

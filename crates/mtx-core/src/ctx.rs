@@ -17,7 +17,8 @@ use crate::root::{RELEASE, Root};
 use crate::tlpdb::Tlpdb;
 use crate::verify::Verifier;
 
-/// How long a freshness check of the package database stays valid.
+/// How long a freshness check of the package database stays valid, by
+/// default (the `freshness_ttl` setting).
 pub const FRESHNESS_TTL_SECS: u64 = 3600;
 /// How long a resolved mirror stays pinned.
 pub const MIRROR_PIN_SECS: u64 = 24 * 3600;
@@ -50,6 +51,10 @@ pub struct Ctx {
     /// the install is then subject to the `autoinstall` policy
     /// ([`crate::consent`]). Cleared once the user agreed.
     pub ask_for: Option<String>,
+    /// Set by the entry points kpathsea calls (`mtx ensure`): a TeX run is
+    /// going, so installed packages are not upgraded under it
+    /// ([`crate::install::plan_upgrades`]).
+    pub during_compile: bool,
     /// How to ask the user under the `ask` policy (replaced in tests).
     pub prompter: fn(&Ctx, &crate::consent::Request) -> crate::consent::Asked,
     /// Tests trust the key of `testdata/tlnet` instead of TeX Live's.
@@ -75,6 +80,7 @@ impl Ctx {
             repo: None,
             quiet: false,
             ask_for: None,
+            during_compile: false,
             prompter: crate::consent::ask_user,
             #[cfg(test)]
             test_key: None,
@@ -220,7 +226,8 @@ impl Ctx {
 
     /// Make sure the local package database is current (see PLAN.md §4.3).
     /// With `force`, always ask the mirror; otherwise only when the last
-    /// check is older than [`FRESHNESS_TTL_SECS`].
+    /// check is older than the `freshness_ttl` setting
+    /// ([`FRESHNESS_TTL_SECS`] by default).
     ///
     /// When tlnet has moved on to the next TeX Live release, whose packages
     /// may need that release's engines, the installation stays on its own
@@ -231,7 +238,8 @@ impl Ctx {
     pub fn refresh(&mut self, force: bool) -> Result<Freshness> {
         let have_local = self.root.tlpdb_path().exists() && self.root.index_path().exists();
         let checked_at = self.db.get_u64("tlpdb_checked_at")?.unwrap_or(0);
-        if !force && have_local && now_secs().saturating_sub(checked_at) < FRESHNESS_TTL_SECS {
+        let ttl = self.db.get("freshness_ttl")?.and_then(|v| crate::config::parse_duration(&v)).unwrap_or(FRESHNESS_TTL_SECS);
+        if !force && have_local && now_secs().saturating_sub(checked_at) < ttl {
             return Ok(Freshness::Fresh);
         }
         let result = self.refresh_with_failover(have_local);

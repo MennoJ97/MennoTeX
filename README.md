@@ -68,14 +68,16 @@ a throw-away root for testing.
 | `mtx self-update [--check]` | Install the newest signed release of MennoTeX itself (mtx and the TeX programs) |
 | `mtx upgrade-release` | Install MennoTeX for the next TeX Live release next to this one, with the same packages, and switch `current` to it |
 | `mtx install PKG…` / `mtx remove PKG…` | Install or remove packages by hand |
+| `mtx install --from-ctan PKG` | Use CTAN's newer version of a package until TeX Live has it (CTAN does not sign its archives; `mtx update` switches back by itself) |
 | `mtx prefetch FILE.tex` | Install everything a document statically needs in one go |
 | `mtx search TEXT` / `mtx search --file TEXT` | Find packages by name or description, or by the files they ship, installed or not |
 | `mtx which FILE` / `mtx info PKG` / `mtx list` | Find a file's package, show a package, list what is installed |
-| `mtx update` / `mtx refresh` | Upgrade installed packages / check for a newer package database |
+| `mtx update` / `mtx refresh` | Upgrade installed packages / check for a newer package database. Installing a package also upgrades the installed packages it needs, and the LaTeX kernel when it is newer; during a compile that waits until the next `mtx prefetch` (latexmk runs it) |
 | `mtx config autoinstall yes\|no\|ask` | Choose whether missing packages are installed silently, never, or after asking (the prompt lists every package and what it brings along) |
 | `mtx log [--problems]` | See what was installed, and why an install failed or was declined (TeX's log also gets a `Package mtx Warning` line) |
 | `mtx gc [--days N]` | Remove on-demand packages no document has used for N days |
-| `texdoc NAME` / `mtx docs PKG` | Documentation, also installed on demand |
+| `texdoc NAME` / `mtx docs PKG` | Documentation, also installed on demand (`mtx config docs never\|on-texdoc\|always`) |
+| `mtx config` | All settings, such as how often to check for new packages (`freshness_ttl`) and how deep `prefetch` looks (`prefetch_depth`) |
 
 `mtx help COMMAND` gives the details.
 

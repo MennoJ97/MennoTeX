@@ -159,6 +159,20 @@ pub fn check(ctx: &Ctx, path_env: &str) -> Result<Vec<Finding>> {
             push(&mut out, Severity::Warning, format!("out-of-date formats: {} (`mtx repair` deletes them; they are rebuilt on next use)", stale.join(", ")));
         }
     }
+    // CTAN overlays (`install --from-ctan`) shadow TeX Live's version.
+    for pkg in crate::ctan::overlays(ctx)? {
+        let (ctan, _, tl) = crate::ctan::recorded(ctx, &pkg)?.unwrap_or_default();
+        push(&mut out, Severity::Ok, format!("{pkg}: CTAN version {ctan} in use over TeX Live's {tl} (dropped by `mtx update` once TeX Live has it)"));
+    }
+    // Upgrades an on-demand install put off until no TeX run is going.
+    let waiting = crate::install::deferred(ctx)?;
+    if !waiting.is_empty() {
+        push(
+            &mut out,
+            Severity::Warning,
+            format!("upgrades waiting until no compile runs: {} (done before the next latexmk build, or by `mtx update`)", waiting.join(", ")),
+        );
+    }
 
     // latexmk: an rc file (~/.latexmkrc) may point it at another TeX
     // installation's programs, mixing versions (biber must match biblatex).

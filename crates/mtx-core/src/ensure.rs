@@ -15,7 +15,7 @@ use crate::ctx::{Ctx, Freshness};
 use crate::db::Reason;
 use crate::index::{Hit, Index, flags};
 use crate::install;
-use crate::repo::is_network_error;
+use crate::repo::{is_checksum_mismatch, is_mirror_failure, is_network_error};
 use crate::root::Root;
 
 /// A kpathsea file format, as far as on-demand installation cares.
@@ -160,7 +160,9 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
         return or_not_installed(present, NotInstalled::Declined(pkg));
     }
 
+    let started = std::time::Instant::now();
     let mut ctx = Ctx::open(root.clone())?;
+    ctx.during_compile = true;
     if ctx.offline()? {
         ctx.log(format!("error: cannot install {pkg} for {name}: the network was unreachable a moment ago (mtx retries after a minute)"));
         return or_not_installed(present, NotInstalled::Failed(pkg));
@@ -190,12 +192,13 @@ pub fn ensure(root: &Root, kind: &Kind, name: &str) -> Result<Option<PathBuf>> {
         if is_declined(&e) {
             return or_not_installed(present, NotInstalled::Declined(pkg));
         }
-        if is_network_error(&e) {
+        if is_mirror_failure(&e) || is_checksum_mismatch(&e) {
             ctx.log(format!("error: cannot install {pkg} for {name}: {e:#}"));
             return or_not_installed(present, NotInstalled::Failed(pkg));
         }
         return Err(e);
     }
+    ctx.log(format!("{name}: done after {} ms", started.elapsed().as_millis()));
     let path = root.dir.join(rel);
     Ok(path.exists().then_some(path))
 }
@@ -226,7 +229,9 @@ fn install_for(root: &Root, pkg: &str, rel: &str, trigger: &str, siblings: bool)
     if !autoinstall_enabled() {
         return or_not_installed(present, NotInstalled::Declined(pkg.to_string()));
     }
+    let started = std::time::Instant::now();
     let mut ctx = Ctx::open(root.clone())?;
+    ctx.during_compile = true;
     if ctx.offline()? {
         ctx.log(format!("error: cannot install {pkg} for {rel}: the network was unreachable a moment ago (mtx retries after a minute)"));
         return or_not_installed(present, NotInstalled::Failed(pkg.to_string()));
@@ -248,12 +253,13 @@ fn install_for(root: &Root, pkg: &str, rel: &str, trigger: &str, siblings: bool)
     let report = match install::install(&mut ctx, &[pkg], Reason::Auto) {
         Ok(r) => r,
         Err(e) if is_declined(&e) => return or_not_installed(present, NotInstalled::Declined(pkg.to_string())),
-        Err(e) if is_network_error(&e) => {
+        Err(e) if is_mirror_failure(&e) || is_checksum_mismatch(&e) => {
             ctx.log(format!("error: cannot install {pkg}: {e:#}"));
             return or_not_installed(present, NotInstalled::Failed(pkg.to_string()));
         }
         Err(e) => return Err(e),
     };
+    ctx.log(format!("{trigger}: done after {} ms", started.elapsed().as_millis()));
     if !target.exists() {
         return Ok(None);
     }

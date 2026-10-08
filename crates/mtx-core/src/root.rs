@@ -7,6 +7,7 @@
 //! <root>/texmf-dist/             packages (with ls-R)
 //! <root>/texmf-var/              generated files: formats, font maps, language.*
 //! <root>/texmf-mtx/              mtx's overlay, searched first (TEXMFAUXTREES)
+//! <root>/texmf-ctan/             packages from CTAN (`install --from-ctan`), next
 //! <root>/texmf.cnf               our kpathsea overrides
 //! <root>/tlpkg/mtx/              index, installed database, cache, lock, log
 //! ```

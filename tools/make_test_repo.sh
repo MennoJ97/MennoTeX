@@ -1,7 +1,8 @@
 #!/bin/sh
 # Generate crates/mtx-core/testdata/tlnet: a tiny fake TeX Live repository
 # (plus tlnet-next and historic/, for release transitions, and tlnet-synced,
-# the same release one revision later with bar changed, for mirror syncs)
+# the same release one revision later with bar changed, for mirror syncs,
+# and bar, baz and the kernel package latex at a newer revision)
 # signed with a throw-away test key that has TeX Live's key structure
 # (certification-only primary key + signing subkey). Dev-time only; needs
 # gpg. The output is committed so tests run offline and without gpg.
@@ -18,29 +19,41 @@ gpg --batch --quiet --passphrase '' --quick-add-key "$fpr" ed25519 sign never
 gpg --batch --armor --export "$fpr" > "$here/crates/mtx-core/testdata/test-key.asc"
 printf '%s\n' "$fpr" | tr 'A-F' 'a-f' > "$here/crates/mtx-core/testdata/test-key.fpr"
 
-# make_pkg NAME RELOCATED FILE... : archive with the given root-relative files
+# make_pkg NAME RELOCATED FILE... : archive with the given root-relative
+# files, each a comment line followed by $body
 make_pkg() {
   name=$1; reloc=$2; shift 2
   d="$work/pkg-$name"; mkdir -p "$d"
   for f in "$@"; do
     rel=$f; [ "$reloc" = 1 ] && rel=${f#texmf-dist/}
-    mkdir -p "$d/$(dirname "$rel")"; printf '%% %s from %s\n' "$f" "$name" > "$d/$rel"
+    mkdir -p "$d/$(dirname "$rel")"; printf '%% %s from %s\n%s' "$f" "$name" "${body:-}" > "$d/$rel"
   done
   mkdir -p "$d/tlpkg/tlpobj"; echo "name $name" > "$d/tlpkg/tlpobj/$name.tlpobj"
   (cd "$d" && COPYFILE_DISABLE=1 tar --uid 0 --gid 0 -cf - $(cd "$d" && find . -type f | sed 's|^\./||' | sort) ) | xz -9e > "$out/archive/$name.tar.xz"
 }
+# foo loads baz the way LaTeX packages do (for prefetch_depth)
+# (a prefix assignment to a shell function outlives the call, so reset it)
+body='\RequirePackage{baz}
+'
 make_pkg foo 1 texmf-dist/tex/latex/foo/foo.sty texmf-dist/tex/latex/foo/foo.lua
+body=""
 # foo's documentation, as a separate container like tlnet's <pkg>.doc.tar.xz
 d="$work/doc-foo"; mkdir -p "$d/doc/latex/foo"; echo "foo manual" > "$d/doc/latex/foo/foo-manual.pdf"
 (cd "$d" && COPYFILE_DISABLE=1 tar --uid 0 --gid 0 -cf - doc/latex/foo/foo-manual.pdf) | xz -9e > "$out/archive/foo.doc.tar.xz"
 make_pkg bar 1 texmf-dist/tex/latex/bar/bar.sty
 make_pkg fonts-x 1 texmf-dist/fonts/tfm/public/x/x10.tfm
+make_pkg baz 1 texmf-dist/tex/latex/baz/baz.sty
+# stands in for the LaTeX kernel (install.rs KERNEL)
+make_pkg latex 1 texmf-dist/tex/latex/base/latex.ltx
 
 src=$out  # where write_repo and entry take the archives from
+newer=""   # packages at revision 8 instead of 7
 entry() { # name reloc depends... ; prints a tlpdb record
   name=$1; reloc=$2; shift 2
   a="$src/archive/$name.tar.xz"
-  echo "name $name"; echo "category Package"; echo "revision 7"
+  rev=7; case " $newer " in *" $name "*) rev=8;; esac
+  echo "name $name"; echo "category Package"; echo "revision $rev"
+  [ $rev = 7 ] && echo "catalogue-version 1.0" || echo "catalogue-version 1.1"
   [ "$reloc" = 1 ] && echo "relocated 1"
   for d in "$@"; do echo "depend $d"; done
   echo "containersize $(stat -f %z "$a")"
@@ -65,8 +78,10 @@ write_repo() {
     printf 'name 00texlive.config\ncategory TLCore\nrevision 1\n'
     printf 'depend frozen/%s\ndepend release/%s\ndepend revision/%s\n\n' "$4" "$2" "$3"
     entry bar 1
+    entry baz 1
     entry fonts-x 1
     entry foo 1 bar
+    entry latex 1
   } > "$dir/tlpkg/texlive.tlpdb"
   (cd "$dir/tlpkg" && shasum -a 512 texlive.tlpdb > texlive.tlpdb.sha512 && xz -9e texlive.tlpdb)
   gpg --batch --quiet --armor --detach-sign -o "$dir/tlpkg/texlive.tlpdb.sha512.asc" "$dir/tlpkg/texlive.tlpdb.sha512"
@@ -87,5 +102,6 @@ d="$work/pkg-bar-revised"; mkdir -p "$d/tex/latex/bar" "$d/tlpkg/tlpobj"
 printf '%% texmf-dist/tex/latex/bar/bar.sty from bar, revised\n' > "$d/tex/latex/bar/bar.sty"
 echo "name bar" > "$d/tlpkg/tlpobj/bar.tlpobj"
 (cd "$d" && COPYFILE_DISABLE=1 tar --uid 0 --gid 0 -cf - tex/latex/bar/bar.sty tlpkg/tlpobj/bar.tlpobj) | xz -9e > "$synced/archive/bar.tar.xz"
+newer="bar baz latex"
 src=$synced write_repo "$synced" 2026 4243 0
 echo "test repositories written to $out, $next, $historic, $synced (key $fpr)"

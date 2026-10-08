@@ -116,8 +116,13 @@ enum Cmd {
         packages: Vec<String>,
         /// Install automatically on behalf of PROGRAM (command shims): the
         /// `autoinstall` setting applies, and the packages count as auto.
-        #[arg(long, value_name = "PROGRAM")]
+        #[arg(long, value_name = "PROGRAM", conflicts_with = "from_ctan")]
         r#for: Option<String>,
+        /// Install CTAN's current version over TeX Live's (in texmf-ctan),
+        /// for a version tlnet does not have yet. CTAN does not sign its
+        /// archives. `mtx update` drops it once tlnet catches up.
+        #[arg(long)]
+        from_ctan: bool,
     },
     /// Show or change settings: `mtx config`, `mtx config KEY`,
     /// `mtx config KEY VALUE`, `mtx config --unset KEY`.
@@ -147,6 +152,10 @@ enum Cmd {
         /// Remove even if other installed packages depend on them.
         #[arg(long)]
         force: bool,
+        /// Remove only the CTAN version (`install --from-ctan`), going back
+        /// to TeX Live's.
+        #[arg(long, conflicts_with = "force")]
+        from_ctan: bool,
     },
     /// Show which package provides a file.
     Which {
@@ -344,7 +353,15 @@ fn run(cli: Cli) -> Result<ExitCode> {
             };
             eprintln!("mtx: installed {n} binaries; on-demand installation now uses the kpathsea patch");
         }
-        Cmd::Install { packages, r#for } => {
+        Cmd::Install { packages, from_ctan: true, .. } => {
+            let mut ctx = open(&root)?;
+            ctx.refresh(false)?;
+            let names: Vec<&str> = packages.iter().map(String::as_str).collect();
+            for (pkg, version) in mtx_core::ctan::install(&mut ctx, &names)? {
+                eprintln!("mtx: {pkg} {version} from CTAN, until TeX Live has it (`mtx remove --from-ctan {pkg}` goes back)");
+            }
+        }
+        Cmd::Install { packages, r#for, .. } => {
             let mut ctx = open(&root)?;
             ctx.refresh(false)?;
             let names: Vec<&str> = packages.iter().map(String::as_str).collect();
@@ -398,7 +415,15 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 println!("{:>12}  [{}] {}", mtx_core::logview::age(now, e.at), e.pid, e.msg);
             }
         }
-        Cmd::Remove { packages, force } => {
+        Cmd::Remove { packages, from_ctan: true, .. } => {
+            let mut ctx = open(&root)?;
+            for pkg in &packages {
+                if !mtx_core::ctan::drop_overlay(&mut ctx, pkg)? {
+                    eprintln!("mtx: {pkg} has no CTAN version installed");
+                }
+            }
+        }
+        Cmd::Remove { packages, force, .. } => {
             let mut ctx = open(&root)?;
             let names: Vec<&str> = packages.iter().map(String::as_str).collect();
             let removed = install::remove(&mut ctx, &names, force)?;
@@ -484,18 +509,36 @@ fn run(cli: Cli) -> Result<ExitCode> {
             let outdated = install::outdated(&ctx, &tlpdb)?;
             if outdated.is_empty() {
                 eprintln!("mtx: all installed packages are up to date");
-                return Ok(ExitCode::SUCCESS);
             }
             for (name, from, to) in &outdated {
                 eprintln!("mtx: {name}: r{from} → r{to}");
             }
-            if !dry_run {
+            if !dry_run && !outdated.is_empty() {
                 let (docs, pkgs): (Vec<&str>, Vec<&str>) =
                     outdated.iter().map(|(n, _, _)| n.as_str()).partition(|n| mtx_core::docs::base(n).is_some());
                 let r = install::install(&mut ctx, &pkgs, Reason::Upgrade)?;
                 let bases: Vec<&str> = docs.iter().filter_map(|d| mtx_core::docs::base(d)).collect();
                 let d = mtx_core::docs::install(&mut ctx, &bases, Reason::Upgrade)?;
                 eprintln!("mtx: upgraded {} package(s) and the documentation of {}", r.installed.len(), d.len());
+            }
+            // CTAN overlays tlnet has caught up with (after the upgrade, so
+            // TeX Live's new version is in place first).
+            let tlpdb = ctx.tlpdb()?;
+            for (pkg, ctan, now) in mtx_core::ctan::caught_up(&ctx, &tlpdb)? {
+                eprintln!("mtx: {pkg}: TeX Live now has {now} (CTAN version {ctan} installed); dropping the CTAN version");
+                if !dry_run {
+                    mtx_core::ctan::drop_overlay(&mut ctx, &pkg)?;
+                }
+            }
+            if !dry_run && mtx_core::config::docs(&ctx)? == mtx_core::config::Docs::Always {
+                // Packages installed during compiles came without it.
+                let tlpdb = ctx.tlpdb()?;
+                let missing = mtx_core::docs::missing(&ctx, &tlpdb)?;
+                if !missing.is_empty() {
+                    let names: Vec<&str> = missing.iter().map(String::as_str).collect();
+                    let d = mtx_core::docs::install(&mut ctx, &names, Reason::Auto)?;
+                    eprintln!("mtx: installed the documentation of {} package(s) (docs = always)", d.len());
+                }
             }
         }
         Cmd::Docs { packages } => {
@@ -759,6 +802,9 @@ fn texdoc() -> ExitCode {
         let tlpdb = ctx.tlpdb()?;
         if !script.exists() {
             install::install(&mut ctx, &["texdoc"], Reason::Auto)?;
+        }
+        if mtx_core::config::docs(&ctx)? == mtx_core::config::Docs::Never {
+            return Ok(());
         }
         for name in &names {
             let pkgs = mtx_core::docs::packages_for(&tlpdb, name);

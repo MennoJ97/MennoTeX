@@ -4,7 +4,7 @@ title: Development and testing
 description: How to build mtx, run the tests, bootstrap a throw-away installation and compile documents with it.
 tags: [playbook, development, testing]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T15:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T09:30:00Z }
 ---
@@ -20,7 +20,9 @@ Rust comes from Homebrew (`brew install rust`); there is no rustup toolchain fil
 
 Offline tests use the signed fake repository in `crates/mtx-core/testdata/tlnet`;
 regenerate it with `tools/make_test_repo.sh` (needs Homebrew `gpg`) after changing its
-contents, and commit the result.
+contents, and commit the result. Shell gotcha in that script: a prefix assignment to a
+shell function call (`body=x make_pkg …`) outlives the call in POSIX sh, so it sets and
+resets variables on their own lines.
 
 **C unit tests of the kpathsea patch** need a texlive-source build (see below):
 
@@ -134,6 +136,23 @@ mirrors in turn, and a mirror that syncs to `testdata/tlnet-synced` mid-session
 ([decision 0017](/decisions/0017-mirror-faults.md)). `tools/make_test_repo.sh` regenerates the
 repositories (needs gpg; makes a new throw-away key). Killing mtx mid-transaction is
 `tests/run_crash.sh` (below).
+
+A new key changes the layout of the signature: when the test key was regenerated on
+2026-10-08, the middle byte of `texlive.tlpdb.sha512.asc` (which `Fault::Corrupt` flips)
+fell in the signature's unhashed subpacket area (the issuer key ID), which OpenPGP does
+not sign, and the signature still verified. Database faults therefore corrupt the signed
+`texlive.tlpdb.sha512` and truncate the `.asc` instead.
+
+`fault_server.rs` also stands in for CTAN in the overlay tests (`FakeCtan` in
+`local_repo_tests.rs`: the JSON API under `json/2.0/pkg/`, TDS zips under `install/`).
+
+# Install overhead
+
+`tests/measure_overhead.py ROOT…` reads the `mtx.log` of corpus roots and reports what
+on-demand installs (`mtx ensure`, not prefetch) cost per call and per package, and the
+share spent downloading (PLAN.md §8 target: median under 300 ms per package). For mtx's
+own cost, run the corpus on a fresh root with `MTX_CACHE` pointing at a cache filled by
+an earlier run; for the full first-run cost, with an empty cache.
 
 # Probe-only installs
 

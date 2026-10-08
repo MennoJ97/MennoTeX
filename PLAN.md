@@ -201,6 +201,8 @@ mtx install --from-ctan tcolorbox
 
 Overlay packages are never auto-installed on the fly. You choose them explicitly.
 
+*As built* ([decision 0019](knowledge/decisions/0019-ctan-overlay.md)): TeX Live's package is installed first, then the TDS zip's input directories go to `texmf-ctan` (after `texmf-mtx` in `TEXMFAUXTREES`); format stamps include the overlay; `mtx update` drops it once tlnet's version equals CTAN's or has changed. Many CTAN packages have no TDS zip and cannot be overlaid.
+
 ### 4.3 Yes: the index refreshes whenever the package manager runs
 
 On any `mtx` operation that touches the network, including every on-the-fly install:
@@ -222,6 +224,7 @@ On any `mtx` operation that touches the network, including every on-the-fly inst
   - When `mtx` installs a package, it also upgrades the already-installed packages in that package's `depend` closure, plus `l3kernel`, `l3backend` and `latex`, whenever the newly installed package is newer than they are.
   - `mtx update` upgrades everything.
   - An optional weekly `launchd` job runs `mtx update --quiet`.
+  - *As built* ([decision 0018](knowledge/decisions/0018-upgrades-around-compiles.md)): the kernel set is `latex`, `l3kernel` (which contains `l3backend` in 2026) and `firstaid`. Installs during a compile only add missing packages; their upgrades wait for the next `mtx prefetch` (latexmk runs it before TeX), install or update, because the running TeX already has the old kernel and may have read old files. The launchd job is not built.
 
 **Yearly release transition.** `00texlive.config` declares `release/2026`. When tlnet moves to 2027, packages may require 2027 engines.
 - `mtx` detects the new release number, stops auto-upgrading, and pins to the frozen `historic/systems/texlive/2026/tlnet-final` repository.
@@ -431,7 +434,7 @@ These go in `texmf.cnf` (readable by C) or `~/Library/MennoTeX/mtx.toml` (CLI-on
 | `prefetch` | `none` / `depends` / `requires` | `requires` |
 | `docs` | `never` / `on-texdoc` / `always` | `on-texdoc`: `texdoc foo` → `mtx` fetches `foo.doc` |
 
-*As built* ([decision 0007](knowledge/decisions/0007-install-consent.md)): settings live in the installed database and are changed with `mtx config` (`autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors`); `$MTX_AUTOINSTALL` overrides `autoinstall`. There is no `mtx.toml`. `ask` offers "all"/"none" for the rest of a compile and lists every package with the dependencies it brings (the dialog in an expandable, scrolling outline). `mtx log` shows failed and declined installs, and TeX's own log gets a `Package mtx Warning` line ([decision 0014](knowledge/decisions/0014-install-warnings-in-tex-log.md)).
+*As built* ([decision 0007](knowledge/decisions/0007-install-consent.md)): settings live in the installed database and are changed with `mtx config` (`autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors`); `$MTX_AUTOINSTALL` overrides `autoinstall`. There is no `mtx.toml`. `ask` offers "all"/"none" for the rest of a compile and lists every package with the dependencies it brings (the dialog in an expandable, scrolling outline). `mtx log` shows failed and declined installs, and TeX's own log gets a `Package mtx Warning` line ([decision 0014](knowledge/decisions/0014-install-warnings-in-tex-log.md)). The table's freshness TTL, `prefetch` and `docs` rows are the settings `freshness_ttl` (default `1h`), `prefetch_depth` (`document`/`requires`; `none` is `auto_prefetch no`) and `docs` (`never`/`on-texdoc`/`always`; `always` only outside a compile, and `mtx update` fills in).
 
 ### 5.10 CLI (first version)
 
@@ -546,6 +549,8 @@ Effort estimates assume one focused developer and are rough.
 - ≥ 99% first-run success on the corpus
 - median on-the-fly overhead < 300 ms per package
 - warm runs indistinguishable from TeX Live
+
+*As measured* (2026-10-08, pdfLaTeX corpus, `tests/measure_overhead.py`): median 87 ms per package with cached archives, 457 ms from an empty cache (79% of it downloading); first-run success 41/41.
 
 **Other test suites:**
 - **Unit tests:** tlpdb parsing, the index round-trip (Rust writer to C reader), path matching against kpathsea's own `match()`, and tar sanitization.

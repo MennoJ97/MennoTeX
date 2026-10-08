@@ -5,14 +5,23 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:40:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
+  - { by: process:cargo-test, at: 2026-10-08T18:20:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
 ---
 
 # Where things stand (2026-10-08)
 
+- **Ready for the next release, not in one yet (2026-10-08, the user asked for these
+  four after the release):** the upgrade rule of PLAN.md §4.3 ([decision 0018](/decisions/0018-upgrades-around-compiles.md):
+  dependencies and the kernel upgraded outside compiles, deferred during them, caught up
+  by prefetch); the on-the-fly overhead measured (median 87 ms per package with cached
+  archives, 457 ms cold; [status](/project/status.md)); the settings `freshness_ttl`,
+  `prefetch_depth` and `docs`; and `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md)).
+  All in mtx, no C changes, so a release run can reuse the programs (`9c5675bd`, about
+  2½ minutes). The new `texmf.cnf` line (`texmf-ctan` in `TEXMFAUXTREES`) reaches an
+  installation through the `repair` that `self-update` runs. 99 `cargo test` tests.
 - **Released and installed (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
   programs `mennotex-bin-2026-6a3001880.9c5675bd`, reused from `cf6183267`'s run
   37791928013) carries PLAN.md items 1–5 the user asked for: probe installs measured, no
@@ -53,7 +62,7 @@ verified:
   on PATH, autoinstall `ask`, and only mirror and failed-install warnings.
 - **Repository:** public `MennoJ97/MennoTeX` (the user, 2026-10-08), branch `main`, all work committed and
   pushed. `README.md`, `LICENSING.md` and `LICENSE-MIT`/`LICENSE-APACHE` added
-  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 91 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
+  2026-10-08 ([decision 0008](/decisions/0008-licensing.md)). 99 `cargo test` tests and 57 C checks (2026-10-08); the OKF bundle checks clean.
 
 # Rebuilding the setup (nothing outside the repo survives a session)
 
@@ -104,7 +113,11 @@ archives. See the [development playbook](/playbooks/development.md).
    a build at 09:55 is the one behind commit `f334f3b`). Still to smoke-test: TeXShop
    and TeXstudio, which look in `/Library/TeX/texbin` rather than the shell's PATH
    (plan §5.2: TeXDist registration needs admin once, so ask first).
-2. **Self-update and signed releases (2026-10-08, [decision 0011](/decisions/0011-releases-and-self-update.md)):**
+2. **Next release:** carries the four items above; needs a CI run with `release: true`
+   (ask first), then the user signs and runs `mtx self-update`. Open from that list:
+   the weekly launchd `mtx update` (PLAN.md §4.3, optional) and the 300-document corpus
+   (PLAN.md §8), which the user has not chosen yet.
+3. **Self-update and signed releases (2026-10-08, [decision 0011](/decisions/0011-releases-and-self-update.md)):**
    done. First signed release `mennotex-2026-f06b1506f` (CI run 37781813612, 2 min:
    programs reused from the run before; signed by the user with
    `tools/sign_release.sh`); the real installation updated to it with a local build's
@@ -134,7 +147,7 @@ archives. See the [development playbook](/playbooks/development.md).
      unpatched, plus the patches, `build/` and the workflow). Checked in the first
      Release: both assets match `SHA256SUMS`, `licenses/` has 109 files, and the source
      archive's `tex-make.c` is the unpatched upstream file.
-3. **Install feedback:** done 2026-10-08 ([decision 0007](/decisions/0007-install-consent.md)):
+4. **Install feedback:** done 2026-10-08 ([decision 0007](/decisions/0007-install-consent.md)):
    `mtx config autoinstall yes|no|ask` (`$MTX_AUTOINSTALL` overrides), `ask` via terminal,
    dialog or `ask_fallback`, one answer per compile, shims gated with `install --for`;
    failures and refusals in `mtx.log`, shown by `mtx log --problems` and `mtx doctor`.
@@ -151,7 +164,7 @@ archives. See the [development playbook](/playbooks/development.md).
    - Done 2026-10-08, in the next release: the reason in TeX's own `.log`
      ([decision 0014](/decisions/0014-install-warnings-in-tex-log.md)); the prompt lists
      every package with its dependencies.
-4. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
+5. **Release transitions:** staying on a release is done ([decision 0006](/decisions/0006-release-transitions.md),
    commit `38c0bac`). When tlnet serves a newer release, `refresh` switches the
    repository to `historic:2026` (the frozen `tlnet-final`, resolved over the tug.org
    historic mirrors and pinned), lagging mirrors are avoided, and `mtx doctor` warns.
@@ -165,7 +178,7 @@ archives. See the [development playbook](/playbooks/development.md).
      bump `root::RELEASE`, rebuild with the patches, rerun the corpus.
    - A one-command upgrade from the old mtx needs release downloads (step 2);
      until then `mtx doctor` names the command.
-5. **Corpus and Phase 2 exit:** 51 documents; compared with a full TeX Live 2026
+6. **Corpus and Phase 2 exit:** 51 documents; compared with a full TeX Live 2026
    (2026-10-08): pdfLaTeX and LuaLaTeX identical, XeLaTeX identical except TeX-tree
    fonts by name (a MennoTeX feature); crash recovery tested ([status](/project/status.md)).
    Fixes from this work reach the real installation with `mtx repair` run by the user
@@ -174,7 +187,7 @@ archives. See the [development playbook](/playbooks/development.md).
    (`mtx_interrupted` in `mtx-ondemand.c`) needs a CI binary build (user's OK).
    Next: real arXiv sources kept locally; a Linux comparison for XeLaTeX fonts by name
    (fontconfig) would close the remaining gap.
-6. **Known gaps** (each has a note in the knowledge bundle). The map re-read
+7. **Known gaps** (each has a note in the knowledge bundle). The map re-read
    ([decision 0012](/decisions/0012-map-reread.md)) shipped in release `f06b1506f`; the
    C changes of decisions 0014 and 0015 ship with the next one.
    - LuaLaTeX fonts by name: **fixed** by the overlay `texmf-mtx/…/luaotfload-main.lua`
@@ -193,11 +206,11 @@ archives. See the [development playbook](/playbooks/development.md).
    - `mtx gc` and docs on demand (`texdoc NAME`, `mtx docs PKG`) are done. texdoc's
      viewer path (opening a PDF) was not exercised, to avoid opening windows; only
      `texdoc -l -M`.
-7. **Data refresh:** `crates/mtx-core/data/fontmaps.tsv.xz` and `fontnames.tsv.xz` come
+8. **Data refresh:** `crates/mtx-core/data/fontmaps.tsv.xz` and `fontnames.tsv.xz` come
    from `tools/build_fontmap_index.py` / `tools/build_fontname_index.py` (download all
    font packages once, ~850 MiB each, mostly shared). Regenerate when font packages
    change; ideally a manual CI job.
-8. **PLAN.md drift:** "as built" notes now cover the layout (§5.2), binaries (§5.8), the
+9. **PLAN.md drift:** "as built" notes now cover the layout (§5.2), binaries (§5.8), the
    index (§5.5) and release transitions (§4.3). Other sections may still drift; the
    knowledge bundle is authoritative.
 

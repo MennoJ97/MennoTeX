@@ -7,6 +7,7 @@ pub mod bootstrap;
 pub mod config;
 pub mod configfiles;
 pub mod consent;
+pub mod ctan;
 pub mod ctx;
 pub mod db;
 pub mod docs;

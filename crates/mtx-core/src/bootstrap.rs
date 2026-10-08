@@ -80,9 +80,10 @@ TEXMFHOME = ~/Library/texmf
 TEXMFVAR = $TEXMFROOT/texmf-user-var
 TEXMFCONFIG = $TEXMFROOT/texmf-user-config
 
-% mtx's overlay tree, searched before all others. It is searched on disk:
-% kpathsea loads ls-R only for the trees in TEXMFDBS.
-TEXMFAUXTREES = $TEXMFROOT/texmf-mtx,
+% mtx's overlay tree, then packages installed from CTAN with
+% `mtx install --from-ctan`, searched before all others. They are searched
+% on disk: kpathsea loads ls-R only for the trees in TEXMFDBS.
+TEXMFAUXTREES = $TEXMFROOT/texmf-mtx,$TEXMFROOT/texmf-ctan,
 
 {hook}"
     )
@@ -239,6 +240,11 @@ pub fn carried_packages(tlpdb: &Tlpdb, other: &Root) -> Result<Carried> {
     }
     let mut c = Carried::default();
     for (name, i) in Db::open(&other.db_path())?.installed()? {
+        // A CTAN overlay is a stopgap until tlnet has the version; the next
+        // release's tlnet has it.
+        if crate::ctan::base(&name).is_some() {
+            continue;
+        }
         let list = match i.reason.as_str() {
             "explicit" => &mut c.explicit,
             "auto" => &mut c.auto,
@@ -346,7 +352,7 @@ mod tests {
         // Idempotent.
         install_overlay(&root).unwrap();
         for mode in [HookMode::Mktex, HookMode::Kpathsea] {
-            assert!(root_texmf_cnf(mode).contains("TEXMFAUXTREES = $TEXMFROOT/texmf-mtx,\n"));
+            assert!(root_texmf_cnf(mode).contains("TEXMFAUXTREES = $TEXMFROOT/texmf-mtx,$TEXMFROOT/texmf-ctan,\n"));
         }
     }
 }

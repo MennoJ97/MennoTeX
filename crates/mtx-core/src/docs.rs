@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 
 use crate::ctx::Ctx;
 use crate::db::Reason;
-use crate::repo::{ChecksumMismatch, is_network_error, sha512_file};
+use crate::repo::{is_checksum_mismatch, is_mirror_failure, sha512_file};
 use crate::tlpdb::{Package, Tlpdb};
 
 pub const SUFFIX: &str = ".doc";
@@ -56,21 +56,55 @@ pub fn packages_for(tlpdb: &Tlpdb, name: &str) -> Vec<String> {
     out
 }
 
+/// Under `docs always` and outside a compile, install the documentation of
+/// the packages just installed; a failure is logged, not returned (the
+/// packages themselves are in).
+pub fn follow(ctx: &mut Ctx, installed: &[(String, u64)]) {
+    if ctx.during_compile || !matches!(crate::config::docs(ctx), Ok(crate::config::Docs::Always)) {
+        return;
+    }
+    let Ok(tlpdb) = ctx.tlpdb() else { return };
+    let names: Vec<&str> = installed
+        .iter()
+        .filter_map(|(n, _)| tlpdb.get(n))
+        .filter(|p| p.doc_container_size > 0)
+        .map(|p| p.name.as_str())
+        .collect();
+    if !names.is_empty() {
+        if let Err(e) = install(ctx, &names, Reason::Auto) {
+            ctx.log(format!("error: documentation of {}: {e:#}", names.join(", ")));
+        }
+    }
+}
+
+/// Installed packages with documentation in TeX Live that is not installed
+/// (for `mtx update` under `docs always`).
+pub fn missing(ctx: &Ctx, tlpdb: &Tlpdb) -> Result<Vec<String>> {
+    let installed = ctx.db.installed()?;
+    Ok(installed
+        .keys()
+        .filter(|n| base(n).is_none() && !installed.contains_key(&entry(n)))
+        .filter(|n| tlpdb.get(n).is_some_and(|p| p.doc_container_size > 0))
+        .cloned()
+        .collect())
+}
+
 /// Install the documentation of `pkgs` that is missing or older than the
 /// package database. Returns the packages whose documentation was installed.
 pub fn install(ctx: &mut Ctx, pkgs: &[&str], reason: Reason) -> Result<Vec<String>> {
-    let mut attempt = 0;
+    // The same rules as package installs (decision 0017).
+    let (mut failovers, mut mismatches) = (0, 0);
     loop {
         let tlpdb = ctx.tlpdb()?;
         match install_once(ctx, &tlpdb, pkgs, reason) {
-            Err(e) if is_network_error(&e) && attempt < 2 => {
-                attempt += 1;
+            Err(e) if is_mirror_failure(&e) && failovers < 2 => {
+                failovers += 1;
                 ctx.failover(&e)?;
             }
-            Err(e) if e.chain().any(|c| c.downcast_ref::<ChecksumMismatch>().is_some()) && attempt < 2 => {
-                attempt += 1;
+            Err(e) if is_checksum_mismatch(&e) && mismatches < 2 => {
+                mismatches += 1;
                 ctx.log(format!("{e:#}; refreshing the package database and retrying"));
-                if attempt == 2 {
+                if mismatches == 2 {
                     ctx.reject_mirror()?;
                 }
                 ctx.refresh(true)?;

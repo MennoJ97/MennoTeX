@@ -350,3 +350,246 @@ fn documentation_is_installed_on_request_and_removed_with_its_package() {
     assert_eq!(install::remove(&mut ctx, &["foo"], false).unwrap(), vec!["foo", "foo.doc"]);
     assert!(!manual.exists());
 }
+
+fn synced_repo() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/tlnet-synced")
+}
+
+fn revision(ctx: &Ctx, pkg: &str) -> Option<u64> {
+    ctx.db.installed().unwrap().get(pkg).map(|i| i.revision)
+}
+
+/// A root with bar and the kernel package latex at r7 whose repository has
+/// since moved on (testdata/tlnet-synced: bar, baz, latex at r8).
+fn outdated_root() -> (tempfile::TempDir, Root, Ctx) {
+    let (d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["bar", "latex"], Reason::Explicit).unwrap();
+    crate::config::set(&mut ctx, "repository", &format!("file://{}", synced_repo().display())).unwrap();
+    assert!(matches!(ctx.refresh(true).unwrap(), Freshness::Updated { to: 4243, .. }));
+    (d, root, ctx)
+}
+
+/// Decision 0018: during a compile only missing packages are installed;
+/// outdated ones (a dependency, the kernel) wait, and `mtx prefetch`
+/// (before the next latexmk build) upgrades them without asking.
+#[test]
+fn compile_defers_upgrades_until_prefetch() {
+    let (_d, root, ctx) = outdated_root();
+    drop(ctx);
+    // foo (r7) depends on bar: bar stays at r7 during the compile.
+    ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap().unwrap();
+    let ctx = Ctx::open(root.clone()).unwrap();
+    assert_eq!((revision(&ctx, "foo"), revision(&ctx, "bar")), (Some(7), Some(7)));
+    assert_eq!(install::deferred(&ctx).unwrap(), ["bar"]);
+    drop(ctx);
+    // baz (r8) is newer than the installed kernel: the kernel waits too.
+    ensure::ensure_path(&root, "baz", "texmf-dist/tex/latex/baz/baz.sty", false).unwrap().unwrap();
+    let mut ctx = Ctx::open(root.clone()).unwrap();
+    ctx.set_quiet(true);
+    ctx.test_key = Some((KEY, FPR));
+    assert_eq!(revision(&ctx, "latex"), Some(7));
+    assert_eq!(install::deferred(&ctx).unwrap(), ["bar", "latex"]);
+    assert!(crate::doctor::check(&ctx, "").unwrap().iter().any(|f| f.message.contains("upgrades waiting")));
+
+    // A prompt would fail the test: catching up does not ask.
+    ctx.prompter = |_, _| panic!("asked about deferred upgrades");
+    ctx.ask_for = Some("doc.tex".into());
+    let r = install::catch_up(&mut ctx);
+    let mut got: Vec<&str> = r.installed.iter().map(|(n, _)| n.as_str()).collect();
+    got.sort();
+    assert_eq!(got, ["bar", "latex"]);
+    assert_eq!(ctx.ask_for.as_deref(), Some("doc.tex"), "prefetch's own installs still ask");
+    assert!(install::deferred(&ctx).unwrap().is_empty());
+    assert!(fs::read_to_string(root.texmf_dist().join("tex/latex/bar/bar.sty")).unwrap().contains("revised"));
+}
+
+/// Outside a compile an install upgrades outdated dependencies, and the
+/// kernel when the new package is newer than the installed kernel.
+#[test]
+fn install_upgrades_dependencies_and_the_kernel() {
+    let (_d, _root, mut ctx) = outdated_root();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    assert_eq!(revision(&ctx, "bar"), Some(8), "dependency upgraded");
+    assert_eq!(revision(&ctx, "latex"), Some(7), "foo (r7) is no newer than the kernel");
+    install::install(&mut ctx, &["baz"], Reason::Explicit).unwrap();
+    assert_eq!(revision(&ctx, "latex"), Some(8), "baz (r8) is newer than the kernel");
+    assert!(install::deferred(&ctx).unwrap().is_empty());
+}
+
+/// `prefetch_depth`: by default prefetch follows `\RequirePackage` into the
+/// installed foo.sty (baz); with `document` only what the document names.
+#[test]
+fn prefetch_depth_decides_whether_installed_files_are_read() {
+    for (depth, want) in [(None, vec!["bar", "baz", "foo"]), (Some("document"), vec!["bar", "foo"])] {
+        let (d, _root, mut ctx) = setup(&testdata_repo());
+        ctx.refresh(true).unwrap();
+        if let Some(depth) = depth {
+            crate::config::set(&mut ctx, "prefetch_depth", depth).unwrap();
+        }
+        let doc = d.path().join("doc.tex");
+        fs::write(&doc, "\\documentclass{article}\n\\usepackage{foo}\n").unwrap();
+        crate::prefetch::prefetch(&mut ctx, &doc).unwrap();
+        assert_eq!(installed_names(&ctx), want, "prefetch_depth {depth:?}");
+    }
+}
+
+fn installed_names(ctx: &Ctx) -> Vec<String> {
+    ctx.db.installed().unwrap().into_keys().collect()
+}
+
+/// `freshness_ttl 0` checks the mirror every time; the default trusts a
+/// check for an hour.
+#[test]
+fn freshness_ttl_sets_how_long_a_check_holds() {
+    let (_d, _root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    assert_eq!(ctx.refresh(false).unwrap(), Freshness::Fresh);
+    crate::config::set(&mut ctx, "freshness_ttl", "0").unwrap();
+    assert_eq!(ctx.refresh(false).unwrap(), Freshness::Unchanged);
+}
+
+/// `docs always`: an install outside a compile brings the documentation;
+/// one during a compile does not, and `docs::missing` lists it for
+/// `mtx update`.
+#[test]
+fn docs_always_installs_documentation_outside_compiles() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    crate::config::set(&mut ctx, "docs", "always").unwrap();
+    drop(ctx);
+    ensure::ensure_path(&root, "foo", "texmf-dist/tex/latex/foo/foo.sty", false).unwrap().unwrap();
+    let mut ctx = Ctx::open(root.clone()).unwrap();
+    ctx.set_quiet(true);
+    ctx.test_key = Some((KEY, FPR));
+    assert!(!installed_names(&ctx).contains(&"foo.doc".to_string()), "not during a compile");
+    assert_eq!(crate::docs::missing(&ctx, &ctx.tlpdb().unwrap()).unwrap(), ["foo"]);
+    install::remove(&mut ctx, &["foo"], false).unwrap();
+    install::install(&mut ctx, &["foo"], Reason::Explicit).unwrap();
+    assert!(installed_names(&ctx).contains(&"foo.doc".to_string()));
+    assert!(root.dir.join("texmf-dist/doc/latex/foo/foo-manual.pdf").exists());
+}
+
+/// A CTAN stand-in served over HTTP: the JSON API under `json/2.0/pkg/`
+/// and TDS archives under `install/`.
+struct FakeCtan {
+    dir: tempfile::TempDir,
+    server: crate::fault_server::FaultServer,
+}
+
+impl FakeCtan {
+    fn new() -> FakeCtan {
+        let dir = tempfile::tempdir().unwrap();
+        let server = crate::fault_server::FaultServer::serve(dir.path().to_path_buf());
+        FakeCtan { dir, server }
+    }
+
+    fn api(&self) -> String {
+        format!("{}json/2.0/pkg/", self.server.base)
+    }
+
+    fn mirror(&self) -> String {
+        format!("{}install/", self.server.base)
+    }
+
+    /// Publish `pkg` at `version` with a TDS zip of `files` (path, content).
+    fn publish(&self, pkg: &str, version: &str, files: &[(&str, &str)]) {
+        use std::io::Write;
+        let api = self.dir.path().join("json/2.0/pkg");
+        fs::create_dir_all(&api).unwrap();
+        let zip_rel = format!("macros/latex/contrib/{pkg}.tds.zip");
+        let json = format!(
+            r#"{{"id":"{pkg}","version":{{"number":"{version}","date":""}},"install":"/{zip_rel}","texlive":"{pkg}"}}"#
+        );
+        fs::write(api.join(pkg), json).unwrap();
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (path, content) in files {
+            w.start_file(*path, zip::write::SimpleFileOptions::default()).unwrap();
+            w.write_all(content.as_bytes()).unwrap();
+        }
+        let zip_path = self.dir.path().join("install").join(&zip_rel);
+        fs::create_dir_all(zip_path.parent().unwrap()).unwrap();
+        fs::write(zip_path, w.finish().unwrap().into_inner()).unwrap();
+    }
+}
+
+/// `mtx install --from-ctan`: TeX Live's package first, then CTAN's files in
+/// texmf-ctan (TDS inputs only); formats see the overlay in their stamp;
+/// `mtx update` drops it once tlnet has caught up.
+#[test]
+fn ctan_overlay_until_tlnet_catches_up() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    let ctan = FakeCtan::new();
+    ctan.publish(
+        "baz",
+        "1.1",
+        &[
+            ("tex/latex/baz/baz.sty", "% baz 1.1 from CTAN"),
+            ("tex/latex/baz/baz-extra.sty", "% new in 1.1"),
+            ("doc/latex/baz/README", "read me"),
+            ("source/latex/baz/baz.dtx", "% source"),
+            ("web2c/texmf.cnf", "TEXMF = /evil"),
+        ],
+    );
+    let fmt = crate::configfiles::Format {
+        name: "x".into(),
+        engine: "pdftex".into(),
+        patterns: "-".into(),
+        options: String::new(),
+        enabled: true,
+        fmttriggers: vec!["baz".into()],
+    };
+    let stamp = |ctx: &Ctx| crate::formats::stamp(&root, &fmt, &ctx.db.installed().unwrap());
+
+    let got = crate::ctan::install_from(&mut ctx, &["baz"], &ctan.api(), &ctan.mirror()).unwrap();
+    assert_eq!(got, [("baz".to_string(), "1.1".to_string())]);
+    let tree = root.dir.join(crate::ctan::TREE);
+    assert_eq!(fs::read_to_string(tree.join("tex/latex/baz/baz.sty")).unwrap(), "% baz 1.1 from CTAN");
+    assert!(tree.join("doc/latex/baz/README").exists());
+    assert!(!tree.join("source").exists() && !tree.join("web2c").exists(), "only TDS input trees are taken");
+    assert_eq!(revision(&ctx, "baz"), Some(7), "TeX Live's package comes first");
+    assert_eq!(crate::ctan::recorded(&ctx, "baz").unwrap().unwrap(), ("1.1".into(), "baz".into(), "1.0".into()));
+    let with_overlay = stamp(&ctx);
+    assert!(with_overlay.contains("trigger baz r7 ctan@"), "{with_overlay}");
+    assert!(crate::ctan::caught_up(&ctx, &ctx.tlpdb().unwrap()).unwrap().is_empty());
+
+    // A newer CTAN archive replaces the overlay, dropping files it no longer has.
+    ctan.publish("baz", "1.2", &[("tex/latex/baz/baz.sty", "% baz 1.2")]);
+    crate::ctan::install_from(&mut ctx, &["baz"], &ctan.api(), &ctan.mirror()).unwrap();
+    assert!(!tree.join("tex/latex/baz/baz-extra.sty").exists());
+    assert!(!tree.join("doc").exists(), "empty directories go too");
+
+    // tlnet moves to 1.1 (behind CTAN's 1.2, but it changed): update drops it.
+    crate::config::set(&mut ctx, "repository", &format!("file://{}", synced_repo().display())).unwrap();
+    ctx.refresh(true).unwrap();
+    install::install(&mut ctx, &["baz"], Reason::Upgrade).unwrap();
+    let caught = crate::ctan::caught_up(&ctx, &ctx.tlpdb().unwrap()).unwrap();
+    assert_eq!(caught, [("baz".to_string(), "1.2".to_string(), "1.1".to_string())]);
+    assert!(crate::ctan::drop_overlay(&mut ctx, "baz").unwrap());
+    assert!(!tree.join("tex").exists());
+    assert!(crate::ctan::overlays(&ctx).unwrap().is_empty());
+    assert!(crate::ctan::recorded(&ctx, "baz").unwrap().is_none());
+    assert!(stamp(&ctx).contains("trigger baz r8\n"));
+    assert!(root.texmf_dist().join("tex/latex/baz/baz.sty").exists(), "TeX Live's version is still there");
+}
+
+/// Unsafe or useless archives are refused without placing anything; so is
+/// a package CTAN has no TDS archive of.
+#[test]
+fn ctan_refuses_bad_archives() {
+    let (_d, root, mut ctx) = setup(&testdata_repo());
+    ctx.refresh(true).unwrap();
+    let ctan = FakeCtan::new();
+    ctan.publish("baz", "1.1", &[("tex/latex/baz/baz.sty", "ok"), ("../../escape.sty", "evil")]);
+    assert!(crate::ctan::install_from(&mut ctx, &["baz"], &ctan.api(), &ctan.mirror()).is_err());
+    ctan.publish("baz", "1.1", &[("source/latex/baz/baz.dtx", "only sources")]);
+    let e = crate::ctan::install_from(&mut ctx, &["baz"], &ctan.api(), &ctan.mirror()).unwrap_err();
+    assert!(format!("{e:#}").contains("no TeX files"), "{e:#}");
+    fs::write(ctan.dir.path().join("json/2.0/pkg/qux"), r#"{"id":"qux","version":{"number":"2"}}"#).unwrap();
+    let e = crate::ctan::install_from(&mut ctx, &["qux"], &ctan.api(), &ctan.mirror()).unwrap_err();
+    assert!(e.to_string().contains("no installable"), "{e:#}");
+    assert!(!root.dir.join(crate::ctan::TREE).exists());
+    assert!(crate::ctan::overlays(&ctx).unwrap().is_empty());
+    assert!(fs::read_dir(&root.dir).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().starts_with(".staging-ctan")));
+}

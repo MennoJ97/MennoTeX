@@ -4,7 +4,7 @@ title: On-demand installation
 description: How a missing file becomes an installed package, in Phase 0 (stock hooks) and Phase 1 (kpathsea patch).
 tags: [architecture, kpathsea, mtx, hooks]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
 sources:
   - id: kpse
     resource: /upstream/kpathsea.md
@@ -32,7 +32,10 @@ sources:
    installer (`install.rs`): download and verify without a lock, then commit under
    `flock(tlpkg/mtx/lock)`, append `ls-R`, regenerate config, run `updmap-sys` if
    maps changed, and delete formats whose stamp no longer matches
-   ([decision 0016](/decisions/0016-format-stamps.md)).
+   ([decision 0016](/decisions/0016-format-stamps.md)). During a compile it installs
+   only missing packages: installed ones that are out of date, and the LaTeX kernel,
+   are upgraded by the next `mtx prefetch` (latexmk runs it before TeX), install or
+   update ([decision 0018](/decisions/0018-upgrades-around-compiles.md)).
 6. It prints the absolute path on stdout. kpathsea checks it is readable and
    inserts it into its in-memory hash (`tex-make.c` `kpathsea_db_insert`).[^kpse]
 

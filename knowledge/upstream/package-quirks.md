@@ -4,7 +4,7 @@ title: Package quirks found by the corpus
 description: Behaviour of individual LaTeX packages and tools, seen while growing the document corpus, that looks like an on-demand problem but is not (or is), with the cause.
 tags: [corpus, packages, luatex, xypic, pstricks, musixtex, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:15:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
 verified:
   - { by: process:tests/run_documents.sh, at: 2026-10-08T13:00:00Z }
 sources:
@@ -20,6 +20,13 @@ sources:
     resource: tlnet package l3kernel (TeX Live 2026), texmf-dist/tex/latex/l3kernel/expl3-code.tex:12708-12730
     title: l3file, \file_full_name:n
     author: team:latex-project
+  - id: l3depcheck
+    resource: tlnet package l3kernel r80334 (TeX Live 2026), texmf-dist/tex/latex/l3kernel/expl3-code.tex:13235-13275, l3backend-pdftex.def:28-35
+    title: \__kernel_dependency_version_check:nn and its use in l3backend
+    author: team:latex-project
+  - id: ctan-nicematrix
+    url: https://ctan.org/json/2.0/pkg/nicematrix
+    title: CTAN JSON record of nicematrix (no install field)
 ---
 
 Facts from `tests/documents/` (51 documents since 2026-10-08), checked with the
@@ -80,3 +87,22 @@ MennoTeX binaries of CI run 37750229150.
   checks `preview.sty`; acmart checks `zi4.sty` and `newtxmath.sty` under every engine
   but loads them only under pdfTeX (`acmart.cls:776-805`).
 
+# Kernel support files check the format's kernel
+
+- `expl3.sty` and every `l3backend-*.def` call `\__kernel_dependency_version_check:nn`
+  with the date they need; when the format's expl3 date (`\c__kernel_expl_date_tl`) is
+  older, LaTeX stops with "Mismatched LaTeX support files detected. Loading '…' aborted!"
+  (`l3backend-pdftex.def` of 2026-09-09 needs 2023-10-10).[^l3depcheck] The backend files
+  are read at run time, the kernel comes from the format, so replacing `l3kernel` in the
+  middle of a compile can only hurt that run; mtx defers such upgrades
+  ([decision 0018](/decisions/0018-upgrades-around-compiles.md)).
+- TeX Live 2026 has no `l3backend` package (it is part of `l3kernel`); the first-aid
+  package is `firstaid`. Kernel packages (`l3kernel`, `latex`, `amsmath`) carry no
+  `catalogue-version`; CTAN versions them by date.
+
+# CTAN versions without a TDS archive
+
+- Many CTAN packages ship only sources (`.dtx`/`.ins`), with no `install` field in the
+  JSON record: on 2026-10-08 `nicematrix` was 7.12 on CTAN and 7.11d in TeX Live, without
+  a TDS archive.[^ctan-nicematrix] `mtx install --from-ctan` cannot install those
+  ([decision 0019](/decisions/0019-ctan-overlay.md)); only tlnet's build of them works.

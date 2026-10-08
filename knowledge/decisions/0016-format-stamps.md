@@ -4,7 +4,7 @@ title: Format staleness by stamps
 description: Each format build writes a stamp (engine size and mtime, fmttriggers revisions, hyphenation hash); after every transaction mtx deletes formats whose stamp differs or is missing, and mtx doctor reports them.
 tags: [decision, formats, fmtutil, staleness]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
 ---
@@ -37,3 +37,6 @@ format). A format left over from a crash between install and deletion stayed sta
   rebuilds every format (checked 2026-10-08 in a scratch root).
 - Formats built before stamps count as stale once: the first repair or install after
   updating mtx deletes them, and they rebuild on next use (a few seconds each).
+- A trigger package with a CTAN overlay gets ` ctan@<install time>` on its line
+  ([decision 0019](/decisions/0019-ctan-overlay.md)), so installing or dropping an
+  overlay rebuilds the formats that read it; stamps without overlays are unchanged.

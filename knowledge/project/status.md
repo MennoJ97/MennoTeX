@@ -5,10 +5,10 @@ description: Which phases of PLAN.md are done, in progress, or open, with measur
 tags: [roadmap, status]
 status: stable
 stale_after: 2026-11-07T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:50:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
-  - { by: process:tests/run_documents.sh, at: 2026-10-08T14:10:00Z }
+  - { by: process:cargo-test, at: 2026-10-08T18:20:00Z }
+  - { by: process:tests/run_documents.sh, at: 2026-10-08T17:40:00Z }
 ---
 
 # Phase 0: spike on unmodified binaries (in progress)
@@ -117,7 +117,7 @@ test document still makes 18 such calls.
   corpus now 52 documents (`late-font-map`), on fresh roots with a local build:
   pdfLaTeX 41/41 (82 s), XeLaTeX 43/43 + 1 skipped (95 s), LuaLaTeX 47/47 (133 s).
 
-# Before the second release (2026-10-08, not released yet)
+# In release mennotex-2026-675989434 (2026-10-08)
 
 - PLAN.md §6 probe deny list: measured, not built ([decision 0013](/decisions/0013-no-probe-deny-list.md)):
   6 of 418 corpus installs were probe-only (~6.4 MB).
@@ -134,6 +134,29 @@ test document still makes 18 such calls.
   43/43 (+1 skipped without Ghostscript), LuaLaTeX 47/47, no `mtx Warning` in any log; a
   second pass after `mtx repair` with format stamps installed nothing and rebuilt the
   stamp-less formats once.
+
+# After release 675989434 (2026-10-08, not released yet)
+
+- Upgrade policy (PLAN.md §4.3, [decision 0018](/decisions/0018-upgrades-around-compiles.md)):
+  installs outside a compile upgrade outdated dependencies and the kernel; during a
+  compile upgrades are deferred to the next prefetch. Checked with `acro` on a scratch root.
+- On-the-fly overhead (PLAN.md §8 target: median < 300 ms per package), pdfLaTeX corpus on
+  fresh roots (41/41 pass both times), `tests/measure_overhead.py`: 145 on-demand installs,
+  211 packages.
+
+  | Archive cache | Per package, median | p90 | Mean | Per call, median | Downloading |
+  |---|---|---|---|---|---|
+  | empty (190.5 MiB fetched) | 457 ms | 1487 ms | 852 ms | 534 ms | 79% of the time |
+  | filled | **87 ms** | 576 ms | 168 ms | 89 ms | 1% |
+
+  mtx's own work meets the target; a first run is dominated by the mirror. The slow tail
+  with a filled cache is large font packages (cbfonts and cm-super, ~60 MiB each, 2.7–3.5
+  s to unpack) and font-map regeneration (`updmap`, about 0.8 s even for the 0.3 MiB
+  `palatino`).
+- Settings (PLAN.md §5.9): `freshness_ttl`, `prefetch_depth`, `docs`.
+- CTAN overlay channel (PLAN.md §4.2, Phase 4, [decision 0019](/decisions/0019-ctan-overlay.md)):
+  `mtx install --from-ctan`; checked on a scratch root with CTAN's `l3kernel` (format
+  rebuilt with the overlay and again without it).
 
 # Phases 2–4
 

@@ -32,6 +32,8 @@ pub struct Report {
     pub installed: Vec<(String, u64)>,
     pub files: usize,
     pub bytes_downloaded: u64,
+    /// Time spent downloading and verifying archives.
+    pub download_ms: u64,
 }
 
 /// Whether the last installation of `pkg` was interrupted: its journal
@@ -48,6 +50,99 @@ fn crash_point(point: &str) {
     if std::env::var("MTX_CRASH_AT").is_ok_and(|v| v == point) {
         let _ = Command::new("/bin/kill").args(["-KILL", &std::process::id().to_string()]).status();
     }
+}
+
+/// The LaTeX kernel: the format is built from it, and its runtime files
+/// must match the format (expl3 refuses an `l3backend-*.def` that needs a
+/// newer kernel than the format's). In TeX Live 2026 `l3backend` is part
+/// of `l3kernel`; names missing from the database are skipped.
+pub const KERNEL: &[&str] = &["latex", "l3kernel", "firstaid"];
+
+/// The database key holding upgrades put off until no TeX run is going.
+const DEFERRED: &str = "deferred_upgrades";
+
+/// What a transaction for `closure` installs (PLAN.md §4.3, decision 0018),
+/// as (now, later):
+/// - missing packages and interrupted installs, always;
+/// - installed packages in `closure` older than the database;
+/// - the [`KERNEL`] packages, when outdated and a package installed now is
+///   newer than the installed kernel (it may have been written for the
+///   newer one);
+/// - `deferred` packages still outdated (outside a compile).
+///
+/// During a compile only the first go into `now`: the running TeX may
+/// already have read the old files of an installed package (and has the
+/// kernel from its format), so replacing them mid-run would mix revisions.
+/// The upgrades go into `later`.
+pub fn plan_upgrades(
+    tlpdb: &Tlpdb,
+    closure: &[String],
+    rev_of: &dyn Fn(&str) -> Option<u64>,
+    interrupted: &dyn Fn(&str) -> bool,
+    during_compile: bool,
+    deferred: &[String],
+) -> Result<(Vec<String>, Vec<String>)> {
+    let want = |n: &str| tlpdb.get(n).map_or(0, |p| p.revision);
+    let outdated = |n: &str| rev_of(n).is_some_and(|r| r < want(n));
+    let mut now: Vec<String> =
+        closure.iter().filter(|n| rev_of(n).is_none() || interrupted(n)).cloned().collect();
+    let mut upgrades: Vec<String> = closure.iter().filter(|n| outdated(n) && !interrupted(n)).cloned().collect();
+    let newest = now.iter().filter(|n| rev_of(n).is_none()).map(|n| want(n)).max();
+    if let Some(newest) = newest {
+        for k in KERNEL.iter().copied().filter(|k| tlpdb.get(k).is_some()) {
+            if rev_of(k).is_some_and(|r| r < newest) && outdated(k) && !upgrades.iter().any(|u| u == k) {
+                upgrades.push(k.to_string());
+            }
+        }
+    }
+    if during_compile {
+        return Ok((now, upgrades));
+    }
+    upgrades.extend(deferred.iter().filter(|n| outdated(n) && !closure.contains(n)).cloned());
+    // What the upgrades depend on, if missing or outdated as well.
+    if !upgrades.is_empty() {
+        for n in tlpdb.closure(upgrades.iter().map(String::as_str))? {
+            if (rev_of(&n).is_none() || outdated(&n) || interrupted(&n)) && !now.contains(&n) {
+                now.push(n);
+            }
+        }
+    }
+    Ok((now, Vec::new()))
+}
+
+/// Packages whose upgrade waits for a moment no TeX run is going.
+pub fn deferred(ctx: &Ctx) -> Result<Vec<String>> {
+    Ok(ctx.db.get(DEFERRED)?.map(|v| v.split_whitespace().map(String::from).collect()).unwrap_or_default())
+}
+
+/// Keep the deferred upgrades that are still outdated, plus `more`.
+fn update_deferred(ctx: &Ctx, tlpdb: &Tlpdb, more: &[String]) -> Result<()> {
+    let installed = ctx.db.installed()?;
+    let mut list: BTreeSet<String> = deferred(ctx)?.into_iter().collect();
+    list.extend(more.iter().cloned());
+    list.retain(|n| installed.get(n).zip(tlpdb.get(n)).is_some_and(|(i, p)| i.revision < p.revision));
+    if list.is_empty() {
+        ctx.db.unset(DEFERRED)
+    } else {
+        ctx.db.set(DEFERRED, &list.into_iter().collect::<Vec<_>>().join(" "))
+    }
+}
+
+/// Upgrades put off during compiles (see [`plan_upgrades`]), done now; for
+/// `mtx prefetch`, which latexmk runs before TeX starts. They follow from
+/// installs the user already allowed, so they are not asked about (like
+/// `mtx update`); a failure is logged and they stay deferred.
+pub fn catch_up(ctx: &mut Ctx) -> Report {
+    if deferred(ctx).map_or(true, |d| d.is_empty()) {
+        return Report::default();
+    }
+    let ask_for = ctx.ask_for.take();
+    let result = install(ctx, &[], Reason::Upgrade);
+    ctx.ask_for = ask_for;
+    result.unwrap_or_else(|e| {
+        ctx.log(format!("error: deferred upgrades: {e:#}"));
+        Report::default()
+    })
 }
 
 /// Packages in `names` that are missing, older than in `tlpdb`, or whose
@@ -138,9 +233,22 @@ pub fn install(ctx: &mut Ctx, roots: &[&str], reason: Reason) -> Result<Report> 
     // revision ahead, and its first mismatch must refresh the database,
     // not get it avoided (seen in fault_tests).
     let (mut failovers, mut mismatches) = (0, 0);
+    let started = std::time::Instant::now();
     loop {
         let tlpdb = ctx.tlpdb()?;
         match install_once(ctx, &tlpdb, roots, reason) {
+            Ok(r) if !r.installed.is_empty() => {
+                // `mtx log` and tests/measure_overhead.py read this line.
+                ctx.log(format!(
+                    "installed {} package(s) in {} ms ({} ms downloading {} bytes)",
+                    r.installed.len(),
+                    started.elapsed().as_millis(),
+                    r.download_ms,
+                    r.bytes_downloaded
+                ));
+                crate::docs::follow(ctx, &r.installed);
+                return Ok(r);
+            }
             Err(e) if is_mirror_failure(&e) && failovers < 2 => {
                 failovers += 1;
                 ctx.failover(&e)?;
@@ -176,7 +284,21 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         all.extend(extra.iter().map(String::as_str));
         closure = tlpdb.closure(all)?;
     }
-    let mut plan = pending(ctx, tlpdb, &closure)?;
+    let journal_dir = ctx.root.journal_dir();
+    let (mut plan, later) = plan_upgrades(
+        tlpdb,
+        &closure,
+        &|n| installed_now.get(n).map(|i| i.revision),
+        &|n| journal_dir.join(n).exists(),
+        ctx.during_compile,
+        &deferred(ctx)?,
+    )?;
+    let waiting = deferred(ctx)?;
+    let new_later: Vec<String> = later.into_iter().filter(|n| !waiting.contains(n)).collect();
+    if !new_later.is_empty() {
+        ctx.log(format!("upgrading {} after this compile (or with `mtx update`), not during it", new_later.join(", ")));
+        update_deferred(ctx, tlpdb, &new_later)?;
+    }
     // Finish installs a crash interrupted, whatever this one is for.
     if let Ok(entries) = fs::read_dir(ctx.root.journal_dir()) {
         for name in entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()) {
@@ -193,7 +315,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         // The requested packages first, for the prompt.
         let mut shown: Vec<String> = plan.iter().filter(|n| roots.contains(&n.as_str())).cloned().collect();
         shown.extend(plan.iter().filter(|n| !roots.contains(&n.as_str())).cloned());
-        let items = prompt_items(tlpdb, &shown, roots);
+        let items = prompt_items(tlpdb, &shown, roots, &|n| installed_now.contains_key(n));
         let req = crate::consent::Request { trigger: &trigger, packages: &shown, bytes: size, items };
         let prompter = ctx.prompter;
         if !crate::consent::decide(ctx, &req, &mut |c, q| prompter(c, q))? {
@@ -202,7 +324,9 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
         ctx.ask_for = None;
     }
     ctx.log(format!("installing {} package(s), {:.1} MiB: {}", plan.len(), size as f64 / 1048576.0, summarize(&plan)));
+    let download_started = std::time::Instant::now();
     let (archives, bytes) = download(ctx, tlpdb, &plan)?;
+    let download_ms = download_started.elapsed().as_millis() as u64;
 
     let lock = fs::File::create(ctx.root.lock_path())?;
     if lock.try_lock().is_err() {
@@ -220,7 +344,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     let ours: BTreeSet<String> = ctx.db.files_of(crate::binaries::BIN_PACKAGE)?.into_iter().collect();
     let protected = |rel: &str| PROTECTED.contains(&rel) || ours.contains(rel);
 
-    let mut report = Report { bytes_downloaded: bytes, ..Default::default() };
+    let mut report = Report { bytes_downloaded: bytes, download_ms, ..Default::default() };
     let mut regen = Regen::default();
     let mut dist_files: Vec<String> = Vec::new();
     let journal = ctx.root.journal_dir();
@@ -276,6 +400,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     for name in &plan {
         fs::remove_file(journal.join(name))?;
     }
+    update_deferred(ctx, tlpdb, &[])?;
     drop(lock);
     Ok(report)
 }
@@ -283,12 +408,13 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
 /// `plan` as a tree for the prompt: each package of `roots` (then each
 /// other package nothing above pulled in, such as font-map packages) with
 /// the planned packages its dependencies bring along, each listed once.
-fn prompt_items(tlpdb: &Tlpdb, plan: &[String], roots: &[&str]) -> Vec<crate::consent::Item> {
+fn prompt_items(tlpdb: &Tlpdb, plan: &[String], roots: &[&str], installed: &dyn Fn(&str) -> bool) -> Vec<crate::consent::Item> {
     let item = |name: &str, deps| {
         let p = tlpdb.get(name);
+        let summary = p.map(|p| p.shortdesc.clone()).unwrap_or_default();
         crate::consent::Item {
             name: name.to_string(),
-            summary: p.map(|p| p.shortdesc.clone()).unwrap_or_default(),
+            summary: if installed(name) { format!("(upgrade) {summary}") } else { summary },
             bytes: p.map_or(0, |p| p.container_size),
             deps,
         }
@@ -362,6 +488,13 @@ pub fn apply_regen(ctx: &Ctx, tlpdb: &Tlpdb, regen: Regen) -> Result<()> {
 /// Delete built formats whose stamp no longer matches (a `fmttriggers`
 /// package, the engine or the hyphenation patterns changed, or the format
 /// predates stamps); kpathsea's `mktexfmt` rebuilds them on next use.
+/// [`invalidate_formats`] for every installed package.
+pub(crate) fn invalidate_installed_formats(ctx: &Ctx, tlpdb: &Tlpdb) -> Result<()> {
+    let installed = ctx.db.installed()?;
+    let pkgs: Vec<&Package> = installed.keys().filter_map(|n| tlpdb.get(n)).collect();
+    invalidate_formats(ctx, &pkgs)
+}
+
 fn invalidate_formats(ctx: &Ctx, installed_pkgs: &[&Package]) -> Result<()> {
     let installed = ctx.db.installed()?;
     for (name, fmt) in crate::formats::stale(&ctx.root, installed_pkgs, &installed) {
@@ -377,10 +510,10 @@ fn invalidate_formats(ctx: &Ctx, installed_pkgs: &[&Package]) -> Result<()> {
 pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>> {
     let tlpdb = ctx.tlpdb()?;
     let installed = ctx.db.installed()?;
-    // A package's documentation goes with it.
-    let docs: Vec<String> = names.iter().map(|n| crate::docs::entry(n)).collect();
+    // A package's documentation and CTAN overlay go with it.
+    let extra: Vec<String> = names.iter().flat_map(|n| [crate::docs::entry(n), crate::ctan::entry(n)]).collect();
     let targets: BTreeSet<&str> =
-        names.iter().copied().chain(docs.iter().map(String::as_str)).filter(|n| installed.contains_key(*n)).collect();
+        names.iter().copied().chain(extra.iter().map(String::as_str)).filter(|n| installed.contains_key(*n)).collect();
     if !force {
         for (other, _) in &installed {
             if targets.contains(other.as_str()) {
@@ -412,6 +545,9 @@ pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>>
             }
         }
         ctx.db.forget(name)?;
+        if let Some(pkg) = crate::ctan::base(name) {
+            ctx.db.unset(&format!("ctan:{pkg}"))?;
+        }
         if let Some(p) = tlpdb.get(name) {
             regen.merge(Regen::for_package(p));
         }
@@ -423,6 +559,7 @@ pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>>
     if regen.any() {
         apply_regen(ctx, &tlpdb, regen)?;
     }
+    invalidate_installed_formats(ctx, &tlpdb)?;
     drop(lock);
     if !removed.is_empty() {
         ctx.log(format!("removed {}", removed.join(", ")));

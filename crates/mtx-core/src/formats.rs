@@ -176,7 +176,8 @@ pub fn stamp_path(fmt: &Path) -> PathBuf {
 
 /// What format `f` depends on, as text: the engine program (size and
 /// modification time: `install-binaries` replaces it), the installed
-/// revision of each `fmttriggers` package, and a hash of the hyphenation
+/// revision of each `fmttriggers` package (and when a CTAN overlay of it
+/// was installed), and a hash of the hyphenation
 /// configuration (`language.dat`, `.def`, `.dat.lua`).
 pub fn stamp(root: &Root, f: &Format, installed: &BTreeMap<String, Installed>) -> String {
     use sha2::{Digest, Sha256};
@@ -187,7 +188,9 @@ pub fn stamp(root: &Root, f: &Format, installed: &BTreeMap<String, Installed>) -
     let mut out = format!("engine {} {engine}\n", f.engine);
     for t in &f.fmttriggers {
         let rev = installed.get(t).map_or("-".to_string(), |i| format!("r{}", i.revision));
-        out.push_str(&format!("trigger {t} {rev}\n"));
+        // A CTAN overlay's files come first (ctan.rs).
+        let overlay = installed.get(&crate::ctan::entry(t)).map_or(String::new(), |i| format!(" ctan@{}", i.installed_at));
+        out.push_str(&format!("trigger {t} {rev}{overlay}\n"));
     }
     let mut h = Sha256::new();
     for name in ["language.dat", "language.def", "language.dat.lua"] {

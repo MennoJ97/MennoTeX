@@ -139,8 +139,12 @@ fn broken_only_mirror_installs_nothing() {
 /// avoided, and the database comes from another mirror.
 #[test]
 fn unverifiable_database_switches_mirrors() {
+    // Not `.asc` with `Corrupt`: the middle byte may fall in the unhashed
+    // subpackets (the issuer), which the signature does not cover, so the
+    // signature still verifies (seen when the test key was regenerated).
     for (file, fault) in [
-        ("tlpkg/texlive.tlpdb.sha512.asc", Fault::Corrupt),
+        ("tlpkg/texlive.tlpdb.sha512", Fault::Corrupt),
+        ("tlpkg/texlive.tlpdb.sha512.asc", Fault::Truncate(100)),
         ("tlpkg/texlive.tlpdb.xz", Fault::Corrupt),
         ("tlpkg/texlive.tlpdb.xz", Fault::Truncate(100)),
         ("tlpkg/texlive.tlpdb.xz", Fault::Html),
@@ -162,7 +166,7 @@ fn unverifiable_database_switches_mirrors() {
 fn unverifiable_database_on_the_only_mirror_is_not_used() {
     let a = FaultServer::serve(repo_dir());
     let (_d, root, mut ctx) = setup(&a.base);
-    a.break_file("tlpkg/texlive.tlpdb.sha512.asc", Fault::Corrupt);
+    a.break_file("tlpkg/texlive.tlpdb.sha512", Fault::Corrupt);
     assert!(ctx.refresh(true).is_err());
     assert!(!root.tlpdb_path().exists() && !root.index_path().exists());
     assert!(!ctx.offline().unwrap(), "bad data is not being offline");
