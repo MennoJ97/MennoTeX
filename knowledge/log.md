@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-08
+* **Update**: The real installation runs the mtx with `ask` diagnostics (user ran `mtx repair`; auto mode blocks agents from changing it) ([handoff](/project/handoff.md)).
 * **Update**: First GitHub Release published by CI run 37750229150 (user-approved): binary and source archives verified against `SHA256SUMS` and installed with `--github --release latest` ([status](/project/status.md), [handoff](/project/handoff.md), [decision 0008](/decisions/0008-licensing.md), [playbook](/playbooks/development.md)).
 * **Update**: Every `ask` outcome is logged with why a prompt could not be shown (osascript exit status, stderr, run time) and the process chain the request came from; `mtx doctor` warns about unshown prompts ([decision 0007](/decisions/0007-install-consent.md), [mtx-core](/architecture/mtx-core.md), [handoff](/project/handoff.md)).
 * **Update**: Real installation is on the user's PATH and used from VS Code ([handoff](/project/handoff.md), [status](/project/status.md)); recorded a build where the `ask` dialog failed fast and fell back to yes.

@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T09:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T12:15:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-07T23:00:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -117,8 +117,11 @@ archives. See the [development playbook](/playbooks/development.md).
      outcome is now logged with osascript's exit status, stderr and run time, and the
      process chain above mtx (`from pdflatex < latexmk.pl < … < Visual Studio Code`);
      `mtx doctor` warns when prompts could not be shown and quotes the last reason.
-     Next: once the real installation runs this mtx (`mtx repair` from the newest build,
-     with the user's OK), read the next `could not ask` line in its `mtx.log`.
+     The user ran `mtx repair` with this build on the real installation (2026-10-08,
+     commit `788edd9`; Claude Code's auto mode blocks agents from doing it). Next: after
+     the user's next VS Code build, read its `asked about` / `could not ask` lines in
+     `~/Library/MennoTeX/2026/tlpkg/mtx/mtx.log`. A dialog test from an agent session on
+     a scratch root was also blocked by auto mode; it needs the user's permission.
      Ask the user before popping dialogs.
    - Getting the reason into TeX's own `.log` (what editors show) is not possible from
      kpathsea; a C change could print a `! mtx: …` line to the terminal/log via the engine.
