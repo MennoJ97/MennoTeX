@@ -4,7 +4,7 @@ title: On-demand fonts selected by name
 description: An embedded font-name index plus small XeTeX and resolver changes make fontspec names install their packages; a luaotfload-main.lua overlay makes LuaLaTeX's first run work too.
 tags: [decision, fonts, fontspec, xetex, luaotfload]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
 verified:
   - { by: process:tests/run_documents.sh, at: 2026-10-07T12:15:00Z }
 ---
@@ -48,5 +48,9 @@ require'luaotfload'` (see [fonts by name](/upstream/fonts-by-name.md)). Our copy
 same, then wraps `luaotfload.main` so the `name` resolver runs twice on a miss:
 first with `config.luaotfload.db.update_live = false` (no reload; the fallback's
 kpathsea `tfm` probe installs the package), then normally (the one reload finds the
-font). Installed by `bootstrap`, `install-binaries` and `repair`; nothing in tlnet
+font). luaotfload reloads only once per run, so a **second** font installed in the same
+run (corpus `opentype-fonts`: EB Garamond, then Source Code Pro) was missed until the
+next run (found 2026-10-08); when the first pass changed `texmf-dist/ls-R` (an install
+happened), the overlay now rescans with `fonts.names.update` and tries the no-reload
+pass again. Installed by `bootstrap`, `install-binaries` and `repair`; nothing in tlnet
 is modified.

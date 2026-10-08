@@ -11,6 +11,12 @@
 -- ends in a kpathsea font-metric probe, where MennoTeX's kpathsea installs
 -- the package providing the font. The second pass reloads the database,
 -- which then finds the new font, so the first run works.
+--
+-- luaotfload reloads at most once per run, so a second font installed in
+-- the same run (EB Garamond, then Source Code Pro) would still be missed.
+-- When the first pass installed something (texmf-dist/ls-R changed), the
+-- database is rescanned here with fonts.names.update, which replaces
+-- luaotfload's index without using up its one reload.
 
 local luaotfload_module = require'luaotfload'
 
@@ -21,10 +27,23 @@ luaotfload.main = function (...)
   local db = config and config.luaotfload and config.luaotfload.db
   local by_name = resolvers and resolvers.name
   if not (by_name and db) then return end
+  local names = fonts and fonts.names
+  local dist = kpse.var_value("TEXMFDIST")
+  local function lsr_stamp()
+    local a = dist and lfs.attributes(dist .. "/ls-R")
+    return a and (a.modification .. ":" .. a.size)
+  end
   resolvers.name = function (specification)
     local live = db.update_live
     db.update_live = false
+    local before = lsr_stamp()
     local ok, file, sub = pcall(by_name, specification)
+    if not (ok and file) and live ~= false and names and names.update and lsr_stamp() ~= before then
+      db.update_live = true
+      pcall(names.update, names.data(), false, false)
+      db.update_live = false
+      ok, file, sub = pcall(by_name, specification)
+    end
     db.update_live = live
     if ok and file then return file, sub end
     return by_name(specification)

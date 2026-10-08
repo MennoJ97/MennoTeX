@@ -4,7 +4,7 @@ title: How fonts are found by name
 description: How XeTeX (macOS), luaotfload and kpathsea resolve fontspec font names, and where on-demand installation can hook in.
 tags: [fonts, xetex, luaotfload, fontspec, kpathsea, coretext]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T23:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-07T12:15:00Z }
 sources:
@@ -39,6 +39,11 @@ sources:
   `resolve_file` → `kpse.find_file(name, "tfm")`. That kpathsea probe comes
   **after** the only reload, so a font installed by it is found only on the next run.
 - Installed fonts are found by name: the reload rescans the font directories.
+- **The reload-once flag is a file-local** (`fonts_reloaded`,
+  `luaotfload-database.lua:561`), set by `reload_db`. `fonts.names.update(data, force,
+  dry_run)` (exported `update_names`) rescans and replaces the index itself
+  (`name_index = targetnames`, `:3489`) without setting it, but skips everything while
+  `update_live == false` (`:3395`).[^lotf]
 - The names database lives in the TeX tree's var directory and is generated on the
   first font request of a run if missing.
 - `lookup_font_name` and `lookup_font_file` reload only when
