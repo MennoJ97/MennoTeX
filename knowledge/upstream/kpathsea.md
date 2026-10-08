@@ -5,7 +5,7 @@ description: Verified facts about how kpathsea finds files and when it runs mkte
 resource: https://github.com/TeX-Live/texlive-source/tree/trunk/texk/kpathsea
 tags: [kpathsea, texlive, upstream, hooks]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-07T09:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:30:00Z }
 verified:
   - { by: claude-code/claude-opus-5-5, at: 2026-10-06T18:00:00Z }
 sources:
@@ -54,5 +54,17 @@ fonts, maps, `\openin` or anything in LuaTeX. Hence the Phase 1 patch.
 - `ls-R` accepts repeated directory blocks, so appending is legal (`db.c:89-160`); no magic header is required.
 - `texmf_casefold_search = 1` by default (`texmf.cnf:807`).
 - Program-specific paths: `TEXINPUTS.pdflatex-dev` adds `tex/latex-dev` (`texmf.cnf:221-222`).
+- **`texfonts.map` bypasses the on-demand hook:** kpathsea reads its font-name aliases
+  with `kpathsea_all_path_search (kpse, kpse->map_path, "texfonts.map")`
+  (`fontmap.c:157`), a direct path search, not `kpathsea_find_file`. So no TeX run ever
+  installs package `fontname`; a full TeX Live reads the file in almost every pdfLaTeX and
+  XeLaTeX run (`.fls` comparison, 2026-10-08). MennoTeX puts `fontname` (17 KB) in the
+  bootstrap core.
+- **The hook only sees misses:** a file that exists in a lower-priority directory is
+  found, so a package with a higher-priority copy is never installed by a lookup
+  (`pstricks.con`, [decision 0010](/decisions/0010-shadowing-packages.md)).
+- `TEXINPUTS` order for the LaTeX formats in TeX Live 2026: `latex`/`pdflatex`
+  `tex/{latex,generic,}`, `xelatex` `tex/{xelatex,latex,xetex,generic,}`, `lualatex`
+  `tex/{lualatex,latex,luatex,generic,}`; the plain formats put `generic` before `latex`.
 
 [^src]: texlive-source @ 7cd76c1 (2026-10-06)

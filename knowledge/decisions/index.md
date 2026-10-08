@@ -1,5 +1,6 @@
 # Decisions
 
+* [0010: Installing packages that shadow installed files](0010-shadowing-packages.md) - Installing a package also installs packages with a same-named tex/ file in a directory a LaTeX format searches first (pstricks → xetex-pstricks), because kpathsea never misses such a file and so never asks mtx.
 * [0009: Crash recovery of installs](0009-crash-recovery.md) - A package stays journaled until its whole install (ls-R, configuration, font maps, shims) is done; the next lookup of its files, the next install of anything, or mtx repair finishes it; tests/run_crash.sh kills mtx at each step.
 * [0008: Licensing](0008-licensing.md) - Own code is MIT OR Apache-2.0; patches keep the license of the TeX Live file they change; binaries and packages keep theirs; README follows TeX Live's redistribution guidelines.
 * [0007: Asking before automatic installs](0007-install-consent.md) - An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.

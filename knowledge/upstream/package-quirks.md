@@ -4,7 +4,7 @@ title: Package quirks found by the corpus
 description: Behaviour of individual LaTeX packages and tools, seen while growing the document corpus, that looks like an on-demand problem but is not (or is), with the cause.
 tags: [corpus, packages, luatex, xypic, pstricks, musixtex, upstream]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T13:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T16:30:00Z }
 verified:
   - { by: process:tests/run_documents.sh, at: 2026-10-08T13:00:00Z }
 sources:
@@ -26,11 +26,28 @@ MennoTeX binaries of CI run 37750229150.
   missing. Loading `luatex85` first defines it (`\protected macro:->\pdfextension
   save\relax`) and the diagram compiles. Corpus `xypic-diagrams` does that on LuaTeX.
 
-# PSTricks under XeLaTeX
+# PSTricks under XeLaTeX needs Ghostscript
 
-- `pstricks`, `pst-plot` and `pst-node` compile with XeLaTeX on a Mac without
-  Ghostscript (`gs` absent from PATH): xdvipdfmx handles the PostScript specials of
-  these packages itself. Corpus `pstricks-xelatex`.
+- With `xetex-pstricks` installed (as in any full TeX Live), XeLaTeX reads its
+  `tex/xelatex/xetex-pstricks/pstricks.con`, which loads PSTricks's
+  `config/xdvipdfmx.cfg`: the drawing goes into `pst:` specials, which xdvipdfmx
+  collects into a temporary PostScript file and converts through Ghostscript
+  (`rungs`). Without `gs` on PATH that file comes back empty: `xdvipdfmx:fatal: File
+  ended prematurely` (checked 2026-10-08 with a full TeX Live 2026 and with MennoTeX).
+  MacTeX bundles Ghostscript; elsewhere `brew install ghostscript`.
+- **Correction:** this note first said PSTricks works on XeLaTeX without Ghostscript.
+  It did in MennoTeX only because `xetex-pstricks` was never installed, so the generic
+  `pstricks.con` (plain `ps:` specials, handled by xdvipdfmx itself) was used: a
+  silent difference from TeX Live, fixed by [decision 0010](/decisions/0010-shadowing-packages.md).
+  Corpus `pstricks-xelatex` is marked `% requires: gs`.
+
+# XeTeX on macOS does not find TeX-tree fonts by name
+
+- A full TeX Live's XeLaTeX on macOS fails on `\setmainfont{FreeSerif}`, `Amiri`, `EB
+  Garamond`, `CMU Serif`, `TeX Gyre Heros` (fonts in the TeX tree, not registered with
+  CoreText), and metropolis falls back from Fira Sans to Latin Modern Sans. MennoTeX's
+  XeTeX patch finds them ([fonts by name](/upstream/fonts-by-name.md)); these are the
+  only XeLaTeX differences from TeX Live in the corpus comparison.
 
 # Tools between TeX runs
 

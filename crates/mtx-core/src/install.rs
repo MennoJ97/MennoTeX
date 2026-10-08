@@ -161,10 +161,16 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     // install those packages in the same transaction, so the maps are
     // regenerated before TeX ships out its first page.
     let installed_now = ctx.db.installed()?;
-    let maps = crate::fontmaps::map_packages_for(tlpdb, &closure, &|p| installed_now.contains_key(p));
-    if !maps.is_empty() {
+    let have = |p: &str| installed_now.contains_key(p);
+    let mut extra = crate::fontmaps::map_packages_for(tlpdb, &closure, &have);
+    // Packages whose same-named files the engine would find first (see
+    // shadows.rs); kpathsea never misses those, so it would never ask.
+    if let Ok(idx) = crate::index::Index::open(&ctx.root.index_path()) {
+        extra.extend(crate::shadows::shadow_packages_for(&idx, tlpdb, &closure, &have));
+    }
+    if !extra.is_empty() {
         let mut all: Vec<&str> = roots.to_vec();
-        all.extend(maps.iter().map(String::as_str));
+        all.extend(extra.iter().map(String::as_str));
         closure = tlpdb.closure(all)?;
     }
     let mut plan = pending(ctx, tlpdb, &closure)?;
@@ -391,13 +397,19 @@ pub fn remove(ctx: &mut Ctx, names: &[&str], force: bool) -> Result<Vec<String>>
     Ok(removed)
 }
 
-/// Fix what `mtx doctor` can fix: install missing font-map packages, redo
-/// interrupted installs, regenerate configuration, ls-R and shims.
+/// Fix what `mtx doctor` can fix: install missing font-map packages,
+/// packages that shadow installed files (shadows.rs) and core packages
+/// added since the root was made, redo interrupted
+/// installs, regenerate configuration, ls-R and shims.
 pub fn repair(ctx: &mut Ctx) -> Result<Vec<String>> {
     let tlpdb = ctx.tlpdb()?;
     let installed = ctx.db.installed()?;
     let names: Vec<String> = installed.keys().cloned().collect();
     let mut todo: BTreeSet<String> = crate::fontmaps::map_packages_for(&tlpdb, &names, &|p| installed.contains_key(p));
+    todo.extend(crate::bootstrap::CORE.iter().filter(|n| !installed.contains_key(**n)).map(|n| n.to_string()));
+    if let Ok(idx) = crate::index::Index::open(&ctx.root.index_path()) {
+        todo.extend(crate::shadows::shadow_packages_for(&idx, &tlpdb, &names, &|p| installed.contains_key(p)));
+    }
     if let Ok(entries) = fs::read_dir(ctx.root.journal_dir()) {
         todo.extend(entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()));
     }

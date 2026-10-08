@@ -1,5 +1,9 @@
 % engines: xelatex
-% PSTricks: PostScript specials, which xdvipdfmx turns into PDF.
+% requires: gs
+% PSTricks: with xetex-pstricks's driver configuration (tex/xelatex, found
+% before pstricks's generic one) xdvipdfmx hands the PostScript to
+% Ghostscript, as in any TeX Live; without gs it fails with "File ended
+% prematurely".
 \documentclass{article}
 \usepackage{pstricks,pst-plot,pst-node}
 \begin{document}

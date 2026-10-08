@@ -20,7 +20,10 @@ use crate::tlpdb::Tlpdb;
 /// `amsfonts` carries the Type 1 Computer Modern fonts and their maps:
 /// with the Phase 0 hooks, pdfTeX's font-file lookups cannot trigger
 /// installs, so the default fonts must be present up front.
-pub const CORE: &[&str] = &["scheme-infraonly", "latex-bin", "amsfonts", "hyphen-base"];
+/// `fontname` carries `texfonts.map`, kpathsea's font-name aliases, which
+/// kpathsea reads with a direct path search (`fontmap.c`) that never
+/// reaches the on-demand hook.
+pub const CORE: &[&str] = &["scheme-infraonly", "latex-bin", "amsfonts", "hyphen-base", "fontname"];
 
 /// How missing files reach mtx.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
