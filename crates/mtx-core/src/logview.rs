@@ -82,4 +82,24 @@ mod tests {
         assert_eq!(e.iter().filter(|e| e.is_problem()).count(), 2);
         assert_eq!(age(1000, 940), "1 min ago");
     }
+
+    /// Lines from concurrent writers stay whole (each a single `write`).
+    #[test]
+    fn concurrent_writers_keep_lines_whole() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = Root::new(dir.path());
+        std::fs::create_dir_all(root.mtx_dir()).unwrap();
+        std::thread::scope(|s| {
+            for t in 0..8 {
+                let root = &root;
+                s.spawn(move || (0..200).for_each(|i| crate::ctx::append_log(root, &format!("writer {t} line {i}"))));
+            }
+        });
+        let log = std::fs::read_to_string(root.log_path()).unwrap();
+        assert_eq!(log.lines().count(), 1600);
+        for line in log.lines() {
+            let e = parse(line).unwrap_or_else(|| panic!("broken line: {line:?}"));
+            assert!(e.msg.starts_with("writer ") && e.msg.split(' ').count() == 4, "{line:?}");
+        }
+    }
 }

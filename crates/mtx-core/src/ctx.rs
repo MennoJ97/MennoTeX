@@ -66,7 +66,9 @@ pub struct Ctx {
 /// without a [`Ctx`], such as `main` reporting an error.
 pub fn append_log(root: &Root, msg: &str) {
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(root.log_path()) {
-        let _ = writeln!(f, "{} [{}] {msg}", now_secs(), std::process::id());
+        // One `write`, so lines from concurrent processes do not interleave
+        // (`writeln!` on a `File` writes each piece separately).
+        let _ = f.write_all(format!("{} [{}] {msg}\n", now_secs(), std::process::id()).as_bytes());
     }
 }
 
