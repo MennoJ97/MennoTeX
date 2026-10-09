@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-09T10:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-09T11:00:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T18:20:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -27,8 +27,9 @@ verified:
   one package under `autoinstall ask` prompt once (`tlpkg/mtx/ask.lock`, commit
   `e811b7e`, [decision 0007](/decisions/0007-install-consent.md)); `mtx.log` lines no
   longer interleave between processes (`64636c7`). 102 `cargo test` tests. Checked with
-  two simultaneous pdfLaTeX runs on a scratch root; the real installation still runs
-  `50cd1119c` (refresh with `mtx repair` from a new build, or the next release).
+  two simultaneous pdfLaTeX runs on a scratch root. The real installation runs it since
+  2026-10-09 (`mtx repair` from the `85487e7df` build at the user's request; `mtx doctor`
+  clean, programs still `9c5675bd`).
 - **GitHub releases:** only `mennotex-2026-50cd1119c` (Latest) and `mennotex-2026-675989434`
   (rollback) remain; older ones were deleted with their tags kept (the user, 2026-10-08).
 - **Previous release (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,

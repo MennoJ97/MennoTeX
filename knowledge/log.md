@@ -1,6 +1,7 @@
 # Directory Update Log
 
 ## 2026-10-09
+* **Update**: The real installation updated to mtx `85487e7df` with `mtx repair` from the checkout's build, at the user's request; `mtx doctor` clean ([handoff](/project/handoff.md)).
 * **Update**: `mtx.log` lines from concurrent processes interleaved mid-line (`17915416941791541694 [ [8930789306] ] …`, seen when two pdfLaTeX runs installed the same package): `writeln!` on an unbuffered `File` issues one `write` per piece. Each line is now a single `write` ([mtx-core](/architecture/mtx-core.md)).
 * **Update**: Two builds needing the same package at once (LaTeX Workshop build-on-save next to an agent's latexmk) showed two identical install dialogs for `zref`; prompts now take turns under `tlpkg/mtx/ask.lock`, held until the install commits, and a waiter re-plans and skips the prompt when the package arrived meanwhile ([decision 0007](/decisions/0007-install-consent.md), [mtx-core](/architecture/mtx-core.md), [on-demand install](/architecture/on-demand-install.md)).
 * **Update**: Partial downloads were named `<archive>.part<pid>`, so two threads of one process fetching the same archive collided (`downloading foo: No such file or directory`, seen in the concurrency test); the name now adds a per-call counter. Separate processes were never affected ([mtx-core](/architecture/mtx-core.md)).
