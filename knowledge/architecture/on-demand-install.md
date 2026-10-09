@@ -4,7 +4,7 @@ title: On-demand installation
 description: How a missing file becomes an installed package, in Phase 0 (stock hooks) and Phase 1 (kpathsea patch).
 tags: [architecture, kpathsea, mtx, hooks]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-09T10:00:00Z }
 sources:
   - id: kpse
     resource: /upstream/kpathsea.md
@@ -29,7 +29,8 @@ sources:
 4. On a hit it ranks entries (stable over `-dev` packages, LaTeX/generic over other
    formats, smaller archive first) and, if the file is already on disk, prints it.
 5. Otherwise it refreshes the package database if the TTL expired, then runs the
-   installer (`install.rs`): download and verify without a lock, then commit under
+   installer (`install.rs`): under `autoinstall ask`, take `tlpkg/mtx/ask.lock`, re-plan and
+   ask ([decision 0007](/decisions/0007-install-consent.md)); download and verify without the install lock, then commit under
    `flock(tlpkg/mtx/lock)`, append `ls-R`, regenerate config, run `updmap-sys` if
    maps changed, and delete formats whose stamp no longer matches
    ([decision 0016](/decisions/0016-format-stamps.md)). During a compile it installs

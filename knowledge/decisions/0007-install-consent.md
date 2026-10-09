@@ -4,9 +4,9 @@ title: Asking before automatic installs
 description: An autoinstall setting (yes, no, ask) decided in mtx; ask prompts on the terminal, else a dialog, else a fallback; one answer can cover a whole compile; failures and refusals go to mtx.log, shown by mtx log and mtx doctor.
 tags: [decision, policy, ask, logging, ux]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T14:05:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-09T10:00:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-08T13:55:00Z }
+  - { by: process:cargo-test, at: 2026-10-09T10:00:00Z }
   - { by: human:MennoJ97, at: 2026-10-08T14:30:00Z }
 ---
 
@@ -57,6 +57,21 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
   TeX engine, which kpathsea forks mtx from). The first version used the parent only;
   the user saw "Install All" followed by more dialogs, because one latexmk build runs
   mtx from the prefetch and from every pdfLaTeX pass, each a different parent.
+- **Concurrent requests ask once** (added 2026-10-09): LaTeX Workshop's build-on-save
+  and an agent's `latexmk` on the same document showed two identical dialogs for `zref`
+  one second apart (pids 84066 and 84063 in `mtx.log`, both `by dialog: all`); the
+  second install then found nothing to do. When `install_once` would prompt (policy
+  `ask` and no answer for this run, `consent::will_prompt`), it first takes
+  `flock(tlpkg/mtx/ask.lock)`, logging `waiting for another install prompt` if another
+  process holds it, then re-plans with `pending` (always, since the plan may predate a
+  prompt that just ended) and returns without asking if nothing is left (`not asking
+  about <trigger>: another process installed it`). The lock is held until this
+  install has committed, so a waiter re-checks only after the first install is done;
+  it waits at most the 30 s dialog plus that install. It is a separate lock because
+  `install_once` takes `tlpkg/mtx/lock` later, and holding both in that order cannot
+  deadlock (no path takes the install lock before the ask lock). Policies `yes`/`no`
+  and a remembered "all"/"none" never take it. A waiter from the same latexmk run
+  also sees an "all" stored meanwhile, since `decide` re-reads it.
 - **Logging:** failures are logged as `error: …`, refusals as `declined: …`; `main`
   and the Phase 0 hooks append their errors to `mtx.log` too. `mtx log [--problems]`
   shows recent entries; `mtx doctor` warns about problems in the last 24 hours.
@@ -79,6 +94,14 @@ never contains mtx's stderr, so an editor user only sees "File `foo.sty' not fou
   failed with "File `epigraph.sty' not found", and `mtx log --problems` and `mtx doctor`
   explained why. The dialog's AppleScript compiles (`osacompile`), but a dialog has not
   been clicked through yet.
+- Concurrent prompts (2026-10-09): `consent_tests::concurrent_requests_for_one_package_ask_once`
+  runs two installs of `foo` at once with a slow prompter and expects one prompt; without
+  the ask lock it counts two. End to end on a scratch root with the release programs,
+  `autoinstall ask` and `ask_dialog no` (fallback yes, so no window appeared), two
+  pdfLaTeX runs of different documents needing `zref-savepos.sty` started together:
+  both compiled; for `zref` and each of its dependencies one process went through
+  consent and the other logged `waiting for another install prompt` and `not asking
+  about …: another process installed it`.
 - TeX's own log gets a `Package mtx Warning` line since 2026-10-08
   ([decision 0014](0014-install-warnings-in-tex-log.md)).
 - Shims written by older mtx versions are rewritten on the next shim sync (any install

@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-10-09
+* **Update**: Two builds needing the same package at once (LaTeX Workshop build-on-save next to an agent's latexmk) showed two identical install dialogs for `zref`; prompts now take turns under `tlpkg/mtx/ask.lock`, held until the install commits, and a waiter re-plans and skips the prompt when the package arrived meanwhile ([decision 0007](/decisions/0007-install-consent.md), [mtx-core](/architecture/mtx-core.md), [on-demand install](/architecture/on-demand-install.md)).
+* **Update**: Partial downloads were named `<archive>.part<pid>`, so two threads of one process fetching the same archive collided (`downloading foo: No such file or directory`, seen in the concurrency test); the name now adds a per-call counter. Separate processes were never affected ([mtx-core](/architecture/mtx-core.md)).
+
 ## 2026-10-08
 * **Update**: Handoff for the end of the session: current release, the two releases kept, a quicker setup from the published programs (all session scratch data was deleted), and the open PLAN.md items ([handoff](/project/handoff.md)).
 * **Update**: Superseded GitHub releases deleted at the user's request (tags kept); the newest and the previous release stay ([decision 0011](/decisions/0011-releases-and-self-update.md)).

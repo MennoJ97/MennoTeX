@@ -322,6 +322,41 @@ mod consent_tests {
         assert!(auto_install(&mut ctx, "fonts-x").is_err());
         assert!(ctx.db.installed().unwrap().is_empty());
     }
+
+    static RACE_ASKED: AtomicUsize = AtomicUsize::new(0);
+
+    /// Two builds needing the same package at once (build-on-save next to a
+    /// terminal latexmk) get one prompt; the second finds it installed.
+    #[test]
+    fn concurrent_requests_for_one_package_ask_once() {
+        let (_d, root, mut ctx) = setup(&testdata_repo());
+        ctx.refresh(true).unwrap();
+        ctx.db.set("autoinstall", "ask").unwrap();
+        drop(ctx);
+        let start = std::sync::Barrier::new(2);
+        std::thread::scope(|s| {
+            for _ in 0..2 {
+                s.spawn(|| {
+                    let mut ctx = Ctx::open(root.clone()).unwrap();
+                    ctx.set_quiet(true);
+                    ctx.test_key = Some((KEY, FPR));
+                    // "yes", not "all": an answer for the run would hide the race.
+                    ctx.prompter = |_, _| {
+                        RACE_ASKED.fetch_add(1, Ordering::SeqCst);
+                        std::thread::sleep(std::time::Duration::from_millis(300));
+                        Ok((Answer::Yes, "test"))
+                    };
+                    start.wait();
+                    auto_install(&mut ctx, "foo").unwrap();
+                });
+            }
+        });
+        assert_eq!(RACE_ASKED.load(Ordering::SeqCst), 1);
+        let ctx = Ctx::open(root.clone()).unwrap();
+        assert!(ctx.db.installed().unwrap().contains_key("foo"));
+        let log = fs::read_to_string(root.log_path()).unwrap();
+        assert!(log.contains("not asking about foo.sty: another process installed it"), "{log}");
+    }
 }
 
 #[test]

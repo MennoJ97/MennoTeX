@@ -198,7 +198,11 @@ impl Repo {
     /// The file only appears at `dest` once it has been verified.
     pub fn download_verified(&self, rel: &str, dest: &Path, size: u64, sha512_hex: &str) -> Result<()> {
         let mut reader = self.open(rel)?;
-        let tmp = dest.with_extension(format!("part{}", std::process::id()));
+        // Unique per call too: threads of one process (tests, a library
+        // user) may fetch the same archive at once.
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let tmp = dest.with_extension(format!("part{}-{seq}", std::process::id()));
         let result = (|| -> Result<()> {
             let mut out = fs::File::create(&tmp)?;
             let mut hasher = Sha512::new();

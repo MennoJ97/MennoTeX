@@ -304,6 +304,25 @@ pub fn unasked_reason(msg: &str) -> Option<&str> {
 /// `dialog`), or why nobody could be asked.
 pub type Asked = std::result::Result<(Answer, &'static str), String>;
 
+/// An answer given earlier in this run that still holds: true for "all",
+/// false for "none".
+fn remembered(ctx: &Ctx, key: &str) -> Result<Option<bool>> {
+    if let Some(v) = ctx.db.get(key)? {
+        if let Some((answer, at)) = v.split_once(' ') {
+            if now_secs().saturating_sub(at.parse().unwrap_or(0)) < RUN_ANSWER_SECS {
+                return Ok(Some(answer == "all"));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Whether [`decide`] would prompt (or fall back for want of a way to
+/// prompt): the policy is `ask` and this run has no answer that holds.
+pub fn will_prompt(ctx: &Ctx) -> Result<bool> {
+    Ok(policy(ctx)? == Policy::Ask && remembered(ctx, &run_context().0)?.is_none())
+}
+
 /// Decide whether the install in `req` may go ahead, asking through
 /// `prompt` under the `ask` policy. When `prompt` could not ask (no
 /// terminal, no dialog, timeout) the fallback applies. Every outcome is
@@ -319,12 +338,8 @@ pub fn decide(ctx: &Ctx, req: &Request, prompt: &mut dyn FnMut(&Ctx, &Request) -
         Policy::Ask => {}
     }
     let (key, from) = run_context();
-    if let Some(v) = ctx.db.get(&key)? {
-        if let Some((answer, at)) = v.split_once(' ') {
-            if now_secs().saturating_sub(at.parse().unwrap_or(0)) < RUN_ANSWER_SECS {
-                return if answer == "all" { Ok(true) } else { decline("answered none for this run") };
-            }
-        }
+    if let Some(all) = remembered(ctx, &key)? {
+        return if all { Ok(true) } else { decline("answered none for this run") };
     }
     let answer = match prompt(ctx, req) {
         Ok((answer, via)) => {

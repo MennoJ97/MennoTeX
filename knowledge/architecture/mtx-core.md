@@ -5,9 +5,9 @@ description: Map of the mtx-core library modules, their responsibilities and inv
 resource: https://github.com/MennoJ97/MennoTeX/tree/main/crates/mtx-core/src
 tags: [rust, code-map]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T18:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-09T10:00:00Z }
 verified:
-  - { by: process:cargo-test, at: 2026-10-08T18:20:00Z }
+  - { by: process:cargo-test, at: 2026-10-09T10:00:00Z }
 ---
 
 # Modules
@@ -19,7 +19,7 @@ verified:
 | `verify` | OpenPGP check of `texlive.tlpdb.sha512.asc` | Pins the primary fingerprint; accepts the newest valid subkey binding (see [tlnet](/upstream/tlnet.md)) |
 | `repo` | HTTP/`file://` repository access, verified streaming downloads; historic mirror list | Size or SHA-512 mismatch → `ChecksumMismatch` (triggers retry); `probe` checks the checksum file's content, not just HTTP 200; HTTP error statuses and broken-off transfers are `MirrorError` (switch mirrors, not offline) ([decision 0017](/decisions/0017-mirror-faults.md)) |
 | `ctx` | Root + DB + pinned mirror + logging + `refresh`; release transitions ([decision 0006](/decisions/0006-release-transitions.md)) | Logs never go to stdout; connect timeout 10 s; database check valid for `freshness_ttl` (default 1 h); `during_compile` set by `ensure`; mirror pin 24 h; bad mirrors avoided 24 h; `failover` blames the mirror only if the redirector answers; the release is checked only after the signature; a newer release switches `repository` to `historic:<RELEASE>`, an older one rejects the mirror; a database that does not verify avoids the mirror and tries another |
-| `consent` | `autoinstall` policy for automatic installs: `$MTX_AUTOINSTALL` / setting; `ask` via `/dev/tty`, `osascript` dialog, or `ask_fallback`; answers for a whole run keyed by the nearest latexmk ancestor, else the parent pid; logs each outcome, or why it could not ask, with the process chain above mtx ([decision 0007](/decisions/0007-install-consent.md)); the prompt lists every package with the dependencies it brings (terminal text; an `NSAlert` with a scrollable, expandable outline from `data/ask-dialog.js`, falling back to `display dialog`) | Only installs with `Ctx::ask_for` set are gated; the gate runs before downloading; `Ctx::prompter` is replaced in tests |
+| `consent` | `autoinstall` policy for automatic installs: `$MTX_AUTOINSTALL` / setting; `ask` via `/dev/tty`, `osascript` dialog, or `ask_fallback`; answers for a whole run keyed by the nearest latexmk ancestor, else the parent pid; logs each outcome, or why it could not ask, with the process chain above mtx ([decision 0007](/decisions/0007-install-consent.md)); the prompt lists every package with the dependencies it brings (terminal text; an `NSAlert` with a scrollable, expandable outline from `data/ask-dialog.js`, falling back to `display dialog`) | Only installs with `Ctx::ask_for` set are gated; the gate runs before downloading; a prompt (`will_prompt`) is taken under `tlpkg/mtx/ask.lock`, held until that install commits, with the plan re-checked after taking it, so concurrent requests for one package ask once; non-prompting paths take no lock; `Ctx::prompter` is replaced in tests |
 | `config` | `mtx config`: `autoinstall`, `ask_fallback`, `ask_dialog`, `repository`, `historic_mirrors`, `auto_prefetch`, `prefetch_depth` (`document`/`requires`), `freshness_ttl` (`30m`, `1h`, `0`, …), `docs` (`never`/`on-texdoc`/`always`), `binaries_repo` | Values are validated and normalized; changing a repository unpins the mirror |
 | `logview` | Read the end of `mtx.log` for `mtx log` and `mtx doctor` | `error:` and `declined:` lines are problems |
 | `db` | SQLite `installed.sqlite`: packages, files, kv state | Reinstall as `auto` never downgrades an `explicit`/`bootstrap` reason; `Reason::Upgrade` keeps the recorded reason |
@@ -43,7 +43,7 @@ verified:
 | `shims` | Command shims: a script for every program of a not-installed tlnet binary package; first run does `mtx install --for <program> <pkg>` (subject to `autoinstall`) (which unpacks the real program over the shim) and re-execs | Never shadows `/usr/bin` or `/bin` commands or `man`; outdated shims are rewritten on sync; resynced after bootstrap, removals and installs of binary packages; `MTX_SHIM_ACTIVE` prevents loops |
 | `ctan` | `mtx install --from-ctan PKG`: TeX Live's package from tlnet, then CTAN's TDS zip (JSON API → `mirrors.ctan.org/install/…`) into `texmf-ctan` as `<pkg>.ctan`; `caught_up`/`drop_overlay` for `mtx update` and `mtx remove --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md)) | Explicit only; TDS input directories only (no `source/`, `web2c/`); unsafe paths fail the archive, symlinks are skipped; staged and renamed in under the install lock; maps regenerated and formats invalidated when an overlay comes or goes |
 | `search` | `mtx search TEXT` (name, then summary) and `mtx search --file TEXT` (paths of run files and this platform's programs), from the package database, installed or not | Other platforms' binary packages are left out |
-| `root` | Installation layout (TeX Live compatible) | `tool_path()` = our bin + system dirs only |
+| `root` | Installation layout (TeX Live compatible); `lock_path` (installs) and `ask_lock_path` (prompts) | `tool_path()` = our bin + system dirs only |
 
 # Tests
 

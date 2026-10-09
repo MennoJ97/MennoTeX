@@ -310,6 +310,26 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     if plan.is_empty() {
         return Ok(Report::default());
     }
+    // Two builds that need the same package at once (build-on-save and a
+    // terminal latexmk) would both ask, and the second install would find
+    // nothing left to do. Prompts take turns, each held until its install
+    // is done, and a waiter asks only about what is still missing. Paths
+    // that never prompt stay lock-free.
+    let mut ask_lock = None;
+    if ctx.ask_for.is_some() && crate::consent::will_prompt(ctx)? {
+        let lock = fs::File::create(ctx.root.ask_lock_path())?;
+        if lock.try_lock().is_err() {
+            ctx.log("waiting for another install prompt");
+            lock.lock()?;
+        }
+        // Even uncontended: the plan may predate a prompt that just ended.
+        plan = pending(ctx, tlpdb, &plan)?;
+        if plan.is_empty() {
+            ctx.log(format!("not asking about {}: another process installed it", ctx.ask_for.as_deref().unwrap_or("?")));
+            return Ok(Report::default());
+        }
+        ask_lock = Some(lock);
+    }
     let size: u64 = plan.iter().filter_map(|n| tlpdb.get(n)).map(|p| p.container_size).sum();
     if let Some(trigger) = ctx.ask_for.clone() {
         // The requested packages first, for the prompt.
@@ -402,6 +422,7 @@ fn install_once(ctx: &mut Ctx, tlpdb: &Tlpdb, roots: &[&str], reason: Reason) ->
     }
     update_deferred(ctx, tlpdb, &[])?;
     drop(lock);
+    drop(ask_lock);
     Ok(report)
 }
 

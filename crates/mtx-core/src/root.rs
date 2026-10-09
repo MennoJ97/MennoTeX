@@ -88,6 +88,11 @@ impl Root {
     pub fn lock_path(&self) -> PathBuf {
         self.mtx_dir().join("lock")
     }
+    /// Held while asking whether to install, and until that install is
+    /// done, so concurrent requests for the same package ask once.
+    pub fn ask_lock_path(&self) -> PathBuf {
+        self.mtx_dir().join("ask.lock")
+    }
     /// One empty file per package whose installation is in progress (or was
     /// interrupted).
     pub fn journal_dir(&self) -> PathBuf {
