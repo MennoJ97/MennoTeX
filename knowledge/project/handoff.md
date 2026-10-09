@@ -5,7 +5,7 @@ description: Where MennoTeX stands, how to get a working setup again, decisions 
 tags: [handoff, next-steps, roadmap]
 status: stable
 stale_after: 2026-11-08T00:00:00Z
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-08T19:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-09T10:30:00Z }
 verified:
   - { by: process:cargo-test, at: 2026-10-08T18:20:00Z }
   - { by: process:tests/run_documents.sh, at: 2026-10-07T23:20:00Z }
@@ -22,7 +22,13 @@ verified:
   archives, 457 ms cold; [status](/project/status.md)); the settings `freshness_ttl`,
   `prefetch_depth` and `docs`; `mtx install --from-ctan` ([decision 0019](/decisions/0019-ctan-overlay.md));
   `mtx list --auto|--explicit`; and `ls-R` compaction in `mtx update`. 100 `cargo test`
-  tests, 57 C checks. Nothing is waiting for a release.
+  tests, 57 C checks.
+- **Waiting for a release (2026-10-09, mtx only, no C change):** concurrent installs of
+  one package under `autoinstall ask` prompt once (`tlpkg/mtx/ask.lock`, commit
+  `e811b7e`, [decision 0007](/decisions/0007-install-consent.md)); `mtx.log` lines no
+  longer interleave between processes (`64636c7`). 102 `cargo test` tests. Checked with
+  two simultaneous pdfLaTeX runs on a scratch root; the real installation still runs
+  `50cd1119c` (refresh with `mtx repair` from a new build, or the next release).
 - **GitHub releases:** only `mennotex-2026-50cd1119c` (Latest) and `mennotex-2026-675989434`
   (rollback) remain; older ones were deleted with their tags kept (the user, 2026-10-08).
 - **Previous release (2026-10-08):** `mennotex-2026-675989434` (run 37794123819,
